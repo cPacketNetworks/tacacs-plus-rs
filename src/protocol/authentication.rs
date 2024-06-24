@@ -39,6 +39,7 @@ pub enum Service {
     FwProxy = 0x09,
 }
 
+#[repr(u8)]
 pub enum Status {
     Pass = 0x01,
     Fail = 0x02,

@@ -7,8 +7,8 @@ extern crate bitflags;
 #[cfg(feature = "std")]
 use thiserror::Error;
 
-#[cfg(feature = "std")]
-#[derive(Error, Debug)]
+#[cfg_attr(feature = "std", derive(Error))]
+#[derive(Debug)]
 pub enum TacacsError {
     #[error("Connection to TACACS+ server failed")]
     ConnectionError,

@@ -1,6 +1,7 @@
 #[repr(u8)]
+#[non_exhaustive]
 pub enum MajorVersion {
-    #[non_exhaustive] TheOnlyVersion = 0xC,
+    TheOnlyVersion = 0xC,
 }
 
 #[repr(u8)]
