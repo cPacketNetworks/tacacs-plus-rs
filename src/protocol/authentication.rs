@@ -75,14 +75,14 @@ struct StartHeader {
 
 pub struct Reply<'message> {
     status: Status,
-    server_message: Vec<u8>,
+    server_message: &'message [u8],
     data: &'message [u8],
     flags: u8,
 }
 
-pub struct Continue {
-    user_message: Vec<u8>,
-    data: Vec<u8>,
+pub struct Continue<'message> {
+    user_message: &'message [u8],
+    data: &'message [u8],
     flags: u8,
 }
 
