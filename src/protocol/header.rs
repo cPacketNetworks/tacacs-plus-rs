@@ -1,3 +1,5 @@
+use bitflags::bitflags;
+
 #[repr(u8)]
 #[non_exhaustive]
 pub enum MajorVersion {
@@ -5,9 +7,10 @@ pub enum MajorVersion {
 }
 
 #[repr(u8)]
+#[non_exhaustive]
 pub enum MinorVersion {
-    #[non_exhaustive] Default = 0x0,
-    #[non_exhaustive] V1 = 0x1,
+    Default = 0x0,
+    V1 = 0x1,
 }
 
 #[repr(u8)]
@@ -19,22 +22,16 @@ pub enum PacketType {
 
 bitflags! {
     pub struct Flags: u8 {
-        Unencrypted   = 0b00000001,
-        SingleConnect = 0b00000100, 
-    }
-}
-
-impl Flags {
-    pub fn clear(&mut self) {
-        self.bits = 0;
+        const Unencrypted   = 0b00000001;
+        const SingleConnect = 0b00000100;
     }
 }
 
 pub struct Header {
-    majorVersion: u8,
-    minorVersion: u8,
-    sequenceNumber: u8,
+    major_version: u8,
+    minor_version: u8,
+    sequence_number: u8,
     flags: Flags,
-    sessionId: u32,
+    session_id: u32,
     length: u32,
 }

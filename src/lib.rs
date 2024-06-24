@@ -1,9 +1,6 @@
 mod protocol;
 mod session;
 
-#[macro_use]
-extern crate bitflags;
-
 #[cfg(feature = "std")]
 use thiserror::Error;
 

@@ -51,7 +51,7 @@ pub enum Status {
     Follow = 0x08,
 }
 
-pub struct Start {
+pub struct Start<'message> {
     action: Action,
     privilege_level: u8,
     authentication_type: Type,
@@ -59,7 +59,7 @@ pub struct Start {
     user: String,
     port: AsciiString,
     remote_address: AsciiString,
-    data: Vec<u8>,
+    data: &'message [u8],
 }
 
 struct StartHeader {
@@ -73,10 +73,10 @@ struct StartHeader {
     data_length: u8,
 }
 
-pub struct Reply {
+pub struct Reply<'message> {
     status: Status,
     server_message: Vec<u8>,
-    data: Vec<u8>,
+    data: &'message [u8],
     flags: u8,
 }
 
@@ -86,7 +86,7 @@ pub struct Continue {
     flags: u8,
 }
 
-impl TryFrom<&[u8]> for Reply {
+impl TryFrom<&[u8]> for Reply<'_> {
     type Error = Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {

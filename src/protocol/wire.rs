@@ -1,3 +1,3 @@
 pub trait Wire {
-    fn to_buffer(&self) -> Vec<u8>;
+    fn to_buffer(&self) -> &[u8];
 }
