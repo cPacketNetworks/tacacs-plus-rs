@@ -48,7 +48,7 @@ pub enum Status {
     GetPassword = 0x05,
     Restart = 0x06,
     Error = 0x07,
-    Follow = 0x08,
+    Follow = 0x21,
 }
 
 pub struct Start<'message> {

@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use futures::{AsyncRead, AsyncWrite};
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error<> {
+pub enum Error {
     #[error("Unknown Connection error")]
     Unknown,
 }
