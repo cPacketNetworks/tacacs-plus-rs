@@ -4,6 +4,9 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum AuthenticationMethod {
@@ -32,7 +35,7 @@ impl PrivilegeLevel {
     // TODO: naming?
     /// Converts an integer to a PrivilegeLevel if it is in the proper range (0-15).
     pub fn of(level: u8) -> Option<Self> {
-        if 0 <= level && level <= 15 {
+        if level <= 15 {
             Some(Self(level))
         } else {
             None
@@ -94,7 +97,7 @@ impl AuthenticationContext {
     }
 }
 
-// TODO: wire_size() method or similar? (sums of lengths of strings as well as lengths themselves)
+#[derive(Debug)]
 pub struct ClientInformation {
     // TODO: normalization or whatever as required by RFC 8907 (UsernameCasePreserved)
     user: String,
@@ -175,6 +178,10 @@ pub struct Arguments {
 }
 
 impl Arguments {
+    pub fn new() -> Arguments {
+        Default::default()
+    }
+
     // TODO: get_wire_size? also visibility
     pub fn wire_size(&self) -> usize {
         self.value_map
@@ -188,7 +195,7 @@ impl Arguments {
 
     // TODO: insert method w/ required toggle (also remove method?)
     pub fn add_argument(&mut self, name: &str, value: &str, required: bool) -> bool {
-        if !name.contains("=") && !name.contains("*") {
+        if !name.contains('=') && !name.contains('*') {
             self.value_map.insert(name.into(), value.into());
 
             if required {
