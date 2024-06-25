@@ -1,5 +1,6 @@
+mod accounting;
 mod authentication;
 mod authorization;
-mod accounting;
+mod common;
 mod header;
 mod wire;

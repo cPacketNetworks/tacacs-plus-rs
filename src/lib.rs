@@ -16,4 +16,3 @@ pub enum TacacsError {
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 }
-

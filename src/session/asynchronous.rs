@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
 use futures::{AsyncRead, AsyncWrite};
+use std::marker::PhantomData;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -7,12 +7,10 @@ pub enum Error {
     Unknown,
 }
 
-
 pub struct AsyncClientSession<S: AsyncRead + AsyncWrite + Unpin + Send> {
     // The type parameter for the stream is unused until the TCP stream abstraction is in place
     // TODO: Remove
-    connection: PhantomData<S>
-    // pub(crate) connection: Connection<S>,
+    connection: PhantomData<S>, // pub(crate) connection: Connection<S>,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin + Send> AsyncClientSession<S> {
