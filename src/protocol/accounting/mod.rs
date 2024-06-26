@@ -8,21 +8,40 @@ use super::common::{
 mod tests;
 
 bitflags! {
-    pub struct Flags: u8 {
+    struct RawFlags: u8 {
         const Start = 0x02;
         const Stop = 0x04;
         const Watchdog = 0x08;
     }
 }
 
-impl Flags {
+/// Valid accounting flag combinations for a TACACS+ account REQUEST packet.
+pub enum AccountingFlags {
+    StartRecord,
+    StopRecord,
+    WatchdogNoUpdate,
+    WatchdogUpdate,
+}
+
+impl From<AccountingFlags> for RawFlags {
+    fn from(value: AccountingFlags) -> Self {
+        use AccountingFlags::*;
+
+        match value {
+            StartRecord => RawFlags::Start,
+            StopRecord => RawFlags::Stop,
+            WatchdogNoUpdate => RawFlags::Watchdog,
+            WatchdogUpdate => RawFlags::Watchdog | RawFlags::Start,
+        }
+    }
+}
+
+impl AccountingFlags {
     pub const WIRE_SIZE: usize = 1;
 }
 
-// const MIN_REQUEST_SIZE: usize = something;
-
 pub struct Request {
-    pub flags: Flags,
+    pub flags: AccountingFlags,
     pub authentication_method: AuthenticationMethod,
     pub authentication: AuthenticationContext,
     pub client_information: ClientInformation,
@@ -31,7 +50,7 @@ pub struct Request {
 
 impl Request {
     pub fn wire_size(&self) -> usize {
-        Flags::WIRE_SIZE
+        AccountingFlags::WIRE_SIZE
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.client_information.wire_size()
@@ -40,7 +59,7 @@ impl Request {
 
     pub fn serialize_into_buffer(self, buffer: &mut [u8]) -> Result<(), SerializeError> {
         if buffer.len() >= self.wire_size() {
-            buffer[0] = self.flags.bits();
+            buffer[0] = RawFlags::from(self.flags).bits();
             buffer[1] = self.authentication_method as u8;
 
             // TODO: return & check result along the way?

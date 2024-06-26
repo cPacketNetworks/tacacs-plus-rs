@@ -10,7 +10,7 @@ fn serialize_accounting_packet_with_argument() {
     arguments.add_argument("service", "tacacs-test", true);
 
     let request = Request {
-        flags: Flags::Start,
+        flags: AccountingFlags::StartRecord,
         authentication_method: AuthenticationMethod::Guest,
         authentication: AuthenticationContext {
             privilege_level: PrivilegeLevel::of(0).unwrap(),
@@ -28,7 +28,7 @@ fn serialize_accounting_packet_with_argument() {
 
     dbg!(buffer);
     assert!(buffer.starts_with(&[
-        0x02, // START flag
+        0x02, // just start flag set
         0x08, // Guest authentication method
         0,    // privilege level 0 (minimum)
         0x01, // ASCII authentication type
