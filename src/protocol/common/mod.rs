@@ -76,9 +76,6 @@ pub enum Service {
     FwProxy = 0x09,
 }
 
-/// size in bytes
-pub const AUTHENTICATION_CONTEXT_SIZE: usize = 4;
-
 pub struct AuthenticationContext {
     // TODO: remove?
     // method: AuthenticationMethod,
@@ -134,9 +131,9 @@ impl ClientInformation {
             // TODO: length tests
             if user.len() <= 255 && port.len() <= 255 && remote_address.len() <= 255 {
                 Ok(Self {
-                    user: user.into(),
-                    port: port.into(),
-                    remote_address: remote_address.into(),
+                    user: user.to_owned(),
+                    port: port.to_owned(),
+                    remote_address: remote_address.to_owned(),
                 })
             } else {
                 Err(TextError::FieldTooLong)
@@ -198,10 +195,11 @@ impl Arguments {
     // TODO: insert method w/ required toggle (also remove method?)
     pub fn add_argument(&mut self, name: &str, value: &str, required: bool) -> bool {
         if !name.contains('=') && !name.contains('*') {
-            self.value_map.insert(name.into(), value.into());
+            self.value_map.insert(name.to_owned(), value.to_owned());
 
             if required {
-                self.required_arguments.insert(name.into());
+                // TODO: store reference to map key instead? right now it's allocating twice
+                self.required_arguments.insert(name.to_owned());
             }
 
             true
