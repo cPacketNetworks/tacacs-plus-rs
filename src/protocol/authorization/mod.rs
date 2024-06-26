@@ -28,10 +28,12 @@ impl Request {
             self.authentication_context
                 .serialize_header_information(&mut buffer[1..=3]);
             self.client_information
-                .serialize_header_information(&mut buffer[4..=7]);
+                .serialize_header_information(&mut buffer[4..=6]);
 
-            let argument_count = self.arguments.serialize_header_client(&mut buffer[8..]);
-            let body_start = 8 + argument_count;
+            let argument_count = self.arguments.serialize_header_client(&mut buffer[7..]);
+
+            // extra 1 added since we have to go past the last argument length
+            let body_start = 7 + 1 + argument_count;
 
             // actual client information
             let client_information_len = self
