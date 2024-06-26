@@ -268,3 +268,11 @@ impl FromStr for Arguments {
         todo!()
     }
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum DeserializeError {
+    #[error("hi")]
+    UnexpectedEnd,
+    #[error("asd")]
+    InvalidBytes,
+}

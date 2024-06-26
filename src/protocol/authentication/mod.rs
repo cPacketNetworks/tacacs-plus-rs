@@ -5,6 +5,7 @@ use super::common::{AuthenticationContext, ClientInformation, SerializeError};
 #[cfg(test)]
 mod tests;
 
+/// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum Action {
@@ -18,7 +19,9 @@ impl Action {
     pub const WIRE_SIZE: usize = 1;
 }
 
+/// The authentication status, as returned by a TACACS+ server.
 #[repr(u8)]
+#[derive(Debug, Clone, Copy)]
 pub enum Status {
     Pass = 0x01,
     Fail = 0x02,
@@ -27,12 +30,34 @@ pub enum Status {
     GetPassword = 0x05,
     Restart = 0x06,
     Error = 0x07,
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }
 
+impl TryFrom<u8> for Status {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, ()> {
+        use Status::*;
+
+        match value {
+            0x01 => Ok(Pass),
+            0x02 => Ok(Fail),
+            0x03 => Ok(GetData),
+            0x04 => Ok(GetUser),
+            0x05 => Ok(GetPassword),
+            0x06 => Ok(Restart),
+            0x07 => Ok(Error),
+            0x21 => Ok(Follow)
+            _ => Err(()),
+        }
+    }
+}
+
+/// An authentication START packet, used to initiate an authentication session.
 pub struct Start<'message> {
     // TODO: visibility for consistency? or migrate everything over to constructor
-    // data should be kept private and only modified
+    // data should be kept private and only modified through functions that verify new values
     action: Action,
     authentication: AuthenticationContext,
     client_information: ClientInformation,
@@ -44,6 +69,7 @@ pub struct Start<'message> {
 pub struct DataTooLong;
 
 impl<'packet> Start<'packet> {
+    /// Initializes a new start packet with the provided fields and an empty data field.
     pub fn new(
         action: Action,
         authentication: AuthenticationContext,
@@ -57,6 +83,7 @@ impl<'packet> Start<'packet> {
         }
     }
 
+    /// Returns the current size of the packet as represented on the wire.
     pub fn wire_size(&self) -> usize {
         Action::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
@@ -65,6 +92,7 @@ impl<'packet> Start<'packet> {
             + self.data.map_or(0, |data| data.len())
     }
 
+    /// Sets the data associated with this packet if it's short enough (i.e., shorter than u8::MAX bytes); otherwise returns an error.
     pub fn set_data(&mut self, new_data: &'packet [u8]) -> Result<(), DataTooLong> {
         if new_data.len() < u8::MAX as usize {
             self.data = Some(new_data);
@@ -75,6 +103,7 @@ impl<'packet> Start<'packet> {
     }
 
     // TODO: not fully pub? also need packet header for outside consumer
+    // TODO: this could be a trait
     pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), SerializeError> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
