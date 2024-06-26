@@ -170,6 +170,7 @@ impl ClientInformation {
 // TODO: argument keys cannot contain =/* (value delimiters)
 
 // TODO: store required status inline/as part of value? like tuple/struct or smth
+// TODO: TryFrom impl for HashMap<String, String>? (invalid ASCII should fail)
 // (separate set might be redundant/inefficient)
 #[derive(Default)]
 pub struct Arguments {

@@ -16,9 +16,6 @@ pub struct Request {
 
 impl Request {
     pub fn wire_size(&self) -> usize {
-        dbg!(self.client_information.wire_size());
-        dbg!(self.arguments.wire_size());
-
         AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.client_information.wire_size()
