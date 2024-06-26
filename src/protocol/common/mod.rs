@@ -101,6 +101,7 @@ impl AuthenticationContext {
 pub struct ClientInformation {
     // TODO: normalization or whatever as required by RFC 8907 (UsernameCasePreserved)
     user: String,
+    // TODO: String or AsciiString for these two fields?
     port: String,
     remote_address: String,
 }

@@ -29,7 +29,7 @@ fn arguments_two_required() {
 
     // populate with arguments
     arguments.add_argument("service", "test", true);
-    arguments.add_argument("random-argument", "idk", true);
+    arguments.add_argument("random-argument", "", true); // including an empty-valued argument
 
     let mut buffer = [0u8; 40];
 
@@ -37,10 +37,23 @@ fn arguments_two_required() {
     arguments.serialize_header_client(&mut buffer);
     assert_eq!(buffer[0], 2);
     assert!(buffer.contains(&12));
-    assert!(buffer.contains(&19));
+    assert!(buffer.contains(&16));
 
     arguments.serialize_body_values(&mut buffer);
     let body_string = std::str::from_utf8(&buffer).expect("body should be valid UTF-8");
     assert!(body_string.contains("service=test"));
-    assert!(body_string.contains("random-argument=idk"));
+    assert!(body_string.contains("random-argument="));
+}
+
+#[test]
+fn arguments_one_optional() {
+    let mut arguments = Arguments::new();
+    arguments.add_argument("optional-arg", "unimportant", false);
+
+    let mut buffer = [0u8; 30];
+    arguments.serialize_header_client(&mut buffer);
+    assert_eq!(buffer[..2], [1, 24]);
+
+    arguments.serialize_body_values(&mut buffer);
+    assert_eq!(&buffer[..24], b"optional-arg*unimportant");
 }
