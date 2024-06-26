@@ -114,13 +114,77 @@ pub struct Reply<'message> {
     status: Status,
     server_message: &'message [u8],
     data: &'message [u8],
-    flags: u8,
+    no_echo: bool,
 }
 
-pub struct Continue<'message> {
-    user_message: &'message [u8],
-    data: &'message [u8],
-    flags: u8,
+pub struct Continue<'packet> {
+    user_message: Option<&'packet [u8]>,
+    data: Option<&'packet [u8]>,
+    // TODO: abstract behind method in case of future changes?
+    pub abort: bool,
+}
+
+impl<'packet> Continue<'packet> {
+    pub fn new() -> Self {
+        Continue {
+            user_message: None,
+            data: None,
+            abort: false,
+        }
+    }
+
+    pub fn set_user_message(&mut self, new_message: &'packet [u8]) -> Result<(), DataTooLong> {
+        if new_message.len() <= u16::MAX as usize {
+            self.user_message = Some(new_message);
+            Ok(())
+        } else {
+            Err(DataTooLong)
+        }
+    }
+
+    pub fn set_data(&mut self, new_data: &'packet [u8]) -> Result<(), DataTooLong> {
+        if new_data.len() <= u16::MAX as usize {
+            self.data = Some(new_data);
+            Ok(())
+        } else {
+            Err(DataTooLong)
+        }
+    }
+
+    pub fn wire_size(&self) -> usize {
+        // 3 includes 1 byte of flags (abort) and 2 bytes of encoded lengths
+        3 + self.user_message.map_or(0, |message| message.len())
+            + self.data.map_or(0, |data| data.len())
+    }
+
+    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), SerializeError> {
+        if buffer.len() >= self.wire_size() {
+            // set abort flag if needed
+            buffer[4] = self.abort as u8;
+
+            let mut user_message_len = 0;
+            if let Some(message) = self.user_message {
+                user_message_len = message.len();
+                buffer[5..5 + user_message_len].copy_from_slice(message);
+            }
+
+            // set user message length in packet buffer
+            buffer[..2].copy_from_slice(&(user_message_len as u16).to_be_bytes());
+
+            let mut data_len = 0;
+            if let Some(data) = self.data {
+                data_len = data.len();
+                buffer[5 + user_message_len..5 + user_message_len + data_len].copy_from_slice(data);
+            }
+
+            // set data length
+            buffer[2..4].copy_from_slice(&(data_len as u16).to_be_bytes());
+
+            Ok(())
+        } else {
+            Err(SerializeError::NotEnoughSpace)
+        }
+    }
 }
 
 impl TryFrom<&[u8]> for Reply<'_> {

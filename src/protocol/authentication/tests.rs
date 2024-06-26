@@ -100,3 +100,84 @@ fn serialize_authentication_start_data_too_long() {
         .set_data(&long_data)
         .expect_err("data should be too long");
 }
+
+#[test]
+fn serialize_authentication_continue_no_data() {
+    let continue_body = Continue::new();
+
+    let mut buffer = [0xff; 5];
+    continue_body
+        .serialize_into_buffer(&mut buffer)
+        .expect("buffer should be large enough");
+
+    assert_eq!(
+        buffer,
+        [
+            0, 0, // user message length
+            0, 0, // data length
+            0  // flags (abort not set)
+        ]
+    );
+}
+
+#[test]
+fn serialize_authentication_continue_both_valid_data_fields() {
+    let mut continue_body = Continue::new();
+    continue_body.abort = true;
+
+    let user_message = b"secure-password";
+    let user_message_length = user_message.len();
+    let data = b"\x12\x34\x45\x78";
+    let data_length = data.len();
+
+    continue_body
+        .set_user_message(user_message)
+        .expect("user message should be valid");
+    continue_body.set_data(data).expect("data should be valid");
+
+    let mut buffer = [0xff; 30];
+    continue_body
+        .serialize_into_buffer(&mut buffer)
+        .expect("buffer should be big enough");
+
+    // field lengths
+    assert_eq!(buffer[..2], (user_message_length as u16).to_be_bytes());
+    assert_eq!(buffer[2..4], (data_length as u16).to_be_bytes());
+
+    // abort flag (set)
+    assert_eq!(buffer[4], 1);
+
+    // data/message fields
+    assert_eq!(&buffer[5..5 + user_message_length], user_message);
+    assert_eq!(
+        &buffer[5 + user_message_length..5 + user_message_length + data_length],
+        data
+    );
+}
+
+#[test]
+fn serialize_authentication_continue_only_data_field() {
+    let mut continue_body = Continue::new();
+
+    let data = b"textand\x2abinary\x11";
+    let data_length = data.len();
+
+    continue_body.set_data(data).expect("data should be valid");
+
+    let mut buffer = [0xff; 40];
+    continue_body
+        .serialize_into_buffer(&mut buffer)
+        .expect("buffer should be large enough");
+
+    // user message length
+    assert_eq!(buffer[..2], [0, 0]);
+
+    // data length
+    assert_eq!(buffer[2..4], 15_u16.to_be_bytes());
+
+    // abort flag (unset)
+    assert_eq!(buffer[4], 0);
+
+    // actual data
+    assert_eq!(&buffer[5..5 + data_length], data);
+}
