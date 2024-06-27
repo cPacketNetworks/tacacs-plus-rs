@@ -1,5 +1,5 @@
 mod accounting;
-// mod authentication;
+mod authentication;
 mod authorization;
 mod common;
 mod header;

@@ -269,10 +269,11 @@ impl Arguments<'_> {
     }
 }
 
-#[derive(thiserror::Error, Debug)]
+// #[cfg_attr(feature = "std", derive(thiserror::Error))]
+#[derive(Debug)]
 pub enum DeserializeError {
-    #[error("hi")]
+    // #[error("hi")]
     UnexpectedEnd,
-    #[error("asd")]
+    // #[error("asd")]
     InvalidBytes,
 }

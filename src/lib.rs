@@ -7,21 +7,22 @@ use core::ops::Deref;
 mod protocol;
 mod session;
 
-#[cfg(feature = "std")]
-use thiserror::Error;
+// #[cfg(feature = "std")]
+// use thiserror::Error;
 
-#[cfg_attr(feature = "std", derive(Error))]
-#[derive(Debug)]
-pub enum TacacsError {
-    #[error("Connection to TACACS+ server failed")]
-    ConnectionError,
+// TODO: figure out conditional error impl (probably by hand)
+// #[cfg_attr(feature = "std", derive(Error))]
+// #[derive(Debug)]
+// pub enum TacacsError {
+//     #[error("Connection to TACACS+ server failed")]
+//     ConnectionError,
 
-    #[error("The TACACS+ server sent an invalid or corrupt response")]
-    BadResponse,
+//     #[error("The TACACS+ server sent an invalid or corrupt response")]
+//     BadResponse,
 
-    #[error(transparent)]
-    IOError(#[from] std::io::Error),
-}
+//     #[error(transparent)]
+//     IOError(#[from] std::io::Error),
+// }
 
 // TODO: placement (maybe dedicated module?)
 pub struct AsciiStr<'string>(&'string str);

@@ -1,8 +1,8 @@
 use super::*;
 
+use crate::force_ascii;
 use crate::protocol::common::{
-    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, SerializeError,
-    Service,
+    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, Service,
 };
 
 #[test]
@@ -14,7 +14,7 @@ fn serialize_authentication_start_no_data() {
             authentication_type: AuthenticationType::Pap,
             service: Service::Ppp,
         },
-        ClientInformation::new("authtest", "serial", "serial")
+        ClientInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
             .expect("client information should be valid"),
     );
 
@@ -50,7 +50,7 @@ fn serialize_authentication_start_with_data() {
             authentication_type: AuthenticationType::MsChap,
             service: Service::X25,
         },
-        ClientInformation::new("authtest2", "49", "10.0.2.24")
+        ClientInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
             .expect("client information should be valid"),
     );
 
@@ -91,7 +91,7 @@ fn serialize_authentication_start_data_too_long() {
             authentication_type: AuthenticationType::Ascii,
             service: Service::Nasi,
         },
-        ClientInformation::new("invalid", "theport", "somewhere")
+        ClientInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
             .expect("client information should be valid"),
     );
 

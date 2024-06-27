@@ -1,6 +1,4 @@
-use std::fmt::Error;
-
-use super::common::{AuthenticationContext, ClientInformation, SerializeError};
+use super::common::{AuthenticationContext, ClientInformation, NotEnoughSpace};
 
 #[cfg(test)]
 mod tests;
@@ -55,13 +53,13 @@ impl TryFrom<u8> for Status {
 }
 
 /// An authentication START packet, used to initiate an authentication session.
-pub struct Start<'message> {
+pub struct Start<'packet> {
     // TODO: visibility for consistency? or migrate everything over to constructor
     // data should be kept private and only modified through functions that verify new values
     action: Action,
     authentication: AuthenticationContext,
-    client_information: ClientInformation,
-    data: Option<&'message [u8]>,
+    client_information: ClientInformation<'packet>,
+    data: Option<&'packet [u8]>,
 }
 
 // TODO: common error type?
@@ -73,7 +71,7 @@ impl<'packet> Start<'packet> {
     pub fn new(
         action: Action,
         authentication: AuthenticationContext,
-        client_information: ClientInformation,
+        client_information: ClientInformation<'packet>,
     ) -> Self {
         Self {
             action,
@@ -104,7 +102,7 @@ impl<'packet> Start<'packet> {
 
     // TODO: not fully pub? also need packet header for outside consumer
     // TODO: this could be a trait
-    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), SerializeError> {
+    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
 
@@ -134,7 +132,7 @@ impl<'packet> Start<'packet> {
 
             Ok(())
         } else {
-            Err(SerializeError::NotEnoughSpace)
+            Err(NotEnoughSpace)
         }
     }
 }
@@ -186,7 +184,7 @@ impl<'packet> Continue<'packet> {
             + self.data.map_or(0, |data| data.len())
     }
 
-    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), SerializeError> {
+    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
             buffer[4] = self.abort as u8;
@@ -211,13 +209,13 @@ impl<'packet> Continue<'packet> {
 
             Ok(())
         } else {
-            Err(SerializeError::NotEnoughSpace)
+            Err(NotEnoughSpace)
         }
     }
 }
 
 impl TryFrom<&[u8]> for Reply<'_> {
-    type Error = Error;
+    type Error = core::fmt::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         todo!()

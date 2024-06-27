@@ -23,7 +23,7 @@ fn invalid_ascii_string() {
 fn client_information_long_username() {
     let username = [0x41u8; 512]; // AAA...AAA
     ClientInformation::new(
-        std::str::from_utf8(&username).unwrap(),
+        core::str::from_utf8(&username).unwrap(),
         force_ascii("tcp49"),
         force_ascii("127.0.0.1"),
     )
