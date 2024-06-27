@@ -268,7 +268,7 @@ impl Arguments<'_> {
 }
 
 // TODO: figure out error impl (maybe)
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum DeserializeError {
     InvalidWireBytes,
     UnexpectedEnd,

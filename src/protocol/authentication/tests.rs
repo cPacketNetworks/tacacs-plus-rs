@@ -112,6 +112,7 @@ fn deserialize_reply_pass_both_data_fields() {
         0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x20, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x66, 0x75,
         0x6c, // end server message
         0x12, 0x77, 0xfa, 0xcc, // data: some random bytes for good measure
+        0xde, // extra byte for good measure; should still be valid
     ];
 
     let parsed_reply =
@@ -140,7 +141,56 @@ fn deserialize_reply_bad_server_message_length() {
         0x6e, 0x67,
     ];
 
-    Reply::try_from(packet_data.as_slice()).expect_err("server message length should be invalid");
+    // guard on specific error flavor
+    assert_eq!(
+        Reply::try_from(packet_data.as_slice()),
+        Err(DeserializeError::LengthMismatch)
+    );
+}
+
+#[test]
+fn deserialize_reply_shorter_than_header() {
+    let packet_data = [
+        0x03, // status: getdata
+        1,    // noecho flag set
+        0, 0, // server message length (not there)
+        0, // oops lost a byte!
+    ];
+
+    Reply::try_from(packet_data.as_slice())
+        .expect_err("header shouldn't be long enough to be valid");
+}
+
+#[test]
+fn deserialize_reply_bad_status() {
+    let packet_data = [
+        42, // invalid status
+        0,  // no flags set
+        0, 1, // server message length
+        0, 0,    // data length
+        0x41, // server message: "a"
+    ];
+
+    assert_eq!(
+        Reply::try_from(packet_data.as_slice()),
+        Err(DeserializeError::InvalidWireBytes)
+    );
+}
+
+#[test]
+fn deserialize_reply_bad_flags() {
+    let packet_data = [
+        0x07, // status: error
+        2,    // invalid flags value: (should just be 0 or 1)
+        0, 0, // server message length
+        0, 1,    // data length
+        b'*', // data
+    ];
+
+    assert_eq!(
+        Reply::try_from(packet_data.as_slice()),
+        Err(DeserializeError::InvalidWireBytes)
+    );
 }
 
 #[test]

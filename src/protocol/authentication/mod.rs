@@ -194,9 +194,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
 
             // TODO: exact size or allow for bigger?
-            // allowing for bigger could be a bad idea actually, should have a separate function to get expected length though
-            // (thinking leaking part of not properly cleared buffer)
-            // ensure buffer length matches (or exceeds?) expected length based on length fields
+            // allowing for bigger should come with caveat of zeroing out the buffer somehow, but I don't think Rust can enforce that
             if total_len >= Reply::claimed_packet_body_length(buffer)? {
                 let body_begin = Self::HEADER_SIZE_BYTES;
                 Ok(Reply {
