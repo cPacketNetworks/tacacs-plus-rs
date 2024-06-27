@@ -1,4 +1,5 @@
 use super::common::{AuthenticationContext, ClientInformation, DeserializeError, NotEnoughSpace};
+use crate::{AsciiStr, InvalidAscii};
 
 #[cfg(test)]
 mod tests;
@@ -141,7 +142,7 @@ impl<'packet> Start<'packet> {
 #[derive(Debug, PartialEq)]
 pub struct Reply<'data> {
     status: Status,
-    server_message: &'data [u8],
+    server_message: AsciiStr<'data>,
     data: &'data [u8],
     no_echo: bool,
 }
@@ -160,8 +161,9 @@ impl Reply<'_> {
         }
     }
 
-    pub fn server_message(&self) -> &[u8] {
-        self.server_message
+    // TODO: figure out how to not have this behind a double reference
+    pub fn server_message(&self) -> &AsciiStr<'_> {
+        &self.server_message
     }
 
     pub fn data(&self) -> &[u8] {
@@ -199,7 +201,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 let body_begin = Self::HEADER_SIZE_BYTES;
                 Ok(Reply {
                     status,
-                    server_message: &buffer[body_begin..body_begin + server_message_length],
+                    server_message: AsciiStr::try_from(
+                        &buffer[body_begin..body_begin + server_message_length],
+                    )?,
                     data: &buffer[body_begin + server_message_length
                         ..body_begin + server_message_length + data_length],
                     no_echo,

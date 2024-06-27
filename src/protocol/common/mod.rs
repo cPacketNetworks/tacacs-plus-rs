@@ -1,6 +1,6 @@
 use core::array::TryFromSliceError;
 
-use crate::AsciiStr;
+use crate::{AsciiStr, InvalidAscii};
 
 #[cfg(test)]
 mod tests;
@@ -280,5 +280,11 @@ impl From<TryFromSliceError> for DeserializeError {
     fn from(_value: TryFromSliceError) -> Self {
         // slice conversion error means there was a length mismatch, which probably means we were expecting more data
         Self::UnexpectedEnd
+    }
+}
+
+impl From<InvalidAscii> for DeserializeError {
+    fn from(_value: InvalidAscii) -> Self {
+        Self::InvalidWireBytes
     }
 }

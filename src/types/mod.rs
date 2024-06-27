@@ -12,10 +12,28 @@ mod tests;
 
 // TODO: Error impl? experimental in core though
 #[derive(Debug)]
-pub struct InvalidAscii;
+pub struct InvalidAscii(());
 
+// TODO: store &str, str, or &[u8]/[u8]?
 /// A wrapper for strs that are guaranteed to be valid ASCII.
+#[derive(PartialEq)]
 pub struct AsciiStr<'string>(&'string str);
+
+impl<'bytes> TryFrom<&'bytes [u8]> for AsciiStr<'bytes> {
+    type Error = InvalidAscii;
+
+    fn try_from(value: &'bytes [u8]) -> Result<Self, Self::Error> {
+        if value.is_ascii() {
+            if let Ok(string) = core::str::from_utf8(value) {
+                Ok(Self(string))
+            } else {
+                Err(InvalidAscii(()))
+            }
+        } else {
+            Err(InvalidAscii(()))
+        }
+    }
+}
 
 impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
     type Error = InvalidAscii;
@@ -24,7 +42,7 @@ impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
         if value.is_ascii() {
             Ok(Self(value))
         } else {
-            Err(InvalidAscii)
+            Err(InvalidAscii(()))
         }
     }
 }
