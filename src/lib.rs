@@ -23,10 +23,16 @@ pub enum TacacsError {
     IOError(#[from] std::io::Error),
 }
 
-// TODO: placement
+// TODO: placement (maybe dedicated module?)
 pub struct AsciiStr<'string>(&'string str);
 
-// TODO: Error impl?
+// TODO: placement
+#[cfg(test)]
+fn force_ascii(value: &str) -> AsciiStr {
+    value.try_into().expect("ASCII conversion failed")
+}
+
+// TODO: Error impl? experimental in core though
 #[derive(Debug)]
 pub struct InvalidAscii;
 

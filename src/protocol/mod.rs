@@ -1,4 +1,4 @@
-// mod accounting;
+mod accounting;
 // mod authentication;
 mod authorization;
 mod common;
