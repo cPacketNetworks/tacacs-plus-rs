@@ -1,17 +1,10 @@
 use super::*;
 use crate::types::force_ascii;
-use crate::AsciiStr;
 
 #[test]
 fn invalid_privilege_level_none() {
     let level = PrivilegeLevel::of(42);
     assert!(level.is_none());
-}
-
-// TODO: move to root?
-#[test]
-fn invalid_ascii_string() {
-    AsciiStr::try_from("💀").expect_err("AsciiStr with non-ASCII string should have failed");
 }
 
 #[test]

@@ -7,6 +7,9 @@ pub(crate) fn force_ascii(value: &str) -> AsciiStr {
     value.try_into().expect("ASCII conversion failed")
 }
 
+#[cfg(test)]
+mod tests;
+
 // TODO: Error impl? experimental in core though
 #[derive(Debug)]
 pub struct InvalidAscii;

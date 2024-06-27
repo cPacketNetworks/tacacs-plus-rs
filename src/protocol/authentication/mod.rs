@@ -1,11 +1,11 @@
-use super::common::{AuthenticationContext, ClientInformation, NotEnoughSpace};
+use super::common::{AuthenticationContext, ClientInformation, DeserializeError, NotEnoughSpace};
 
 #[cfg(test)]
 mod tests;
 
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Login = 0x01,
     ChangePassword = 0x02,
@@ -19,7 +19,7 @@ impl Action {
 
 /// The authentication status, as returned by a TACACS+ server.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Pass = 0x01,
     Fail = 0x02,
@@ -33,9 +33,9 @@ pub enum Status {
 }
 
 impl TryFrom<u8> for Status {
-    type Error = ();
+    type Error = DeserializeError;
 
-    fn try_from(value: u8) -> Result<Self, ()> {
+    fn try_from(value: u8) -> Result<Self, DeserializeError> {
         use Status::*;
 
         match value {
@@ -46,8 +46,9 @@ impl TryFrom<u8> for Status {
             0x05 => Ok(GetPassword),
             0x06 => Ok(Restart),
             0x07 => Ok(Error),
+            #[allow(deprecated)]
             0x21 => Ok(Follow),
-            _ => Err(()),
+            _ => Err(DeserializeError::InvalidWireBytes),
         }
     }
 }
@@ -137,11 +138,81 @@ impl<'packet> Start<'packet> {
     }
 }
 
-pub struct Reply<'message> {
+#[derive(Debug, PartialEq)]
+pub struct Reply<'data> {
     status: Status,
-    server_message: &'message [u8],
-    data: &'message [u8],
+    server_message: &'data [u8],
+    data: &'data [u8],
     no_echo: bool,
+}
+
+impl Reply<'_> {
+    // 1 byte for status, 1 for flags, 2 for server_msg_len, 2 for data_len
+    const HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
+
+    pub fn claimed_packet_body_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
+        if buffer.len() >= Self::HEADER_SIZE_BYTES {
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
+            Ok(Self::HEADER_SIZE_BYTES + server_message_length + data_length)
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
+        }
+    }
+
+    pub fn server_message(&self) -> &[u8] {
+        self.server_message
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
+
+    pub fn no_echo(&self) -> bool {
+        self.no_echo
+    }
+}
+
+impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
+    type Error = DeserializeError;
+
+    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        let total_len = buffer.len();
+
+        if total_len >= Self::HEADER_SIZE_BYTES {
+            let status: Status = buffer[0].try_into()?;
+
+            // TODO: find a better way to catch invalid wire bytes than this
+            let no_echo = match buffer[1] {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(DeserializeError::InvalidWireBytes),
+            }?;
+
+            // attempt to convert slices into arrays which u16::from_be_bytes needs
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
+
+            // TODO: exact size or allow for bigger?
+            // allowing for bigger could be a bad idea actually, should have a separate function to get expected length though
+            // (thinking leaking part of not properly cleared buffer)
+            // ensure buffer length matches (or exceeds?) expected length based on length fields
+            if total_len >= Reply::claimed_packet_body_length(buffer)? {
+                let body_begin = Self::HEADER_SIZE_BYTES;
+                Ok(Reply {
+                    status,
+                    server_message: &buffer[body_begin..body_begin + server_message_length],
+                    data: &buffer[body_begin + server_message_length
+                        ..body_begin + server_message_length + data_length],
+                    no_echo,
+                })
+            } else {
+                Err(DeserializeError::LengthMismatch)
+            }
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
+        }
+    }
 }
 
 pub struct Continue<'packet> {
@@ -211,13 +282,5 @@ impl<'packet> Continue<'packet> {
         } else {
             Err(NotEnoughSpace)
         }
-    }
-}
-
-impl TryFrom<&[u8]> for Reply<'_> {
-    type Error = core::fmt::Error;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        todo!()
     }
 }

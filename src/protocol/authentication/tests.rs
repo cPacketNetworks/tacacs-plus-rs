@@ -102,6 +102,48 @@ fn serialize_authentication_start_data_too_long() {
 }
 
 #[test]
+fn deserialize_reply_pass_both_data_fields() {
+    let packet_data = [
+        0x01, // status: pass
+        0,    // no flags set
+        0, 16, // server message length
+        0, 4, // data length
+        // server message: "login successful" (without quotes)
+        0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x20, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x66, 0x75,
+        0x6c, // end server message
+        0x12, 0x77, 0xfa, 0xcc, // data: some random bytes for good measure
+    ];
+
+    let parsed_reply =
+        Reply::try_from(packet_data.as_slice()).expect("reply packet should be valid");
+
+    assert_eq!(
+        parsed_reply,
+        Reply {
+            status: Status::Pass,
+            server_message: b"login successful",
+            data: b"\x12\x77\xfa\xcc",
+            no_echo: false
+        }
+    );
+}
+
+#[test]
+fn deserialize_reply_bad_server_message_length() {
+    let packet_data = [
+        0x02, // status: fail
+        0,    // no flags set
+        13, 37, // way too large server length
+        0, 0, // data length shouldn't matter
+        // server message: "something's wrong"
+        0x73, 0x6f, 0x6d, 0x65, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x27, 0x73, 0x20, 0x77, 0x72, 0x6f,
+        0x6e, 0x67,
+    ];
+
+    Reply::try_from(packet_data.as_slice()).expect_err("server message length should be invalid");
+}
+
+#[test]
 fn serialize_authentication_continue_no_data() {
     let continue_body = Continue::new();
 

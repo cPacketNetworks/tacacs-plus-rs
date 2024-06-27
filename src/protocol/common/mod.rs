@@ -1,3 +1,5 @@
+use core::array::TryFromSliceError;
+
 use crate::AsciiStr;
 
 #[cfg(test)]
@@ -197,10 +199,10 @@ impl<'data> Argument<'data> {
 pub struct Arguments<'slice>(&'slice [Argument<'slice>]);
 
 // impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for  Arguments<'arguments> {
-impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for Arguments<'arguments> {
+impl<'slice> TryFrom<&'slice [Argument<'_>]> for Arguments<'slice> {
     type Error = ();
 
-    fn try_from(value: &'arguments [Argument<'arguments>]) -> Result<Self, Self::Error> {
+    fn try_from(value: &'slice [Argument]) -> Result<Self, Self::Error> {
         if value.len() <= u8::MAX as usize {
             Ok(Self(value))
         } else {
@@ -266,11 +268,17 @@ impl Arguments<'_> {
 }
 
 // TODO: figure out error impl (maybe)
-// #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Debug)]
 pub enum DeserializeError {
-    // #[error("hi")]
+    InvalidWireBytes,
     UnexpectedEnd,
-    // #[error("asd")]
-    InvalidBytes,
+    LengthMismatch,
+}
+
+// Used in &[u8] -> &[u8; 2] -> u16 conversions in reply deserialization
+impl From<TryFromSliceError> for DeserializeError {
+    fn from(_value: TryFromSliceError) -> Self {
+        // slice conversion error means there was a length mismatch, which probably means we were expecting more data
+        Self::UnexpectedEnd
+    }
 }
