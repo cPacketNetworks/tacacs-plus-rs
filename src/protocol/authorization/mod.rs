@@ -63,6 +63,24 @@ pub enum Status {
     Follow = 0x21,
 }
 
+impl TryFrom<u8> for Status {
+    type Error = DeserializeError;
+
+    fn try_from(value: u8) -> Result<Self, DeserializeError> {
+        use Status::*;
+
+        match value {
+            0x01 => Ok(PassAdd),
+            0x02 => Ok(PassReplace),
+            0x10 => Ok(Fail),
+            0x11 => Ok(Error),
+            #[allow(deprecated)]
+            0x21 => Ok(Follow),
+            _ => Err(DeserializeError::InvalidWireBytes),
+        }
+    }
+}
+
 pub struct Reply<'data> {
     status: Status,
     server_message: AsciiStr<'data>,
@@ -70,28 +88,35 @@ pub struct Reply<'data> {
     arguments: Arguments<'data>,
 }
 
-impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
-    type Error = DeserializeError;
+impl<'data> Reply<'data> {
+    /// Header size, not including argument lengths as the number varies
+    const BASE_HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
 
-    // TODO: where to put arguments??
-    // probably something outside of TryFrom that takes a separate argument slice? would be nice to take over ownership though
-    // hmm could do mut reference? would have to change Arguments definition tho
-    // actually yeah has to be mut anyways
-    // HECKIN VARIANCE
-    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        Err(DeserializeError::InvalidWireBytes)
+    pub fn claimed_body_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
+        let argument_count = buffer.get(1).ok_or(DeserializeError::UnexpectedEnd);
+
+        if buffer.len() >= Self::BASE_HEADER_SIZE_BYTES + argument_count {
+            let server_message_len = u16::from_be_bytes(buffer[2..4].try_into()?);
+            let data_len = u16::from_be_bytes(buffer[4..6].try_into()?);
+            todo!()
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
+        }
+    }
+
+    pub fn from_buffer(
+        buffer: &'data [u8],
+        argument_space: &'data mut Arguments<'data>,
+    ) -> Result<Self, DeserializeError> {
+        let status: Status = buffer[0].try_into()?;
+
+        // TODO: finish impl
+
+        todo!()
     }
 }
 
 // TODO: reconciling Request arguments with Reply? (ADD/REPL status)
-
-// pub struct Reply {
-//     status: Status,
-//     server_message: AsciiString,
-//     data: AsciiString,
-//     // TODO: also somehow keep track of required arguments?
-//     arguments: Arguments,
-// }
 
 // struct ReplyHeader {
 //     status: Status,

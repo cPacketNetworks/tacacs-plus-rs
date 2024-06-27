@@ -274,6 +274,8 @@ pub enum DeserializeError {
     InvalidWireBytes,
     UnexpectedEnd,
     LengthMismatch,
+    // TODO: reconcile with struct of same name (?)
+    NotEnoughSpace,
 }
 
 // Used in &[u8] -> &[u8; 2] -> u16 conversions in reply deserialization
