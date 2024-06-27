@@ -1,11 +1,10 @@
-use ascii::AsciiString;
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use crate::AsciiStr;
 
 #[cfg(test)]
 mod tests;
+
+// TODO: impl
+// mod trait_impls;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -95,27 +94,25 @@ impl AuthenticationContext {
 }
 
 #[derive(Debug)]
-pub struct ClientInformation {
+pub struct ClientInformation<'info> {
     // TODO: normalization or whatever as required by RFC 8907 (UsernameCasePreserved)
-    user: String,
+    user: &'info str,
     // TODO: String or AsciiString for these two fields?
-    port: String,
-    remote_address: String,
+    port: AsciiStr<'info>,
+    remote_address: AsciiStr<'info>,
 }
 
+// TODO: error impl
 #[derive(Debug)]
-pub enum SerializeError {
-    NotEnoughSpace,
-}
+pub struct NotEnoughSpace;
 
-// TODO: naming
+// TODO: naming + struct instead?
 #[derive(Debug)]
 pub enum TextError {
-    InvalidAscii,
     FieldTooLong,
 }
 
-impl ClientInformation {
+impl<'info> ClientInformation<'info> {
     // three lengths in header
     const HEADER_INFORMATION_SIZE: usize = 3;
 
@@ -126,20 +123,19 @@ impl ClientInformation {
             + self.remote_address.len()
     }
 
-    pub fn new(user: &str, port: &str, remote_address: &str) -> Result<Self, TextError> {
-        if port.is_ascii() && remote_address.is_ascii() {
-            // TODO: length tests
-            if user.len() <= 255 && port.len() <= 255 && remote_address.len() <= 255 {
-                Ok(Self {
-                    user: user.to_owned(),
-                    port: port.to_owned(),
-                    remote_address: remote_address.to_owned(),
-                })
-            } else {
-                Err(TextError::FieldTooLong)
-            }
+    pub fn new(
+        user: &'info str,
+        port: AsciiStr<'info>,
+        remote_address: AsciiStr<'info>,
+    ) -> Result<Self, TextError> {
+        if user.len() <= 255 && port.len() <= 255 && remote_address.len() <= 255 {
+            Ok(Self {
+                user,
+                port,
+                remote_address,
+            })
         } else {
-            Err(TextError::InvalidAscii)
+            Err(TextError::FieldTooLong)
         }
     }
 
@@ -164,108 +160,111 @@ impl ClientInformation {
     }
 }
 
-// TODO: argument keys cannot contain =/* (value delimiters)
-
-// TODO: store required status inline/as part of value? like tuple/struct or smth
-// TODO: TryFrom impl for HashMap<String, String>? (invalid ASCII should fail)
-// (separate set might be redundant/inefficient)
-#[derive(Default)]
-pub struct Arguments {
-    // TODO: visibility
-    value_map: HashMap<String, String>,
-    required_arguments: HashSet<String>,
+// TODO: deserialization from server; seems to only happen in authorizaton REPLY
+// TODO: somehow mention that duplicate arguments won't be handled/will be passed as-is
+pub struct Argument<'data> {
+    name: AsciiStr<'data>,
+    value: AsciiStr<'data>,
+    required: bool,
 }
 
-impl Arguments {
-    pub fn new() -> Arguments {
-        Default::default()
-    }
-
-    // TODO: get_wire_size? also visibility
-    pub fn wire_size(&self) -> usize {
-        self.value_map
-            .iter()
-            // start with length 1 for argument count
-            .fold(1, |total, (name, value)| {
-                // include 1 byte for argument length and another for value separator (= or *)
-                total + 1 + name.len() + 1 + value.len()
+impl<'data> Argument<'data> {
+    pub fn new(name: AsciiStr<'data>, value: AsciiStr<'data>, required: bool) -> Option<Self> {
+        // "An argument name MUST NOT contain either of the separators." [RFC 8907]
+        // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
+        if !name.contains(|c| c == '=' || c == '*') && name.len() + value.len() < u8::MAX as usize {
+            Some(Argument {
+                name,
+                value,
+                required,
             })
+        } else {
+            None
+        }
     }
 
-    // TODO: insert method w/ required toggle (also remove method?)
-    pub fn add_argument(&mut self, name: &str, value: &str, required: bool) -> bool {
-        if !name.contains('=') && !name.contains('*') {
-            self.value_map.insert(name.to_owned(), value.to_owned());
+    fn encoded_length(&self) -> usize {
+        self.name.len() + 1 + self.value.len()
+    }
 
-            if required {
-                // TODO: store reference to map key instead? right now it's allocating twice
-                self.required_arguments.insert(name.to_owned());
+    fn serialize(&self, buffer: &mut [u8]) {
+        let name_len = self.name.len();
+        let value_len = self.value.len();
+
+        buffer[..name_len].copy_from_slice(self.name.as_bytes());
+        buffer[name_len] = if self.required { '=' } else { '*' } as u8;
+        buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
+    }
+}
+
+pub struct Arguments<'arguments>(&'arguments [Argument<'arguments>]);
+
+// impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for  Arguments<'arguments> {
+impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for Arguments<'arguments> {
+    type Error = ();
+
+    fn try_from(value: &'arguments [Argument<'arguments>]) -> Result<Self, Self::Error> {
+        if value.len() <= u8::MAX as usize {
+            Ok(Self(value))
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl<'arguments> Arguments<'arguments> {
+    pub fn wire_size(&self) -> usize {
+        self.0.iter().fold(1, |total, argument| {
+            // 1 octet for encoded length, 1 octet for delimiter
+            total + 1 + argument.encoded_length()
+        })
+    }
+
+    pub fn argument_count(&self) -> usize {
+        self.0.len()
+    }
+
+    pub(super) fn serialize_header(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+        let argument_count = self.0.len();
+
+        // just check for header space; body check happens in serialize_body()
+        if buffer.len() > argument_count {
+            let argument_count = self.0.len();
+
+            // this won't truncate any nonzero bits since the only way to construct an Arguments is via TryFrom, where there is a length check
+            buffer[0] = argument_count as u8;
+
+            let mut length_index = 1;
+            for argument in self.0.iter() {
+                // length is guaranteed to fit in a u8 based on checks in Argument::new()
+                buffer[length_index] = argument.encoded_length() as u8;
+                length_index += 1;
             }
 
-            true
+            Ok(())
         } else {
-            false
+            Err(NotEnoughSpace)
         }
     }
 
-    pub fn remove_argument(&mut self, name: &str) -> bool {
-        self.required_arguments.remove(name);
-        self.value_map.remove(name).is_some()
-    }
+    pub(super) fn serialize_body(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+        let full_encoded_length = self
+            .0
+            .iter()
+            .fold(0, |total, argument| total + argument.encoded_length());
 
-    // TODO: mention unchecked
-    pub(super) fn serialize_header_client(&self, buffer: &mut [u8]) -> usize {
-        let argument_count = self.value_map.len();
-        buffer[0] = argument_count as u8;
+        if buffer.len() >= full_encoded_length {
+            let mut argument_start = 0;
 
-        let mut index = 1;
-
-        for (name, value) in self.value_map.iter() {
-            // as before, save room for the separator
-            buffer[index] = (name.len() + 1 + value.len()) as u8;
-            index += 1;
+            for argument in self.0.iter() {
+                let argument_length = argument.encoded_length();
+                argument.serialize(&mut buffer[argument_start..]);
+                argument_start += argument_length;
+            }
+            Ok(())
+        } else {
+            Err(NotEnoughSpace)
         }
-
-        argument_count
-    }
-
-    pub(super) fn serialize_body_values(&self, buffer: &mut [u8]) -> usize {
-        let mut cursor = buffer;
-        let mut total_len = 0;
-
-        for (name, value) in self.value_map.iter() {
-            // leave space for separator
-            let name_len = name.len();
-            let value_len = value.len();
-            let argument_len = name_len + 1 + value_len;
-
-            // choose delimiter based on whether argument is required
-            let delimiter = if self.required_arguments.contains(name) {
-                '='
-            } else {
-                '*'
-            };
-
-            // copy argument information to buffer
-            cursor[..name_len].copy_from_slice(name.as_bytes());
-            cursor[name_len] = delimiter as u8;
-            cursor[name_len + 1..argument_len].copy_from_slice(value.as_bytes());
-
-            // move on to next argument/section of buffer
-            total_len += argument_len;
-            cursor = &mut cursor[argument_len..];
-        }
-
-        total_len
-    }
-}
-
-// TODO: deserialization from server; seems to only happen in authorizaton REPLY
-impl FromStr for Arguments {
-    type Err = ();
-
-    fn from_str(_string: &str) -> Result<Self, Self::Err> {
-        todo!()
     }
 }
 
