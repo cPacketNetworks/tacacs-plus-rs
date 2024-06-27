@@ -1,8 +1,10 @@
 use super::*;
 use crate::AsciiStr;
 
-fn force_ascii<'string>(value: &'string str) -> AsciiStr<'string> {
-    AsciiStr::try_from(value).expect("ASCII conversion failed")
+fn force_ascii(value: &str) -> AsciiStr {
+    value
+        .try_into()
+        .expect("ASCII conversion should not have failed")
 }
 
 #[test]
@@ -43,10 +45,14 @@ fn arguments_two_required() {
     let mut buffer = [0u8; 40];
 
     // ensure header information is serialized correctly
-    arguments.serialize_header(&mut buffer);
+    arguments
+        .serialize_header(&mut buffer)
+        .expect("header serialization should succeed");
     assert_eq!(buffer[..3], [2, 12, 16]);
 
-    arguments.serialize_body(&mut buffer);
+    arguments
+        .serialize_body(&mut buffer)
+        .expect("body serialization should succeed");
     assert_eq!(&buffer[..28], b"service=testrandom-argument=");
 }
 
@@ -63,9 +69,13 @@ fn arguments_one_optional() {
         .expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];
-    arguments.serialize_header(&mut buffer);
+    arguments
+        .serialize_header(&mut buffer)
+        .expect("header serialization should succeed");
     assert_eq!(buffer[..2], [1, 24]);
 
-    arguments.serialize_body(&mut buffer);
+    arguments
+        .serialize_body(&mut buffer)
+        .expect("body serialization should succeed");
     assert_eq!(&buffer[..24], b"optional-arg*unimportant");
 }

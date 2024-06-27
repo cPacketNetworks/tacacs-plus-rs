@@ -21,6 +21,7 @@ impl Request<'_> {
     }
 
     pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+        // TODO: just rely on checks in components?
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.method as u8;
             self.authentication_context

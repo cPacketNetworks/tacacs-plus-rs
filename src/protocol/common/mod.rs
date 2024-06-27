@@ -197,7 +197,8 @@ impl<'data> Argument<'data> {
     }
 }
 
-pub struct Arguments<'arguments>(&'arguments [Argument<'arguments>]);
+// TODO: figure out if two lifetime parameters are necessary (reference & arguments)
+pub struct Arguments<'slice>(&'slice [Argument<'slice>]);
 
 // impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for  Arguments<'arguments> {
 impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for Arguments<'arguments> {
@@ -212,7 +213,7 @@ impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for Arguments<'argu
     }
 }
 
-impl<'arguments> Arguments<'arguments> {
+impl Arguments<'_> {
     pub fn wire_size(&self) -> usize {
         self.0.iter().fold(1, |total, argument| {
             // 1 octet for encoded length, 1 octet for delimiter
