@@ -122,7 +122,7 @@ fn deserialize_reply_pass_both_data_fields() {
         parsed_reply,
         Reply {
             status: Status::Pass,
-            server_message: b"login successful",
+            server_message: force_ascii("login successful"),
             data: b"\x12\x77\xfa\xcc",
             no_echo: false
         }

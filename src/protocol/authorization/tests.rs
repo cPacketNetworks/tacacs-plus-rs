@@ -17,13 +17,14 @@ fn serialize_request_no_arguments() {
         ClientInformation::new("testuser", force_ascii("tcp49"), force_ascii("127.0.0.1"))
             .expect("client information should have been valid");
 
-    let empty_arguments = [];
+    let mut empty_arguments = [];
 
     let request = Request {
         method: AuthenticationMethod::Enable,
         authentication_context,
         client_information,
-        arguments: empty_arguments[..]
+        arguments: empty_arguments
+            .as_mut_slice()
             .try_into()
             .expect("empty argument list should be valid"),
     };
@@ -63,14 +64,14 @@ fn serialize_authorization_request_one_argument() {
         ClientInformation::new("testuser", force_ascii("ttyAMA0"), force_ascii("127.1.2.2"))
             .expect("client information should have been valid");
 
-    let argument_array = [Argument::new(
+    let mut argument_array = [Argument::new(
         force_ascii("service"),
         force_ascii("serialization-test"),
         true,
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from(argument_array.as_slice())
+    let arguments = Arguments::try_from(argument_array.as_mut_slice())
         .expect("single argument array should be valid");
 
     let request = Request {

@@ -1,5 +1,8 @@
+use crate::AsciiStr;
+
 use super::common::{
-    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, NotEnoughSpace,
+    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
+    NotEnoughSpace,
 };
 
 #[cfg(test)]
@@ -56,9 +59,31 @@ pub enum Status {
     PassReplace = 0x02,
     Fail = 0x10,
     Error = 0x11,
-    #[deprecated = "Forwarding to an alternative daemon was deprecated in IETF RFC 8907."]
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
 }
+
+pub struct Reply<'data> {
+    status: Status,
+    server_message: AsciiStr<'data>,
+    data: &'data [u8],
+    arguments: Arguments<'data>,
+}
+
+impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
+    type Error = DeserializeError;
+
+    // TODO: where to put arguments??
+    // probably something outside of TryFrom that takes a separate argument slice? would be nice to take over ownership though
+    // hmm could do mut reference? would have to change Arguments definition tho
+    // actually yeah has to be mut anyways
+    // HECKIN VARIANCE
+    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        Err(DeserializeError::InvalidWireBytes)
+    }
+}
+
+// TODO: reconciling Request arguments with Reply? (ADD/REPL status)
 
 // pub struct Reply {
 //     status: Status,

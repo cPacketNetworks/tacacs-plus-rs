@@ -160,6 +160,7 @@ impl<'info> ClientInformation<'info> {
 
 // TODO: deserialization from server; seems to only happen in authorizaton REPLY
 // TODO: somehow mention that duplicate arguments won't be handled/will be passed as-is
+#[derive(Clone)]
 pub struct Argument<'data> {
     name: AsciiStr<'data>,
     value: AsciiStr<'data>,
@@ -195,14 +196,14 @@ impl<'data> Argument<'data> {
     }
 }
 
-// TODO: figure out if two lifetime parameters are necessary (reference & arguments)
-pub struct Arguments<'slice>(&'slice [Argument<'slice>]);
+// TODO: mutable reference for exclusivity is kinda hacky, find better way
+pub struct Arguments<'slice>(&'slice mut [Argument<'slice>]);
 
-// impl<'arguments> TryFrom<&'arguments [Argument<'arguments>]> for  Arguments<'arguments> {
-impl<'slice> TryFrom<&'slice [Argument<'_>]> for Arguments<'slice> {
+impl<'slice> TryFrom<&'slice mut [Argument<'slice>]> for Arguments<'slice> {
     type Error = ();
 
-    fn try_from(value: &'slice [Argument]) -> Result<Self, Self::Error> {
+    // TODO: figure out if non-anonymous lifetime on Argument<> breaks things
+    fn try_from(value: &'slice mut [Argument<'slice>]) -> Result<Self, Self::Error> {
         if value.len() <= u8::MAX as usize {
             Ok(Self(value))
         } else {

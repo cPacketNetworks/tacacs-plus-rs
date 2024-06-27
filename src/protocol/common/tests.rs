@@ -20,14 +20,14 @@ fn client_information_long_username() {
 
 #[test]
 fn arguments_two_required() {
-    let argument_array = [
+    let mut argument_array = [
         Argument::new(force_ascii("service"), force_ascii("test"), true)
             .expect("argument should be valid"),
         Argument::new(force_ascii("random-argument"), force_ascii(""), true)
             .expect("argument should be valid"),
     ];
 
-    let arguments = Arguments::try_from(&argument_array[..])
+    let arguments = Arguments::try_from(argument_array.as_mut_slice())
         .expect("argument array -> Arguments conversion should have worked");
 
     let mut buffer = [0u8; 40];
@@ -46,14 +46,14 @@ fn arguments_two_required() {
 
 #[test]
 fn arguments_one_optional() {
-    let arguments_array = [Argument::new(
+    let mut arguments_array = [Argument::new(
         force_ascii("optional-arg"),
         force_ascii("unimportant"),
         false,
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from(&arguments_array[..])
+    let arguments = Arguments::try_from(arguments_array.as_mut_slice())
         .expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];

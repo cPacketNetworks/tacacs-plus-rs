@@ -7,13 +7,14 @@ use crate::types::force_ascii;
 
 #[test]
 fn serialize_accounting_packet_with_argument() {
-    let argument_array = [
-        Argument::new(force_ascii("service"), force_ascii("tacacs-test"), true)
-            .expect("argument should be valid"),
-    ];
+    let mut argument_array =
+        [
+            Argument::new(force_ascii("service"), force_ascii("tacacs-test"), true)
+                .expect("argument should be valid"),
+        ];
 
     let arguments = argument_array
-        .as_slice()
+        .as_mut_slice()
         .try_into()
         .expect("argument array should be valid");
 
