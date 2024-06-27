@@ -48,7 +48,7 @@ impl TryFrom<u8> for Status {
             0x05 => Ok(GetPassword),
             0x06 => Ok(Restart),
             0x07 => Ok(Error),
-            0x21 => Ok(Follow)
+            0x21 => Ok(Follow),
             _ => Err(()),
         }
     }
