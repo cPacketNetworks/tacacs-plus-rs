@@ -3,13 +3,7 @@ use crate::protocol::common::{
     Argument, Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationType,
     ClientInformation, PrivilegeLevel, Service,
 };
-use crate::AsciiStr;
-
-fn force_ascii(value: &str) -> AsciiStr {
-    value
-        .try_into()
-        .expect("ASCII conversion should not have failed")
-}
+use crate::types::force_ascii;
 
 #[test]
 fn serialize_request_no_arguments() {

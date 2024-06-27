@@ -1,9 +1,9 @@
 use super::*;
-use crate::force_ascii;
 use crate::protocol::common::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
     PrivilegeLevel, Service,
 };
+use crate::types::force_ascii;
 
 #[test]
 fn serialize_accounting_packet_with_argument() {

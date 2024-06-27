@@ -1,11 +1,6 @@
 use super::*;
+use crate::types::force_ascii;
 use crate::AsciiStr;
-
-fn force_ascii(value: &str) -> AsciiStr {
-    value
-        .try_into()
-        .expect("ASCII conversion should not have failed")
-}
 
 #[test]
 fn invalid_privilege_level_none() {

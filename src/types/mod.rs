@@ -1,0 +1,49 @@
+use core::fmt;
+use core::ops::Deref;
+
+// TODO: placement
+#[cfg(test)]
+pub(crate) fn force_ascii(value: &str) -> AsciiStr {
+    value.try_into().expect("ASCII conversion failed")
+}
+
+// TODO: Error impl? experimental in core though
+#[derive(Debug)]
+pub struct InvalidAscii;
+
+/// A wrapper for strs that are guaranteed to be valid ASCII.
+pub struct AsciiStr<'string>(&'string str);
+
+impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
+    type Error = InvalidAscii;
+
+    fn try_from(value: &'string str) -> Result<Self, Self::Error> {
+        if value.is_ascii() {
+            Ok(Self(value))
+        } else {
+            Err(InvalidAscii)
+        }
+    }
+}
+
+// deref coercion is really convenient :)
+impl Deref for AsciiStr<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+// boilerplate impl, mostly for tests and also lets us #[derive(Debug)] for packet component structs
+impl fmt::Debug for AsciiStr<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for AsciiStr<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}

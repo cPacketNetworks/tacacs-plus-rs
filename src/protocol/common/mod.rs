@@ -76,8 +76,6 @@ pub enum Service {
 }
 
 pub struct AuthenticationContext {
-    // TODO: remove?
-    // method: AuthenticationMethod,
     pub privilege_level: PrivilegeLevel,
     pub authentication_type: AuthenticationType,
     pub service: Service,
@@ -95,9 +93,7 @@ impl AuthenticationContext {
 
 #[derive(Debug)]
 pub struct ClientInformation<'info> {
-    // TODO: normalization or whatever as required by RFC 8907 (UsernameCasePreserved)
     user: &'info str,
-    // TODO: String or AsciiString for these two fields?
     port: AsciiStr<'info>,
     remote_address: AsciiStr<'info>,
 }
@@ -269,6 +265,7 @@ impl Arguments<'_> {
     }
 }
 
+// TODO: figure out error impl (maybe)
 // #[cfg_attr(feature = "std", derive(thiserror::Error))]
 #[derive(Debug)]
 pub enum DeserializeError {
