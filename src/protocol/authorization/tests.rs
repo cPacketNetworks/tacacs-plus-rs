@@ -1,4 +1,6 @@
-use super::Request;
+use tinyvec::SliceVec;
+
+use super::*;
 use crate::protocol::{
     common::{
         Argument, Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationType,
@@ -104,4 +106,46 @@ fn serialize_authorization_request_one_argument() {
         0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x3d, 0x73, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x69,
         0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2d, 0x74, 0x65, 0x73, 0x74
     ]));
+}
+
+#[test]
+fn deserialize_reply_two_arguments() {
+    let raw_bytes = [
+        0x01, // status: add
+        2,    // two arguments
+        0, 5, // server message length
+        0, 5,  // data length
+        13, // argument 1 length
+        13, // argument 2 length
+        0x68, 0x65, 0x6c, 0x6c, 0x6f, // server message
+        0x77, 0x6f, 0x72, 0x6c, 0x64, // data
+        // argument 1
+        0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x3d, 0x67, 0x72, 0x65, 0x65, 0x74,
+        // argument 2
+        0x70, 0x65, 0x72, 0x73, 0x6f, 0x6e, 0x2a, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21,
+    ];
+
+    let mut expected_arguments = [
+        Argument::new(force_ascii("service"), force_ascii("greet"), true).unwrap(),
+        Argument::new(force_ascii("person"), force_ascii("world!"), false).unwrap(),
+    ];
+
+    let expected = Reply {
+        status: Status::PassAdd,
+        server_message: force_ascii("hello"),
+        data: b"world",
+        arguments: Arguments::try_from_slicevec(expected_arguments.as_mut_slice().into())
+            .expect("argument construction shouldn't have failed"),
+    };
+
+    let mut parsed_argument_space: [Argument; 2] = Default::default();
+
+    assert_eq!(
+        expected,
+        Reply::deserialize_from_buffer(
+            &raw_bytes,
+            SliceVec::try_from_slice_len(parsed_argument_space.as_mut_slice(), 0).unwrap()
+        )
+        .unwrap()
+    );
 }

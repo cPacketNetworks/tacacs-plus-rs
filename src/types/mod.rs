@@ -16,7 +16,7 @@ pub struct InvalidAscii(());
 
 // TODO: store &str, str, or &[u8]/[u8]?
 /// A wrapper for strs that are guaranteed to be valid ASCII.
-#[derive(Clone, Copy, PartialEq, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct AsciiStr<'string>(&'string str);
 
 impl<'bytes> TryFrom<&'bytes [u8]> for AsciiStr<'bytes> {

@@ -9,7 +9,7 @@ pub mod common;
 mod tests;
 
 // TODO: move common into here
-use common::{Argument, DeserializeError, NotEnoughSpace};
+use common::{DeserializeError, NotEnoughSpace};
 
 use self::common::ArgumentsArray;
 
@@ -71,7 +71,6 @@ pub trait Serialize {
 
 pub trait DeserializeWithArguments<'raw> {
     fn deserialize_from_buffer(
-        &self,
         buffer: &'raw [u8],
         argument_space: ArgumentsArray<'raw>,
     ) -> Result<Self, DeserializeError>
@@ -125,7 +124,6 @@ impl<'body, B: PacketBody + DeserializeWithArguments<'body>> DeserializeWithArgu
     for Packet<B>
 {
     fn deserialize_from_buffer(
-        &self,
         buffer: &'body [u8],
         argument_space: ArgumentsArray<'body>,
     ) -> Result<Self, DeserializeError> {

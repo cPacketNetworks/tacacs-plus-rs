@@ -165,7 +165,7 @@ impl<'info> ClientInformation<'info> {
 
 // TODO: deserialization from server; seems to only happen in authorizaton REPLY
 // TODO: somehow mention that duplicate arguments won't be handled/will be passed as-is
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct Argument<'data> {
     name: AsciiStr<'data>,
     value: AsciiStr<'data>,
@@ -229,6 +229,7 @@ impl<'data> Argument<'data> {
 
 pub type ArgumentsArray<'stored> = SliceVec<'stored, Argument<'stored>>;
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Arguments<'slice>(ArgumentsArray<'slice>);
 
 impl<'storage> Arguments<'storage> {

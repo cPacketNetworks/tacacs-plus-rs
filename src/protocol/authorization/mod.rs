@@ -65,6 +65,7 @@ impl Serialize for Request<'_> {
 }
 
 #[repr(u8)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Status {
     PassAdd = 0x01,
     PassReplace = 0x02,
@@ -92,6 +93,7 @@ impl TryFrom<u8> for Status {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
     status: Status,
     server_message: AsciiStr<'data>,
@@ -106,7 +108,6 @@ impl PacketBody for Reply<'_> {
 
 impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
     fn deserialize_from_buffer(
-        &self,
         buffer: &'raw [u8],
         argument_space: ArgumentsArray<'raw>,
     ) -> Result<Self, DeserializeError> {
@@ -121,7 +122,7 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
                 let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?);
                 let data_length = u16::from_be_bytes(buffer[4..6].try_into()?);
 
-                let body_start = 5 + argument_count as usize;
+                let body_start = 6 + argument_count as usize;
                 let data_start = body_start + server_message_length as usize;
                 let arguments_start = data_start + data_length as usize;
 
@@ -158,40 +159,4 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
     }
 }
 
-impl<'data> Reply<'data> {
-    /// Header size, not including argument lengths as the number varies
-    const BASE_HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
-
-    pub fn claimed_body_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
-        let argument_count = *buffer.get(1).ok_or(DeserializeError::UnexpectedEnd)?;
-
-        if buffer.len() >= Self::BASE_HEADER_SIZE_BYTES + argument_count as usize {
-            let server_message_len = u16::from_be_bytes(buffer[2..4].try_into()?);
-            let data_len = u16::from_be_bytes(buffer[4..6].try_into()?);
-            todo!()
-        } else {
-            Err(DeserializeError::UnexpectedEnd)
-        }
-    }
-
-    pub fn from_buffer(
-        buffer: &'data [u8],
-        argument_space: &'data mut Arguments<'data>,
-    ) -> Result<Self, DeserializeError> {
-        let status: Status = buffer[0].try_into()?;
-
-        // TODO: finish impl
-
-        todo!()
-    }
-}
-
 // TODO: reconciling Request arguments with Reply? (ADD/REPL status)
-
-// struct ReplyHeader {
-//     status: Status,
-//     argument_count: u8,
-//     server_message_length: u8,
-//     data_length: u8,
-//     argument_lengths: &[u8],
-// }
