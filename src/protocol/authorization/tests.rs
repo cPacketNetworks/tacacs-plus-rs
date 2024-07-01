@@ -26,9 +26,7 @@ fn serialize_request_no_arguments() {
         method: AuthenticationMethod::Enable,
         authentication_context,
         client_information,
-        arguments: empty_arguments
-            .as_mut_slice()
-            .try_into()
+        arguments: Arguments::try_from_slicevec(empty_arguments.as_mut_slice().into())
             .expect("empty argument list should be valid"),
     };
 
@@ -74,7 +72,7 @@ fn serialize_authorization_request_one_argument() {
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from(argument_array.as_mut_slice())
+    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
         .expect("single argument array should be valid");
 
     let request = Request {

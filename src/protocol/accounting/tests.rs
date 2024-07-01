@@ -13,9 +13,7 @@ fn serialize_accounting_packet_with_argument() {
                 .expect("argument should be valid"),
         ];
 
-    let arguments = argument_array
-        .as_mut_slice()
-        .try_into()
+    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
         .expect("argument array should be valid");
 
     let request = Request {

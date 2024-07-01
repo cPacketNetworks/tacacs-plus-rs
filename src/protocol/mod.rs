@@ -9,7 +9,9 @@ pub mod common;
 mod tests;
 
 // TODO: move common into here
-use common::{Arguments, DeserializeError, NotEnoughSpace};
+use common::{Argument, DeserializeError, NotEnoughSpace};
+
+use self::common::ArgumentsArray;
 
 // TODO: get version from packet body where it matters? e.g. ASCII vs. PAP auth
 #[repr(u8)]
@@ -52,33 +54,29 @@ pub enum PacketType {
 pub trait PacketBody {
     const TYPE: PacketType;
 
+    /// Minimum length of packet, in bytes.
+    const MINIMUM_LENGTH: usize;
+
     fn required_minor_version(&self) -> Option<MinorVersion> {
         None
     }
 }
 
 // TODO: naming
-// TODO: pub(crate) instead? would need to use something else for Packet (de)serialization though
 pub trait Serialize {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace>;
 }
 
-pub trait Deserialize {
-    fn deserialize_from_buffer(&self, buffer: &[u8]) -> Result<Self, DeserializeError>
-    where
-        Self: Sized;
-}
-
-pub trait DeserializeWithArguments {
+pub trait DeserializeWithArguments<'raw> {
     fn deserialize_from_buffer(
         &self,
-        buffer: &[u8],
-        argument_space: &mut Arguments,
+        buffer: &'raw [u8],
+        argument_space: ArgumentsArray<'raw>,
     ) -> Result<Self, DeserializeError>
     where
-        Self: Sized;
+        Self: Sized + 'raw;
 }
 
 pub struct Packet<B: PacketBody> {
@@ -87,7 +85,7 @@ pub struct Packet<B: PacketBody> {
 }
 
 impl<B: PacketBody> Packet<B> {
-    pub const HEADER_LENGTH_BYTES: usize = 12;
+    pub const HEADER_SIZE_BYTES: usize = 12;
 
     pub fn new(header: HeaderInfo, body: B) -> Option<Self> {
         match body.required_minor_version() {
@@ -99,7 +97,7 @@ impl<B: PacketBody> Packet<B> {
 
 impl<B: PacketBody + Serialize> Serialize for Packet<B> {
     fn wire_size(&self) -> usize {
-        Self::HEADER_LENGTH_BYTES + self.body.wire_size()
+        Self::HEADER_SIZE_BYTES + self.body.wire_size()
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
@@ -119,6 +117,24 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
             self.body.serialize_into_buffer(&mut buffer[12..])
         } else {
             Err(NotEnoughSpace(()))
+        }
+    }
+}
+
+impl<'body, B: PacketBody + DeserializeWithArguments<'body>> DeserializeWithArguments<'body>
+    for Packet<B>
+{
+    fn deserialize_from_buffer(
+        &self,
+        buffer: &'body [u8],
+        argument_space: ArgumentsArray<'body>,
+    ) -> Result<Self, DeserializeError> {
+        if buffer.len() >= Self::HEADER_SIZE_BYTES {
+            // TODO: setting of
+
+            todo!()
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 }

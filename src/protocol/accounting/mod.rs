@@ -52,6 +52,10 @@ pub struct Request<'request> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Accounting;
+    const MINIMUM_LENGTH: usize = AccountingFlags::WIRE_SIZE
+        + AuthenticationMethod::WIRE_SIZE
+        + AuthenticationContext::WIRE_SIZE
+        + 4;
 }
 
 impl Serialize for Request<'_> {
@@ -79,7 +83,7 @@ impl Serialize for Request<'_> {
             let argument_count = self.arguments.argument_count();
 
             // extra 1 is added to avoid overwriting the last argument length
-            let body_start = 8 + 1 + argument_count;
+            let body_start = 8 + 1 + argument_count as usize;
 
             // actual request content
             let client_information_len = self

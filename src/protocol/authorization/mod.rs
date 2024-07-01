@@ -1,11 +1,13 @@
+use core::iter::zip;
+
 use crate::AsciiStr;
 
 use super::{
     common::{
-        Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation,
-        DeserializeError, NotEnoughSpace,
+        Argument, Arguments, ArgumentsArray, AuthenticationContext, AuthenticationMethod,
+        ClientInformation, DeserializeError, NotEnoughSpace,
     },
-    PacketBody, PacketType, Serialize,
+    DeserializeWithArguments, PacketBody, PacketType, Serialize,
 };
 
 #[cfg(test)]
@@ -20,6 +22,8 @@ pub struct Request<'request> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Authorization;
+    const MINIMUM_LENGTH: usize =
+        AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
 
 impl Serialize for Request<'_> {
@@ -42,7 +46,7 @@ impl Serialize for Request<'_> {
             self.arguments.serialize_header(&mut buffer[7..])?;
 
             // extra 1 added since we have to go past the last argument length in the header
-            let body_start = 7 + 1 + self.arguments.argument_count();
+            let body_start: usize = 7 + 1 + self.arguments.argument_count() as usize;
 
             // actual client information
             let client_information_len = self
@@ -93,6 +97,65 @@ pub struct Reply<'data> {
     server_message: AsciiStr<'data>,
     data: &'data [u8],
     arguments: Arguments<'data>,
+}
+
+impl PacketBody for Reply<'_> {
+    const TYPE: PacketType = PacketType::Authorization;
+    const MINIMUM_LENGTH: usize = 6;
+}
+
+impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
+    fn deserialize_from_buffer(
+        &self,
+        buffer: &'raw [u8],
+        argument_space: ArgumentsArray<'raw>,
+    ) -> Result<Self, DeserializeError> {
+        if buffer.len() >= Self::MINIMUM_LENGTH {
+            let argument_count = buffer[1];
+
+            if argument_count as usize <= buffer.len() {
+                let mut arguments = Arguments::try_from_slicevec(argument_space)
+                    .ok_or(DeserializeError::NotEnoughSpace)?;
+
+                let status: Status = buffer[0].try_into()?;
+                let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?);
+                let data_length = u16::from_be_bytes(buffer[4..6].try_into()?);
+
+                let body_start = 5 + argument_count as usize;
+                let data_start = body_start + server_message_length as usize;
+                let arguments_start = data_start + data_length as usize;
+
+                let server_message = AsciiStr::try_from(&buffer[body_start..data_start])?;
+                let data = &buffer[data_start..arguments_start];
+
+                // TODO: verify no arg behavior
+                let mut argument_cursor = arguments_start;
+
+                for length in &buffer[6..6 + argument_count as usize] {
+                    let next_argument_start = argument_cursor + *length as usize;
+
+                    let raw_argument = &buffer[argument_cursor..next_argument_start];
+                    let parsed_argument = Argument::deserialize(raw_argument)
+                        .ok_or(DeserializeError::InvalidWireBytes)?;
+
+                    arguments.push(parsed_argument);
+
+                    argument_cursor = next_argument_start;
+                }
+
+                Ok(Self {
+                    status,
+                    server_message,
+                    data,
+                    arguments,
+                })
+            } else {
+                Err(DeserializeError::NotEnoughSpace)
+            }
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
+        }
+    }
 }
 
 impl<'data> Reply<'data> {

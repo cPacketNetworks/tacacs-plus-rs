@@ -27,7 +27,7 @@ fn arguments_two_required() {
             .expect("argument should be valid"),
     ];
 
-    let arguments = Arguments::try_from(argument_array.as_mut_slice())
+    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
         .expect("argument array -> Arguments conversion should have worked");
 
     let mut buffer = [0u8; 40];
@@ -53,7 +53,7 @@ fn arguments_one_optional() {
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from(arguments_array.as_mut_slice())
+    let arguments = Arguments::try_from_slicevec(arguments_array.as_mut_slice().into())
         .expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];

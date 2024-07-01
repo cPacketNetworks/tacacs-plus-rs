@@ -103,6 +103,7 @@ impl<'packet> Start<'packet> {
 
 impl PacketBody for Start<'_> {
     const TYPE: PacketType = PacketType::Authentication;
+    const MINIMUM_LENGTH: usize = Action::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 
     fn required_minor_version(&self) -> Option<MinorVersion> {
         match self.authentication.authentication_type {
@@ -270,12 +271,13 @@ impl<'packet> Continue<'packet> {
 
 impl PacketBody for Continue<'_> {
     const TYPE: PacketType = PacketType::Authentication;
+    const MINIMUM_LENGTH: usize = 5;
 }
 
 impl Serialize for Continue<'_> {
     fn wire_size(&self) -> usize {
-        // 3 includes 1 byte of flags (abort) and 2 bytes of encoded lengths
-        3 + self.user_message.map_or(0, |message| message.len())
+        Self::MINIMUM_LENGTH
+            + self.user_message.map_or(0, |message| message.len())
             + self.data.map_or(0, |data| data.len())
     }
 
