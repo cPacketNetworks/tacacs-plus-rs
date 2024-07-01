@@ -84,7 +84,7 @@ impl Request<'_> {
 
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
         }
     }
 }

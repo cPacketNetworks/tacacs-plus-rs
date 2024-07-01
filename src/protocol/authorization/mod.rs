@@ -48,7 +48,7 @@ impl Request<'_> {
 
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
         }
     }
 }
@@ -93,9 +93,9 @@ impl<'data> Reply<'data> {
     const BASE_HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
 
     pub fn claimed_body_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
-        let argument_count = buffer.get(1).ok_or(DeserializeError::UnexpectedEnd);
+        let argument_count = *buffer.get(1).ok_or(DeserializeError::UnexpectedEnd)?;
 
-        if buffer.len() >= Self::BASE_HEADER_SIZE_BYTES + argument_count {
+        if buffer.len() >= Self::BASE_HEADER_SIZE_BYTES + argument_count as usize {
             let server_message_len = u16::from_be_bytes(buffer[2..4].try_into()?);
             let data_len = u16::from_be_bytes(buffer[4..6].try_into()?);
             todo!()

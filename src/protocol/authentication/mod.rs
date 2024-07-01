@@ -1,5 +1,11 @@
-use super::common::{AuthenticationContext, ClientInformation, DeserializeError, NotEnoughSpace};
-use crate::{AsciiStr, InvalidAscii};
+use super::{
+    common::{
+        AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError,
+        NotEnoughSpace,
+    },
+    MinorVersion, PacketBody, PacketType, Serialize,
+};
+use crate::AsciiStr;
 
 #[cfg(test)]
 mod tests;
@@ -75,6 +81,7 @@ impl<'packet> Start<'packet> {
         authentication: AuthenticationContext,
         client_information: ClientInformation<'packet>,
     ) -> Self {
+        // TODO: ensure action/authentication method compatibility
         Self {
             action,
             authentication,
@@ -134,7 +141,63 @@ impl<'packet> Start<'packet> {
 
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
+        }
+    }
+}
+
+impl PacketBody for Start<'_> {
+    const TYPE: PacketType = PacketType::Authentication;
+
+    fn required_minor_version(&self) -> Option<MinorVersion> {
+        match self.authentication.authentication_type {
+            AuthenticationType::Ascii => Some(MinorVersion::Default),
+            _ => Some(MinorVersion::V1),
+        }
+    }
+
+    /// Returns the current size of the packet as represented on the wire.
+    fn wire_size(&self) -> usize {
+        Action::WIRE_SIZE
+            + AuthenticationContext::WIRE_SIZE
+            + self.client_information.wire_size()
+            + 1 // extra byte to include length of data
+            + self.data.map_or(0, |data| data.len())
+    }
+}
+
+impl Serialize for Start<'_> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+        if buffer.len() >= self.wire_size() {
+            buffer[0] = self.action as u8;
+
+            self.authentication
+                .serialize_header_information(&mut buffer[1..=3]);
+
+            self.client_information
+                .serialize_header_information(&mut buffer[4..=6]);
+
+            let client_information_len = self
+                .client_information
+                .serialize_body_information(&mut buffer[8..]);
+
+            if let Some(data) = self.data {
+                let data_len = data.len();
+
+                // length is verified in with_data(), so this should be completely safe
+                buffer[7] = data_len as u8;
+
+                // copy over packet data
+                buffer[8 + client_information_len..8 + client_information_len + data_len]
+                    .copy_from_slice(data);
+            } else {
+                // set data_len field to 0; no data has to be copied to the data section of the packet
+                buffer[7] = 0;
+            }
+
+            Ok(())
+        } else {
+            Err(NotEnoughSpace(()))
         }
     }
 }
@@ -282,7 +345,7 @@ impl<'packet> Continue<'packet> {
 
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
         }
     }
 }

@@ -101,8 +101,9 @@ pub struct ClientInformation<'info> {
 }
 
 // TODO: error impl
+// TODO: not pub(super)
 #[derive(Debug)]
-pub struct NotEnoughSpace;
+pub struct NotEnoughSpace(pub(super) ());
 
 // TODO: naming + struct instead?
 #[derive(Debug)]
@@ -243,7 +244,7 @@ impl Arguments<'_> {
 
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
         }
     }
 
@@ -263,7 +264,7 @@ impl Arguments<'_> {
             }
             Ok(())
         } else {
-            Err(NotEnoughSpace)
+            Err(NotEnoughSpace(()))
         }
     }
 }
