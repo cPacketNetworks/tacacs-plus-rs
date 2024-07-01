@@ -1,5 +1,3 @@
-use core::iter::zip;
-
 use crate::AsciiStr;
 
 use super::{
@@ -95,10 +93,10 @@ impl TryFrom<u8> for Status {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
-    status: Status,
-    server_message: AsciiStr<'data>,
-    data: &'data [u8],
-    arguments: Arguments<'data>,
+    pub(super) status: Status,
+    pub(super) server_message: AsciiStr<'data>,
+    pub(super) data: &'data [u8],
+    pub(super) arguments: Arguments<'data>,
 }
 
 impl PacketBody for Reply<'_> {
@@ -118,14 +116,18 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
                 let mut arguments = Arguments::try_from_slicevec(argument_space)
                     .ok_or(DeserializeError::NotEnoughSpace)?;
 
+                println!("befor");
                 let status: Status = buffer[0].try_into()?;
                 let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?);
                 let data_length = u16::from_be_bytes(buffer[4..6].try_into()?);
+
+                println!("aft");
 
                 let body_start = 6 + argument_count as usize;
                 let data_start = body_start + server_message_length as usize;
                 let arguments_start = data_start + data_length as usize;
 
+                println!("made it");
                 let server_message = AsciiStr::try_from(&buffer[body_start..data_start])?;
                 let data = &buffer[data_start..arguments_start];
 

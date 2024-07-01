@@ -1,5 +1,8 @@
+use tinyvec::SliceVec;
+
 use super::common::{
-    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, Service,
+    Argument, Arguments, AuthenticationContext, AuthenticationType, ClientInformation,
+    PrivilegeLevel, Service,
 };
 use super::*;
 use crate::types::force_ascii;
@@ -112,5 +115,107 @@ fn serialize_authentication_start_version_mismatch() {
     assert!(
         Packet::new(header, body).is_none(),
         "packet construction should have failed"
+    );
+}
+
+#[test]
+fn deserialize_authorization_reply_with_header() {
+    let raw_packet = [
+        0xc << 4,    // major/minor version
+        0x2,         // type: authorization
+        4,           // sequence number
+        0x01 | 0x04, // both flags set
+        // session id
+        0x5,
+        0x88,
+        0x96,
+        0x74,
+        // body length
+        0,
+        0,
+        0,
+        45,
+        // BODY
+        0x10, // status: fail
+        1,    // argument count
+        // server message length
+        0,
+        23,
+        // data length
+        0,
+        4,
+        // argument length
+        11,
+        // server message
+        0x73,
+        0x6f,
+        0x6d,
+        0x65,
+        0x74,
+        0x68,
+        0x69,
+        0x6e,
+        0x67,
+        0x20,
+        0x77,
+        0x65,
+        0x6e,
+        0x74,
+        0x20,
+        0x77,
+        0x72,
+        0x6f,
+        0x6e,
+        0x67,
+        0x20,
+        0x3a,
+        0x28,
+        // data
+        0x88,
+        0x88,
+        0x88,
+        0x88,
+        // argument 1
+        0x73,
+        0x65,
+        0x72,
+        0x76,
+        0x69,
+        0x63,
+        0x65,
+        0x3d,
+        0x6e,
+        0x61,
+        0x68,
+    ];
+
+    let mut expected_arguments =
+        [Argument::new(force_ascii("service"), force_ascii("nah"), true).unwrap()];
+
+    let expected_header = HeaderInfo {
+        minor_version: MinorVersion::Default,
+        sequence_number: 4,
+        flags: HeaderFlags::Unencrypted | HeaderFlags::SingleConnection,
+        session_id: 92837492,
+    };
+
+    let expected_body = authorization::Reply {
+        status: authorization::Status::Fail,
+        server_message: force_ascii("something went wrong :("),
+        data: b"\x88\x88\x88\x88",
+        arguments: Arguments::try_from_slicevec(expected_arguments.as_mut_slice().into()).unwrap(),
+    };
+
+    let expected_packet = Packet::new(expected_header, expected_body).unwrap();
+
+    let mut parsed_arguments_space: [Argument<'_>; 1] = Default::default();
+
+    assert_eq!(
+        expected_packet,
+        Packet::<authorization::Reply>::deserialize_from_buffer(
+            &raw_packet,
+            SliceVec::try_from_slice_len(parsed_arguments_space.as_mut_slice(), 0).unwrap()
+        )
+        .expect("packet parsing should have succeeded")
     );
 }

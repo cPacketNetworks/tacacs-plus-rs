@@ -317,6 +317,8 @@ pub enum DeserializeError {
     LengthMismatch,
     // TODO: include required length as part of error value?
     NotEnoughSpace,
+    // TODO: is this the right place for this?
+    VersionMismatch,
 }
 
 // Used in &[u8] -> &[u8; 2] -> u16 conversions in reply deserialization
