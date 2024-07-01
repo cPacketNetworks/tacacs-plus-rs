@@ -1,10 +1,9 @@
 use bitflags::bitflags;
 
-mod accounting;
-mod authentication;
-mod authorization;
-mod common;
-mod wire;
+pub mod accounting;
+pub mod authentication;
+pub mod authorization;
+pub mod common;
 
 #[cfg(test)]
 mod tests;

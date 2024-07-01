@@ -1,7 +1,10 @@
 use super::Request;
-use crate::protocol::common::{
-    Argument, Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationType,
-    ClientInformation, PrivilegeLevel, Service,
+use crate::protocol::{
+    common::{
+        Argument, Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationType,
+        ClientInformation, PrivilegeLevel, Service,
+    },
+    Serialize,
 };
 use crate::types::force_ascii;
 

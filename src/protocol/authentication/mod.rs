@@ -90,15 +90,6 @@ impl<'packet> Start<'packet> {
         }
     }
 
-    /// Returns the current size of the packet as represented on the wire.
-    pub fn wire_size(&self) -> usize {
-        Action::WIRE_SIZE
-            + AuthenticationContext::WIRE_SIZE
-            + self.client_information.wire_size()
-            + 1 // extra byte to include length of data
-            + self.data.map_or(0, |data| data.len())
-    }
-
     /// Sets the data associated with this packet if it's short enough (i.e., shorter than u8::MAX bytes); otherwise returns an error.
     pub fn set_data(&mut self, new_data: &'packet [u8]) -> Result<(), DataTooLong> {
         if new_data.len() < u8::MAX as usize {
@@ -106,42 +97,6 @@ impl<'packet> Start<'packet> {
             Ok(())
         } else {
             Err(DataTooLong)
-        }
-    }
-
-    // TODO: not fully pub? also need packet header for outside consumer
-    // TODO: this could be a trait
-    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
-        if buffer.len() >= self.wire_size() {
-            buffer[0] = self.action as u8;
-
-            self.authentication
-                .serialize_header_information(&mut buffer[1..=3]);
-
-            self.client_information
-                .serialize_header_information(&mut buffer[4..=6]);
-
-            let client_information_len = self
-                .client_information
-                .serialize_body_information(&mut buffer[8..]);
-
-            if let Some(data) = self.data {
-                let data_len = data.len();
-
-                // length is verified in with_data(), so this should be completely safe
-                buffer[7] = data_len as u8;
-
-                // copy over packet data
-                buffer[8 + client_information_len..8 + client_information_len + data_len]
-                    .copy_from_slice(data);
-            } else {
-                // set data_len field to 0; no data has to be copied to the data section of the packet
-                buffer[7] = 0;
-            }
-
-            Ok(())
-        } else {
-            Err(NotEnoughSpace(()))
         }
     }
 }

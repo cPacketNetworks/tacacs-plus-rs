@@ -1,8 +1,11 @@
 use crate::AsciiStr;
 
-use super::common::{
-    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
-    NotEnoughSpace,
+use super::{
+    common::{
+        Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation,
+        DeserializeError, NotEnoughSpace,
+    },
+    PacketBody, PacketType, Serialize,
 };
 
 #[cfg(test)]
@@ -15,15 +18,19 @@ pub struct Request<'request> {
     pub arguments: Arguments<'request>,
 }
 
-impl Request<'_> {
-    pub fn wire_size(&self) -> usize {
+impl PacketBody for Request<'_> {
+    const TYPE: PacketType = PacketType::Authorization;
+
+    fn wire_size(&self) -> usize {
         AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.client_information.wire_size()
             + self.arguments.wire_size()
     }
+}
 
-    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+impl Serialize for Request<'_> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         // TODO: just rely on checks in components?
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.method as u8;
