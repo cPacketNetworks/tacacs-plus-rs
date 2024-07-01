@@ -1,9 +1,12 @@
 use bitflags::bitflags;
 
+use crate::AsciiStr;
+
 use super::common::{
-    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, NotEnoughSpace,
+    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
+    NotEnoughSpace,
 };
-use super::{PacketBody, PacketType, Serialize};
+use super::{DeserializeWithArguments, PacketBody, PacketType, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -95,6 +98,68 @@ impl Serialize for Request<'_> {
             Ok(())
         } else {
             Err(NotEnoughSpace(()))
+        }
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Status {
+    Success = 0x01,
+    Error = 0x02,
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
+    Follow = 0x21,
+}
+
+impl TryFrom<u8> for Status {
+    type Error = DeserializeError;
+
+    fn try_from(value: u8) -> Result<Self, DeserializeError> {
+        match value {
+            0x01 => Ok(Self::Success),
+            0x02 => Ok(Self::Error),
+            #[allow(deprecated)]
+            0x21 => Ok(Self::Follow),
+            _ => Err(DeserializeError::InvalidWireBytes),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct Reply<'data> {
+    pub(super) status: Status,
+    pub(super) server_message: AsciiStr<'data>,
+    pub(super) data: &'data [u8],
+}
+
+impl PacketBody for Reply<'_> {
+    const TYPE: PacketType = PacketType::Accounting;
+    const MINIMUM_LENGTH: usize = 6;
+}
+
+impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
+    type Error = DeserializeError;
+
+    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        if buffer.len() >= Self::MINIMUM_LENGTH {
+            let status: Status = buffer[4].try_into()?;
+
+            let server_message_length = u16::from_be_bytes(buffer[0..2].try_into()?);
+            let data_length = u16::from_be_bytes(buffer[2..4].try_into()?);
+
+            let server_message_start = 5;
+            let data_start = server_message_start + server_message_length as usize;
+
+            let server_message = AsciiStr::try_from(&buffer[server_message_start..data_start])?;
+            let data = &buffer[data_start..data_start + data_length as usize];
+
+            Ok(Self {
+                status,
+                server_message,
+                data,
+            })
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 }

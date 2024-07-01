@@ -95,6 +95,7 @@ pub trait Serialize {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace>;
 }
 
+// TODO: this is only implemented by authorization reply, remove maybe? I thought accounting did it too but guess not
 pub trait DeserializeWithArguments<'raw> {
     fn deserialize_from_buffer(
         buffer: &'raw [u8],
