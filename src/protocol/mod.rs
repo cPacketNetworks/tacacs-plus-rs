@@ -55,13 +55,13 @@ pub trait PacketBody {
     fn required_minor_version(&self) -> Option<MinorVersion> {
         None
     }
-
-    fn wire_size(&self) -> usize;
 }
 
 // TODO: naming
 // TODO: pub(crate) instead? would need to use something else for Packet (de)serialization though
 pub trait Serialize {
+    /// Returns the current size of the packet as represented on the wire.
+    fn wire_size(&self) -> usize;
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace>;
 }
 
@@ -98,10 +98,14 @@ impl<B: PacketBody> Packet<B> {
 }
 
 impl<B: PacketBody + Serialize> Serialize for Packet<B> {
+    fn wire_size(&self) -> usize {
+        Self::HEADER_LENGTH_BYTES + self.body.wire_size()
+    }
+
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         let body_length = self.body.wire_size();
 
-        if buffer.len() >= Self::HEADER_LENGTH_BYTES + body_length {
+        if buffer.len() >= self.wire_size() {
             // fill in header information
             buffer[0] = ((MajorVersion::TheOnlyVersion as u8) << 4)
                 | (self.header.minor_version as u8).clamp(0, 0b1111);

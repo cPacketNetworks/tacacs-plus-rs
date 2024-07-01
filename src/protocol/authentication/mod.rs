@@ -110,8 +110,9 @@ impl PacketBody for Start<'_> {
             _ => Some(MinorVersion::V1),
         }
     }
+}
 
-    /// Returns the current size of the packet as represented on the wire.
+impl Serialize for Start<'_> {
     fn wire_size(&self) -> usize {
         Action::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
@@ -119,9 +120,7 @@ impl PacketBody for Start<'_> {
             + 1 // extra byte to include length of data
             + self.data.map_or(0, |data| data.len())
     }
-}
 
-impl Serialize for Start<'_> {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
@@ -179,9 +178,8 @@ impl Reply<'_> {
         }
     }
 
-    // TODO: figure out how to not have this behind a double reference
-    pub fn server_message(&self) -> &AsciiStr<'_> {
-        &self.server_message
+    pub fn server_message(&self) -> AsciiStr<'_> {
+        self.server_message
     }
 
     pub fn data(&self) -> &[u8] {
@@ -268,14 +266,20 @@ impl<'packet> Continue<'packet> {
             Err(DataTooLong)
         }
     }
+}
 
-    pub fn wire_size(&self) -> usize {
+impl PacketBody for Continue<'_> {
+    const TYPE: PacketType = PacketType::Authentication;
+}
+
+impl Serialize for Continue<'_> {
+    fn wire_size(&self) -> usize {
         // 3 includes 1 byte of flags (abort) and 2 bytes of encoded lengths
         3 + self.user_message.map_or(0, |message| message.len())
             + self.data.map_or(0, |data| data.len())
     }
 
-    pub fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
             buffer[4] = self.abort as u8;

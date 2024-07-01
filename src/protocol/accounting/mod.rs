@@ -3,6 +3,7 @@ use bitflags::bitflags;
 use super::common::{
     Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, NotEnoughSpace,
 };
+use super::{PacketBody, PacketType, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -16,6 +17,7 @@ bitflags! {
 }
 
 /// Valid accounting flag combinations for a TACACS+ account REQUEST packet.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum AccountingFlags {
     StartRecord,
     StopRecord,
@@ -48,8 +50,12 @@ pub struct Request<'request> {
     pub arguments: Arguments<'request>,
 }
 
-impl Request<'_> {
-    pub fn wire_size(&self) -> usize {
+impl PacketBody for Request<'_> {
+    const TYPE: PacketType = PacketType::Accounting;
+}
+
+impl Serialize for Request<'_> {
+    fn wire_size(&self) -> usize {
         AccountingFlags::WIRE_SIZE
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
@@ -57,7 +63,7 @@ impl Request<'_> {
             + self.arguments.wire_size()
     }
 
-    pub fn serialize_into_buffer(self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = RawFlags::from(self.flags).bits();
             buffer[1] = self.authentication_method as u8;
