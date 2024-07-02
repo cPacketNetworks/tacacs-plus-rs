@@ -1,3 +1,5 @@
+//! Authentication-related protocol packets.
+
 use super::{
     AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError, MinorVersion,
     NotEnoughSpace, PacketBody, PacketType, Serialize,

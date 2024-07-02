@@ -1,3 +1,5 @@
+//! Authorization features/packets of the TACACS+ protocol.
+
 use crate::AsciiStr;
 
 use super::{
@@ -8,6 +10,7 @@ use super::{
 #[cfg(test)]
 mod tests;
 
+/// An authorization request packet body, including arguments.
 pub struct Request<'request> {
     pub method: AuthenticationMethod,
     pub authentication_context: AuthenticationContext,
@@ -30,25 +33,21 @@ impl Serialize for Request<'_> {
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
-        // TODO: just rely on checks in components?
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.method as u8;
             self.authentication_context
-                .serialize_header_information(&mut buffer[1..=3]);
+                .serialize_header_information(&mut buffer[1..4]);
             self.client_information
-                .serialize_header_information(&mut buffer[4..=6]);
+                .serialize_header_information(&mut buffer[4..7]);
 
             self.arguments.serialize_header(&mut buffer[7..])?;
 
-            // extra 1 added since we have to go past the last argument length in the header
-            let body_start: usize = 7 + 1 + self.arguments.argument_count() as usize;
+            let body_start: usize = Self::MINIMUM_LENGTH + self.arguments.argument_count() as usize;
 
-            // actual client information
             let client_information_len = self
                 .client_information
                 .serialize_body_information(&mut buffer[body_start..]);
 
-            // actual argument names/values
             self.arguments
                 .serialize_body(&mut buffer[body_start + client_information_len..])?;
 
@@ -98,18 +97,22 @@ pub struct Reply<'data> {
 }
 
 impl<'body> Reply<'body> {
+    /// The result status of the request.
     pub fn status(&self) -> Status {
         self.status
     }
 
+    /// The message received from the server.
     pub fn server_mesage(&self) -> AsciiStr {
         self.server_message
     }
 
+    /// The domain-specific data received from the server.
     pub fn data(&self) -> &[u8] {
         self.data
     }
 
+    /// The arguments sent by the server.
     pub fn arguments(&self) -> &Arguments<'body> {
         &self.arguments
     }
@@ -139,10 +142,10 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
             let data = &buffer[data_start..arguments_start];
 
             let argument_lengths = &buffer[6..6 + argument_count];
-            // wish I could just use sum() here but references :(
-            let total_argument_length = argument_lengths
+            let total_argument_length: usize = argument_lengths
                 .iter()
-                .fold(0, |total, &length| total + length as usize);
+                .map(|&length| usize::from(length))
+                .sum();
             let argument_values = &buffer[arguments_start..arguments_start + total_argument_length];
             let arguments =
                 Arguments::deserialize(argument_lengths, argument_values, argument_space)?;

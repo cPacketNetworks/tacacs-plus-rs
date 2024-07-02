@@ -1,3 +1,5 @@
+//! Accounting protocol packet (de)serialization.
+
 use bitflags::bitflags;
 
 use super::{
