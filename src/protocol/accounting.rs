@@ -39,9 +39,11 @@ impl From<Flags> for RawFlags {
 }
 
 impl Flags {
+    /// The number of bytes occupied by a flag set on the wire.
     pub const WIRE_SIZE: usize = 1;
 }
 
+/// An accounting request packet, used to start, stop, or provide progress on a running job.
 pub struct Request<'request> {
     pub flags: Flags,
     pub authentication_method: AuthenticationMethod,
@@ -66,7 +68,9 @@ impl Serialize for Request<'_> {
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
-        if buffer.len() >= self.wire_size() {
+        let wire_size = self.wire_size();
+
+        if buffer.len() >= wire_size {
             buffer[0] = RawFlags::from(self.flags).bits();
             buffer[1] = self.authentication_method as u8;
 
@@ -80,7 +84,7 @@ impl Serialize for Request<'_> {
             let argument_count = self.arguments.argument_count();
 
             // extra 1 is added to avoid overwriting the last argument length
-            let body_start = 8 + 1 + argument_count as usize;
+            let body_start = Self::MINIMUM_LENGTH + argument_count as usize;
 
             // actual request content
             let client_information_len = self
@@ -89,13 +93,14 @@ impl Serialize for Request<'_> {
             self.arguments
                 .serialize_body(&mut buffer[body_start + client_information_len..])?;
 
-            Ok(self.wire_size())
+            Ok(wire_size)
         } else {
             Err(NotEnoughSpace(()))
         }
     }
 }
 
+/// The server's reply status in an accounting session.
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Status {
@@ -119,11 +124,29 @@ impl TryFrom<u8> for Status {
     }
 }
 
+/// An accounting reply packet received from a TACACS+ server.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
-    pub(super) status: Status,
-    pub(super) server_message: AsciiStr<'data>,
-    pub(super) data: &'data [u8],
+    status: Status,
+    server_message: AsciiStr<'data>,
+    data: &'data [u8],
+}
+
+impl Reply<'_> {
+    /// The status received from the server.
+    pub fn status(&self) -> Status {
+        self.status
+    }
+
+    /// The message received from the server, potentially to display to a user.
+    pub fn server_message(&self) -> AsciiStr {
+        self.server_message
+    }
+
+    /// The domain-specific data received from the server.
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
 }
 
 impl PacketBody for Reply<'_> {

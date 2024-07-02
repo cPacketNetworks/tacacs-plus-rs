@@ -18,6 +18,7 @@ pub enum Action {
 }
 
 impl Action {
+    /// The number of bytes an `Action` occupies on the wire.
     pub const WIRE_SIZE: usize = 1;
 }
 
@@ -57,17 +58,11 @@ impl TryFrom<u8> for Status {
 
 /// An authentication START packet, used to initiate an authentication session.
 pub struct Start<'packet> {
-    // TODO: visibility for consistency? or migrate everything over to constructor
-    // data should be kept private and only modified through functions that verify new values
     action: Action,
     authentication: AuthenticationContext,
     client_information: ClientInformation<'packet>,
     data: Option<&'packet [u8]>,
 }
-
-// TODO: common error type?
-#[derive(Debug)]
-pub struct DataTooLong;
 
 impl<'packet> Start<'packet> {
     /// Initializes a new start packet with the provided fields and an empty data field.
@@ -75,23 +70,20 @@ impl<'packet> Start<'packet> {
         action: Action,
         authentication: AuthenticationContext,
         client_information: ClientInformation<'packet>,
-    ) -> Self {
-        // TODO: ensure action/authentication method compatibility
-        Self {
-            action,
-            authentication,
-            client_information,
-            data: None,
-        }
-    }
+        data: Option<&'packet [u8]>,
+    ) -> Option<Self> {
+        // TODO: ensure action/authentication method compatibility?
 
-    /// Sets the data associated with this packet if it's short enough (i.e., shorter than u8::MAX bytes); otherwise returns an error.
-    pub fn set_data(&mut self, new_data: &'packet [u8]) -> Result<(), DataTooLong> {
-        if new_data.len() < u8::MAX as usize {
-            self.data = Some(new_data);
-            Ok(())
+        // ensure data length is small enough to be properly encoded without truncation
+        if data.map_or(true, |slice| slice.len() <= u8::MAX as usize) {
+            Some(Self {
+                action,
+                authentication,
+                client_information,
+                data,
+            })
         } else {
-            Err(DataTooLong)
+            None
         }
     }
 }
@@ -134,7 +126,7 @@ impl Serialize for Start<'_> {
             if let Some(data) = self.data {
                 let data_len = data.len();
 
-                // length is verified in with_data(), so this should be completely safe
+                // length is verified in with_data(), so this should be safe
                 buffer[7] = data_len as u8;
 
                 // copy over packet data
@@ -152,6 +144,7 @@ impl Serialize for Start<'_> {
     }
 }
 
+/// An authentication reply packet received from a server.
 #[derive(Debug, PartialEq)]
 pub struct Reply<'data> {
     status: Status,
@@ -164,6 +157,7 @@ impl Reply<'_> {
     // 1 byte for status, 1 for flags, 2 for server_msg_len, 2 for data_len
     const HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
 
+    /// Attempts to extract the claimed reply packed body length from a buffer.
     pub fn claimed_packet_body_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::HEADER_SIZE_BYTES {
             let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?) as usize;
@@ -174,14 +168,22 @@ impl Reply<'_> {
         }
     }
 
-    pub fn server_message(&self) -> AsciiStr<'_> {
+    /// Status of the server reply.
+    pub fn status(&self) -> Status {
+        self.status
+    }
+
+    /// Message received from the server, potentially to display to the user.
+    pub fn server_message(&self) -> AsciiStr {
         self.server_message
     }
 
+    /// Domain-specific data received from the server.
     pub fn data(&self) -> &[u8] {
         self.data
     }
 
+    /// Whether the no echo flag was set by the server in this reply.
     pub fn no_echo(&self) -> bool {
         self.no_echo
     }
@@ -200,8 +202,6 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
         if total_len >= Self::HEADER_SIZE_BYTES {
             let status: Status = buffer[0].try_into()?;
-
-            // TODO: find a better way to catch invalid wire bytes than this
             let no_echo = match buffer[1] {
                 0 => Ok(false),
                 1 => Ok(true),
@@ -212,20 +212,17 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
             let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
 
-            // TODO: exact size or allow for bigger?
-            // allowing for bigger should come with caveat of zeroing out the buffer somehow, but I don't think Rust can enforce that
             if total_len
                 >= Reply::claimed_packet_body_length(buffer)
                     .ok_or(DeserializeError::InvalidWireBytes)?
             {
                 let body_begin = Self::HEADER_SIZE_BYTES;
+                let data_begin = body_begin + server_message_length;
+
                 Ok(Reply {
                     status,
-                    server_message: AsciiStr::try_from(
-                        &buffer[body_begin..body_begin + server_message_length],
-                    )?,
-                    data: &buffer[body_begin + server_message_length
-                        ..body_begin + server_message_length + data_length],
+                    server_message: AsciiStr::try_from(&buffer[body_begin..data_begin])?,
+                    data: &buffer[data_begin..data_begin + data_length],
                     no_echo,
                 })
             } else {
@@ -237,44 +234,31 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     }
 }
 
+/// A continue packet potentially sent as part of an authentication session.
 pub struct Continue<'packet> {
     user_message: Option<&'packet [u8]>,
     data: Option<&'packet [u8]>,
-    // TODO: abstract behind method in case of future changes?
-    pub abort: bool,
+    abort: bool,
 }
 
 impl<'packet> Continue<'packet> {
-    pub fn new() -> Self {
-        Continue {
-            user_message: None,
-            data: None,
-            abort: false,
-        }
-    }
-
-    pub fn set_user_message(&mut self, new_message: &'packet [u8]) -> Result<(), DataTooLong> {
-        if new_message.len() <= u16::MAX as usize {
-            self.user_message = Some(new_message);
-            Ok(())
+    /// Constructs a continue packet, performing length checks on the user message and data fields to ensure encodable lengths.
+    pub fn new(
+        user_message: Option<&'packet [u8]>,
+        data: Option<&'packet [u8]>,
+        abort: bool,
+    ) -> Option<Self> {
+        if user_message.map_or(true, |message| u16::try_from(message.len()).is_ok())
+            && data.map_or(true, |data_slice| u16::try_from(data_slice.len()).is_ok())
+        {
+            Some(Continue {
+                user_message,
+                data,
+                abort,
+            })
         } else {
-            Err(DataTooLong)
+            None
         }
-    }
-
-    pub fn set_data(&mut self, new_data: &'packet [u8]) -> Result<(), DataTooLong> {
-        if new_data.len() <= u16::MAX as usize {
-            self.data = Some(new_data);
-            Ok(())
-        } else {
-            Err(DataTooLong)
-        }
-    }
-}
-
-impl Default for Continue<'_> {
-    fn default() -> Self {
-        Continue::new()
     }
 }
 

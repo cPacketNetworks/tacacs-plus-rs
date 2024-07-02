@@ -1,9 +1,9 @@
 use super::*;
+use crate::ascii::force_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, ClientInformation,
     PrivilegeLevel,
 };
-use crate::types::force_ascii;
 
 #[test]
 fn serialize_authentication_start_no_data() {
@@ -16,7 +16,9 @@ fn serialize_authentication_start_no_data() {
         },
         ClientInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
             .expect("client information should be valid"),
-    );
+        None,
+    )
+    .expect("start construction should have succeeded");
 
     let mut buffer = [0xffu8; 28];
     start_body
@@ -43,7 +45,7 @@ fn serialize_authentication_start_no_data() {
 
 #[test]
 fn serialize_authentication_start_with_data() {
-    let mut start_body = Start::new(
+    let start_body = Start::new(
         Action::ChangePassword,
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(4).expect("privilege level 4 should be valid"),
@@ -52,11 +54,9 @@ fn serialize_authentication_start_with_data() {
         },
         ClientInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
             .expect("client information should be valid"),
-    );
-
-    start_body
-        .set_data("some test data with ✨ unicode ✨".as_bytes())
-        .expect("data should be of valid length");
+        Some("some test data with ✨ unicode ✨".as_bytes()),
+    )
+    .expect("start construction should have succeeded");
 
     let mut buffer = [0xff; 80];
     start_body
@@ -84,7 +84,8 @@ fn serialize_authentication_start_with_data() {
 
 #[test]
 fn serialize_authentication_start_data_too_long() {
-    let mut start_body = Start::new(
+    let long_data = [0x2a; 256];
+    let start_body = Start::new(
         Action::SendAuth,
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(5).expect("privilege level 5 should be valid"),
@@ -93,12 +94,13 @@ fn serialize_authentication_start_data_too_long() {
         },
         ClientInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
             .expect("client information should be valid"),
+        Some(&long_data),
     );
 
-    let long_data = [0x2a; 256];
-    start_body
-        .set_data(&long_data)
-        .expect_err("data should be too long");
+    assert!(
+        start_body.is_none(),
+        "data should have been too long to construct start"
+    );
 }
 
 #[test]
@@ -195,7 +197,8 @@ fn deserialize_reply_bad_flags() {
 
 #[test]
 fn serialize_authentication_continue_no_data() {
-    let continue_body = Continue::new();
+    let continue_body =
+        Continue::new(None, None, false).expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 5];
     continue_body
@@ -214,18 +217,13 @@ fn serialize_authentication_continue_no_data() {
 
 #[test]
 fn serialize_authentication_continue_both_valid_data_fields() {
-    let mut continue_body = Continue::new();
-    continue_body.abort = true;
-
     let user_message = b"secure-password";
     let user_message_length = user_message.len();
     let data = b"\x12\x34\x45\x78";
     let data_length = data.len();
 
-    continue_body
-        .set_user_message(user_message)
-        .expect("user message should be valid");
-    continue_body.set_data(data).expect("data should be valid");
+    let continue_body = Continue::new(Some(user_message), Some(data), true)
+        .expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 30];
     continue_body
@@ -249,12 +247,11 @@ fn serialize_authentication_continue_both_valid_data_fields() {
 
 #[test]
 fn serialize_authentication_continue_only_data_field() {
-    let mut continue_body = Continue::new();
-
     let data = b"textand\x2abinary\x11";
     let data_length = data.len();
 
-    continue_body.set_data(data).expect("data should be valid");
+    let continue_body = Continue::new(None, Some(data), false)
+        .expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 40];
     continue_body

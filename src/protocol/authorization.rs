@@ -60,7 +60,7 @@ impl Serialize for Request<'_> {
 }
 
 #[repr(u8)]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Status {
     PassAdd = 0x01,
     PassReplace = 0x02,
@@ -90,10 +90,29 @@ impl TryFrom<u8> for Status {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
+    // TODO: make not pub(super) (it's only like this for protocol module level tests)
     pub(super) status: Status,
     pub(super) server_message: AsciiStr<'data>,
     pub(super) data: &'data [u8],
     pub(super) arguments: Arguments<'data>,
+}
+
+impl<'body> Reply<'body> {
+    pub fn status(&self) -> Status {
+        self.status
+    }
+
+    pub fn server_mesage(&self) -> AsciiStr {
+        self.server_message
+    }
+
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
+
+    pub fn arguments(&self) -> &Arguments<'body> {
+        &self.arguments
+    }
 }
 
 impl PacketBody for Reply<'_> {

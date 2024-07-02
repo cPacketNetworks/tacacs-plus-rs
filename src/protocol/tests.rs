@@ -1,5 +1,5 @@
 use super::*;
-use crate::types::force_ascii;
+use crate::ascii::force_ascii;
 
 #[test]
 fn serialize_authentication_start_with_header() {
@@ -10,7 +10,7 @@ fn serialize_authentication_start_with_header() {
         session_id: 123456,
     };
 
-    let mut body = authentication::Start::new(
+    let body = authentication::Start::new(
         authentication::Action::Login,
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(0).unwrap(),
@@ -18,9 +18,9 @@ fn serialize_authentication_start_with_header() {
             service: AuthenticationService::Ppp,
         },
         ClientInformation::new("startup", force_ascii("49"), force_ascii("192.168.23.10")).unwrap(),
-    );
-
-    body.set_data("E".as_bytes()).unwrap();
+        Some(b"E"),
+    )
+    .expect("start construction should have succeeded");
 
     let packet = Packet::new(header, body).expect("packet construction should have succeeded");
 
@@ -104,7 +104,9 @@ fn serialize_authentication_start_version_mismatch() {
             service: AuthenticationService::Login,
         },
         ClientInformation::new("bad", force_ascii("49"), force_ascii("::1")).unwrap(),
-    );
+        None,
+    )
+    .expect("packet construction should have succeeded");
 
     assert!(
         Packet::new(header, body).is_none(),

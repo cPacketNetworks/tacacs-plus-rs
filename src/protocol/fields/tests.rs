@@ -1,6 +1,6 @@
 use super::*;
+use crate::ascii::force_ascii;
 use crate::protocol::{Argument, Arguments};
-use crate::types::force_ascii;
 
 #[test]
 fn invalid_privilege_level_none() {

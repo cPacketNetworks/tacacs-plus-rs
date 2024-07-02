@@ -11,10 +11,11 @@ pub(crate) fn force_ascii(value: &str) -> AsciiStr {
 #[cfg(test)]
 mod tests;
 
+/// An error when attempting to convert a non-ASCII `&str` to an [`AsciiStr`].
 #[derive(Debug)]
 pub struct InvalidAscii(());
 
-/// A wrapper for &strs that are checked to be valid ASCII.
+/// A wrapper for `&str` that is checked to be valid ASCII.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct AsciiStr<'string>(&'string str);
 
