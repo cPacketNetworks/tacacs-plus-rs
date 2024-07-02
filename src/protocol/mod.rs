@@ -74,6 +74,23 @@ pub struct HeaderInfo {
     pub session_id: u32,
 }
 
+impl TryFrom<&[u8]> for HeaderInfo {
+    type Error = DeserializeError;
+
+    fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
+        let version: Version = buffer[0].try_into()?;
+
+        let header = Self {
+            minor_version: version.1,
+            sequence_number: buffer[2],
+            flags: HeaderFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
+            session_id: u32::from_be_bytes(buffer[4..8].try_into()?),
+        };
+
+        Ok(header)
+    }
+}
+
 #[repr(u8)]
 pub enum PacketType {
     Authentication = 0x1,
@@ -82,11 +99,13 @@ pub enum PacketType {
 }
 
 pub trait PacketBody {
+    /// Type of the packet (one of authentication, authorization, or accounting).
     const TYPE: PacketType;
 
     /// Minimum length of packet, in bytes.
     const MINIMUM_LENGTH: usize;
 
+    /// Required protocol minor version based on the contents of the packet body.
     fn required_minor_version(&self) -> Option<MinorVersion> {
         None
     }
@@ -152,6 +171,29 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
     }
 }
 
+impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFrom<&'raw [u8]>
+    for Packet<B>
+{
+    type Error = DeserializeError;
+
+    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        if buffer.len() > Self::HEADER_SIZE_BYTES {
+            let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
+
+            let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
+
+            if body_length <= buffer[12..].len() {
+                let body = buffer[12..].try_into()?;
+                Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+            } else {
+                Err(DeserializeError::LengthMismatch)
+            }
+        } else {
+            Err(DeserializeError::UnexpectedEnd)
+        }
+    }
+}
+
 impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> DeserializeWithArguments<'body>
     for Packet<B>
 {
@@ -160,23 +202,13 @@ impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> Deserialize
         argument_space: &'body mut [Argument<'body>],
     ) -> Result<Self, DeserializeError> {
         if buffer.len() > Self::HEADER_SIZE_BYTES {
-            let version: Version = buffer[0].try_into()?;
+            let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
 
-            let header = HeaderInfo {
-                minor_version: version.1,
-                sequence_number: buffer[2],
-                flags: HeaderFlags::from_bits(buffer[3])
-                    .ok_or(DeserializeError::InvalidWireBytes)?,
-                session_id: u32::from_be_bytes(buffer[4..8].try_into()?),
-            };
+            let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
 
-            let body_length = u32::from_be_bytes(buffer[8..12].try_into()?);
-
-            if body_length as usize == buffer[12..].len() {
-                let body = B::deserialize_from_buffer(
-                    &buffer[12..12 + body_length as usize],
-                    argument_space,
-                )?;
+            if body_length as usize <= buffer[12..].len() {
+                let body =
+                    B::deserialize_from_buffer(&buffer[12..12 + body_length], argument_space)?;
 
                 Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
             } else {
