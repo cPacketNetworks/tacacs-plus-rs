@@ -3,19 +3,41 @@ use crate::AsciiStr;
 #[cfg(test)]
 mod tests;
 
+/// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AuthenticationMethod {
+    /// Unknown.
     NotSet = 0x00,
+
+    /// No authentication performed.
     None = 0x01,
+
+    /// Kerberos version 5
     Kerberos5 = 0x02,
+
+    /// Fixed password associated with access line
     Line = 0x03,
+
+    /// Granting new privileges (a la `su(1)`)
     Enable = 0x04,
+
+    /// Client-local user database
     Local = 0x05,
+
+    /// The TACACS+ protocol itself.
     TacacsPlus = 0x06,
+
+    /// (Unqualified) guest authentication
     Guest = 0x08,
+
+    /// RADIUS (RFC 3579)
     Radius = 0x10,
+
+    /// Kerberos version 4
     Kerberos4 = 0x11,
+
+    /// r-command, like `rlogin(1)`
     RCommand = 0x20,
 }
 
@@ -43,8 +65,13 @@ impl PrivilegeLevel {
 ///
 /// [RFC-8907 Section 10.1]: https://datatracker.ietf.org/doc/html/rfc8907#section-10.1.
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AuthenticationType {
+    /// Authentication type not set, typically when it's not available to the client.
+    ///
+    /// **NOTE:** This option is only valid for authorization and accounting requests.
+    NotSet = 0x00,
+
     /// Plain text username & password exchange.
     Ascii = 0x01,
 

@@ -77,7 +77,9 @@ impl<'packet> Start<'packet> {
         // TODO: ensure action/authentication method compatibility?
 
         // ensure data length is small enough to be properly encoded without truncation
-        if data.map_or(true, |slice| slice.len() <= u8::MAX as usize) {
+        if data.map_or(true, |slice| slice.len() <= u8::MAX as usize)
+            && authentication.authentication_type != AuthenticationType::NotSet
+        {
             Some(Self {
                 action,
                 authentication,
