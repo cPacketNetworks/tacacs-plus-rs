@@ -1,12 +1,10 @@
 use crate::AsciiStr;
 
 use super::{
-    common::{
-        Argument, Arguments, ArgumentsArray, AuthenticationContext, AuthenticationMethod,
-        ClientInformation, DeserializeError, NotEnoughSpace,
-    },
-    DeserializeWithArguments, PacketBody, PacketType, Serialize,
+    common::{AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError},
+    DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
+use super::{Argument, Arguments};
 
 #[cfg(test)]
 mod tests;
@@ -107,54 +105,36 @@ impl PacketBody for Reply<'_> {
 impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
     fn deserialize_from_buffer(
         buffer: &'raw [u8],
-        argument_space: ArgumentsArray<'raw>,
+        argument_space: &'raw mut [Argument<'raw>],
     ) -> Result<Self, DeserializeError> {
         if buffer.len() >= Self::MINIMUM_LENGTH {
-            let argument_count = buffer[1];
+            let status: Status = buffer[0].try_into()?;
+            let argument_count = buffer[1] as usize;
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
 
-            if argument_count as usize <= buffer.len() {
-                let mut arguments = Arguments::try_from_slicevec(argument_space)
-                    .ok_or(DeserializeError::NotEnoughSpace)?;
+            let body_start = 6 + argument_count;
+            let data_start = body_start + server_message_length;
+            let arguments_start = data_start + data_length;
 
-                println!("befor");
-                let status: Status = buffer[0].try_into()?;
-                let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?);
-                let data_length = u16::from_be_bytes(buffer[4..6].try_into()?);
+            let server_message = AsciiStr::try_from(&buffer[body_start..data_start])?;
+            let data = &buffer[data_start..arguments_start];
 
-                println!("aft");
+            let argument_lengths = &buffer[6..6 + argument_count];
+            // wish I could just use sum() here but references :(
+            let total_argument_length = argument_lengths
+                .iter()
+                .fold(0, |total, &length| total + length as usize);
+            let argument_values = &buffer[arguments_start..arguments_start + total_argument_length];
+            let arguments =
+                Arguments::deserialize(argument_lengths, argument_values, argument_space)?;
 
-                let body_start = 6 + argument_count as usize;
-                let data_start = body_start + server_message_length as usize;
-                let arguments_start = data_start + data_length as usize;
-
-                println!("made it");
-                let server_message = AsciiStr::try_from(&buffer[body_start..data_start])?;
-                let data = &buffer[data_start..arguments_start];
-
-                // TODO: verify no arg behavior
-                let mut argument_cursor = arguments_start;
-
-                for length in &buffer[6..6 + argument_count as usize] {
-                    let next_argument_start = argument_cursor + *length as usize;
-
-                    let raw_argument = &buffer[argument_cursor..next_argument_start];
-                    let parsed_argument = Argument::deserialize(raw_argument)
-                        .ok_or(DeserializeError::InvalidWireBytes)?;
-
-                    arguments.push(parsed_argument);
-
-                    argument_cursor = next_argument_start;
-                }
-
-                Ok(Self {
-                    status,
-                    server_message,
-                    data,
-                    arguments,
-                })
-            } else {
-                Err(DeserializeError::NotEnoughSpace)
-            }
+            Ok(Self {
+                status,
+                server_message,
+                data,
+                arguments,
+            })
         } else {
             Err(DeserializeError::UnexpectedEnd)
         }

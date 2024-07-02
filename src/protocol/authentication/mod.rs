@@ -1,9 +1,6 @@
 use super::{
-    common::{
-        AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError,
-        NotEnoughSpace,
-    },
-    MinorVersion, PacketBody, PacketType, Serialize,
+    common::{AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError},
+    MinorVersion, NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
 use crate::AsciiStr;
 

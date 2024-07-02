@@ -1,10 +1,8 @@
-use tinyvec::SliceVec;
-
 use super::common::{
-    Argument, Arguments, AuthenticationContext, AuthenticationType, ClientInformation,
-    PrivilegeLevel, Service,
+    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, Service,
 };
 use super::*;
+use super::{Argument, Arguments};
 use crate::types::force_ascii;
 
 #[test]
@@ -203,7 +201,7 @@ fn deserialize_authorization_reply_with_header() {
         status: authorization::Status::Fail,
         server_message: force_ascii("something went wrong :("),
         data: b"\x88\x88\x88\x88",
-        arguments: Arguments::try_from_slicevec(expected_arguments.as_mut_slice().into()).unwrap(),
+        arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice()).unwrap(),
     };
 
     let expected_packet = Packet::new(expected_header, expected_body).unwrap();
@@ -214,7 +212,7 @@ fn deserialize_authorization_reply_with_header() {
         expected_packet,
         Packet::<authorization::Reply>::deserialize_from_buffer(
             &raw_packet,
-            SliceVec::try_from_slice_len(parsed_arguments_space.as_mut_slice(), 0).unwrap()
+            parsed_arguments_space.as_mut_slice()
         )
         .expect("packet parsing should have succeeded")
     );

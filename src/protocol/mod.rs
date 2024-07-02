@@ -5,13 +5,17 @@ pub mod authentication;
 pub mod authorization;
 pub mod common;
 
+mod arguments;
+pub use arguments::{Argument, Arguments};
+
 #[cfg(test)]
 mod tests;
 
 // TODO: move common into here
-use common::{DeserializeError, NotEnoughSpace};
+use common::DeserializeError;
 
-use self::common::ArgumentsArray;
+#[derive(Debug)]
+pub struct NotEnoughSpace(());
 
 // TODO: get version from packet body where it matters? e.g. ASCII vs. PAP auth
 #[repr(u8)]
@@ -99,7 +103,7 @@ pub trait Serialize {
 pub trait DeserializeWithArguments<'raw> {
     fn deserialize_from_buffer(
         buffer: &'raw [u8],
-        argument_space: ArgumentsArray<'raw>,
+        argument_space: &'raw mut [Argument<'raw>],
     ) -> Result<Self, DeserializeError>
     where
         Self: Sized + 'raw;
@@ -153,7 +157,7 @@ impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> Deserialize
 {
     fn deserialize_from_buffer(
         buffer: &'body [u8],
-        argument_space: ArgumentsArray<'body>,
+        argument_space: &'body mut [Argument<'body>],
     ) -> Result<Self, DeserializeError> {
         if buffer.len() > Self::HEADER_SIZE_BYTES {
             let version: Version = buffer[0].try_into()?;

@@ -3,8 +3,8 @@ use tinyvec::SliceVec;
 use super::*;
 use crate::protocol::{
     common::{
-        Argument, Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationType,
-        ClientInformation, PrivilegeLevel, Service,
+        AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
+        PrivilegeLevel, Service,
     },
     Serialize,
 };
@@ -28,7 +28,7 @@ fn serialize_request_no_arguments() {
         method: AuthenticationMethod::Enable,
         authentication_context,
         client_information,
-        arguments: Arguments::try_from_slicevec(empty_arguments.as_mut_slice().into())
+        arguments: Arguments::try_from_full_slice(empty_arguments.as_mut_slice())
             .expect("empty argument list should be valid"),
     };
 
@@ -74,7 +74,7 @@ fn serialize_authorization_request_one_argument() {
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
+    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
         .expect("single argument array should be valid");
 
     let request = Request {
@@ -134,7 +134,7 @@ fn deserialize_reply_two_arguments() {
         status: Status::PassAdd,
         server_message: force_ascii("hello"),
         data: b"world",
-        arguments: Arguments::try_from_slicevec(expected_arguments.as_mut_slice().into())
+        arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice())
             .expect("argument construction shouldn't have failed"),
     };
 
@@ -142,10 +142,6 @@ fn deserialize_reply_two_arguments() {
 
     assert_eq!(
         expected,
-        Reply::deserialize_from_buffer(
-            &raw_bytes,
-            SliceVec::try_from_slice_len(parsed_argument_space.as_mut_slice(), 0).unwrap()
-        )
-        .unwrap()
+        Reply::deserialize_from_buffer(&raw_bytes, parsed_argument_space.as_mut_slice()).unwrap()
     );
 }

@@ -1,16 +1,10 @@
-use core::{
-    array::TryFromSliceError,
-    ops::{Deref, DerefMut},
-};
-use tinyvec::SliceVec;
+use core::array::TryFromSliceError;
 
+use super::NotEnoughSpace;
 use crate::{AsciiStr, InvalidAscii};
 
 #[cfg(test)]
 mod tests;
-
-// TODO: impl
-// mod trait_impls;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -106,14 +100,6 @@ pub struct ClientInformation<'info> {
 
 // TODO: error impl
 // TODO: not pub(super)
-#[derive(Debug)]
-pub struct NotEnoughSpace(pub(super) ());
-
-// TODO: naming + struct instead?
-#[derive(Debug)]
-pub enum TextError {
-    FieldTooLong,
-}
 
 impl<'info> ClientInformation<'info> {
     // three lengths in header
@@ -130,15 +116,15 @@ impl<'info> ClientInformation<'info> {
         user: &'info str,
         port: AsciiStr<'info>,
         remote_address: AsciiStr<'info>,
-    ) -> Result<Self, TextError> {
+    ) -> Option<Self> {
         if user.len() <= 255 && port.len() <= 255 && remote_address.len() <= 255 {
-            Ok(Self {
+            Some(Self {
                 user,
                 port,
                 remote_address,
             })
         } else {
-            Err(TextError::FieldTooLong)
+            None
         }
     }
 
@@ -160,152 +146,6 @@ impl<'info> ClientInformation<'info> {
         buffer[user_len + port_len..total_len].copy_from_slice(self.remote_address.as_bytes());
 
         total_len
-    }
-}
-
-// TODO: deserialization from server; seems to only happen in authorizaton REPLY
-// TODO: somehow mention that duplicate arguments won't be handled/will be passed as-is
-#[derive(Clone, Default, PartialEq, Eq, Debug)]
-pub struct Argument<'data> {
-    name: AsciiStr<'data>,
-    value: AsciiStr<'data>,
-    required: bool,
-}
-
-impl<'data> Argument<'data> {
-    pub fn new(name: AsciiStr<'data>, value: AsciiStr<'data>, required: bool) -> Option<Self> {
-        // "An argument name MUST NOT contain either of the separators." [RFC 8907]
-        // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
-        if !name.contains(|c| c == '=' || c == '*') && name.len() + value.len() < u8::MAX as usize {
-            Some(Argument {
-                name,
-                value,
-                required,
-            })
-        } else {
-            None
-        }
-    }
-
-    fn encoded_length(&self) -> usize {
-        self.name.len() + 1 + self.value.len()
-    }
-
-    fn serialize(&self, buffer: &mut [u8]) {
-        let name_len = self.name.len();
-
-        buffer[..name_len].copy_from_slice(self.name.as_bytes());
-        buffer[name_len] = if self.required { '=' } else { '*' } as u8;
-
-        let value_len = self.value.len();
-        buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
-    }
-
-    pub(super) fn deserialize(buffer: &'data [u8]) -> Option<Self> {
-        // note: these are guaranteed to be unequal
-        let equals_index = buffer.iter().position(|c| *c == b'=');
-        let star_index = buffer.iter().position(|c| *c == b'*');
-
-        // determine first delimiter that appears, which is the actual delimiter as names MUST NOT (RFC 8907) contain either delimiter character
-        let delimiter_index = match (equals_index, star_index) {
-            (None, star) => star,
-            (equals, None) => equals,
-            (Some(equals), Some(star)) => Some(core::cmp::min(equals, star)),
-        }?;
-
-        // at this point, delimiter_index was non-None and must contain one of {*, =}
-        let required = buffer[delimiter_index] == b'=';
-
-        let name = AsciiStr::try_from(&buffer[..delimiter_index]).ok()?;
-        let value = AsciiStr::try_from(&buffer[delimiter_index + 1..]).ok()?;
-
-        Some(Self {
-            name,
-            value,
-            required,
-        })
-    }
-}
-
-pub type ArgumentsArray<'stored> = SliceVec<'stored, Argument<'stored>>;
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct Arguments<'slice>(ArgumentsArray<'slice>);
-
-impl<'storage> Arguments<'storage> {
-    pub fn try_from_slicevec(storage: ArgumentsArray<'storage>) -> Option<Self> {
-        // TODO: figure out where to enforce this
-        if storage.len() <= u8::MAX as usize {
-            Some(Self(storage))
-        } else {
-            None
-        }
-    }
-
-    pub fn wire_size(&self) -> usize {
-        self.0.iter().fold(1, |total, argument| {
-            // 1 octet for encoded length, 1 octet for delimiter
-            total + 1 + argument.encoded_length()
-        })
-    }
-
-    pub fn argument_count(&self) -> u8 {
-        self.0.len() as u8
-    }
-
-    pub(super) fn serialize_header(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
-        let argument_count = self.argument_count();
-
-        // just check for header space; body check happens in serialize_body()
-        if buffer.len() > argument_count as usize {
-            // this won't truncate any nonzero bits since the only way to construct an Arguments is via TryFrom, where there is a length check
-            buffer[0] = argument_count;
-
-            let mut length_index = 1;
-            for argument in self.0.iter() {
-                // length is guaranteed to fit in a u8 based on checks in Argument::new()
-                buffer[length_index] = argument.encoded_length() as u8;
-                length_index += 1;
-            }
-
-            Ok(())
-        } else {
-            Err(NotEnoughSpace(()))
-        }
-    }
-
-    pub(super) fn serialize_body(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
-        let full_encoded_length = self
-            .0
-            .iter()
-            .fold(0, |total, argument| total + argument.encoded_length());
-
-        if buffer.len() >= full_encoded_length {
-            let mut argument_start = 0;
-
-            for argument in self.0.iter().take(self.argument_count() as usize) {
-                let argument_length = argument.encoded_length();
-                argument.serialize(&mut buffer[argument_start..]);
-                argument_start += argument_length;
-            }
-            Ok(())
-        } else {
-            Err(NotEnoughSpace(()))
-        }
-    }
-}
-
-impl<'storage> Deref for Arguments<'storage> {
-    type Target = ArgumentsArray<'storage>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Arguments<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 

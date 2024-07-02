@@ -1,7 +1,10 @@
 use super::*;
-use crate::protocol::common::{
-    Argument, AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
-    PrivilegeLevel, Service,
+use crate::protocol::{
+    common::{
+        AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
+        PrivilegeLevel, Service,
+    },
+    Argument,
 };
 use crate::types::force_ascii;
 
@@ -13,7 +16,7 @@ fn serialize_accounting_packet_with_argument() {
                 .expect("argument should be valid"),
         ];
 
-    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
+    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
         .expect("argument array should be valid");
 
     let request = Request {

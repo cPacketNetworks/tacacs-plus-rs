@@ -3,10 +3,9 @@ use bitflags::bitflags;
 use crate::AsciiStr;
 
 use super::common::{
-    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
-    NotEnoughSpace,
+    AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
 };
-use super::{DeserializeWithArguments, PacketBody, PacketType, Serialize};
+use super::{Arguments, NotEnoughSpace, PacketBody, PacketType, Serialize};
 
 #[cfg(test)]
 mod tests;

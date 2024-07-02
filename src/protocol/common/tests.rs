@@ -1,6 +1,8 @@
 use super::*;
 use crate::types::force_ascii;
 
+use crate::protocol::{Argument, Arguments};
+
 #[test]
 fn invalid_privilege_level_none() {
     let level = PrivilegeLevel::of(42);
@@ -10,12 +12,13 @@ fn invalid_privilege_level_none() {
 #[test]
 fn client_information_long_username() {
     let username = [0x41u8; 512]; // AAA...AAA
-    ClientInformation::new(
+    let client_information = ClientInformation::new(
         core::str::from_utf8(&username).unwrap(),
         force_ascii("tcp49"),
         force_ascii("127.0.0.1"),
-    )
-    .expect_err("username should be too long");
+    );
+
+    assert!(client_information.is_none(), "username should be too long");
 }
 
 #[test]
@@ -27,7 +30,7 @@ fn arguments_two_required() {
             .expect("argument should be valid"),
     ];
 
-    let arguments = Arguments::try_from_slicevec(argument_array.as_mut_slice().into())
+    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
         .expect("argument array -> Arguments conversion should have worked");
 
     let mut buffer = [0u8; 40];
@@ -53,7 +56,7 @@ fn arguments_one_optional() {
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from_slicevec(arguments_array.as_mut_slice().into())
+    let arguments = Arguments::try_from_full_slice(arguments_array.as_mut_slice())
         .expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];
