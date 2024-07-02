@@ -1,10 +1,7 @@
 use super::*;
 use crate::protocol::{
-    common::{
-        AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
-        PrivilegeLevel, Service,
-    },
-    Argument,
+    Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
+    AuthenticationType, ClientInformation, PrivilegeLevel,
 };
 use crate::types::force_ascii;
 
@@ -25,7 +22,7 @@ fn serialize_accounting_packet_with_argument() {
         authentication: AuthenticationContext {
             privilege_level: PrivilegeLevel::of(0).unwrap(),
             authentication_type: AuthenticationType::Ascii,
-            service: Service::Login,
+            service: AuthenticationService::Login,
         },
         client_information: ClientInformation::new(
             "guest",

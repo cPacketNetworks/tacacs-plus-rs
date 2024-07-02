@@ -1,21 +1,55 @@
+use core::array::TryFromSliceError;
+
 use bitflags::bitflags;
+
+use crate::InvalidAscii;
 
 pub mod accounting;
 pub mod authentication;
 pub mod authorization;
-pub mod common;
 
 mod arguments;
 pub use arguments::{Argument, Arguments};
 
+mod fields;
+pub use fields::*;
+
 #[cfg(test)]
 mod tests;
 
-// TODO: move common into here
-use common::DeserializeError;
-
 #[derive(Debug)]
 pub struct NotEnoughSpace(());
+
+/// An error that occurred during deserialization of a full/partial packet.
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeserializeError {
+    InvalidWireBytes,
+    UnexpectedEnd,
+    LengthMismatch,
+    NotEnoughSpace,
+    // TODO: placement?
+    VersionMismatch,
+}
+
+// Used in &[u8] -> &[u8; N] -> uNN conversions in reply deserialization
+impl From<TryFromSliceError> for DeserializeError {
+    fn from(_value: TryFromSliceError) -> Self {
+        // slice conversion error means there was a length mismatch, which probably means we were expecting more data
+        Self::UnexpectedEnd
+    }
+}
+
+impl From<InvalidAscii> for DeserializeError {
+    fn from(_value: InvalidAscii) -> Self {
+        Self::InvalidWireBytes
+    }
+}
+
+impl From<NotEnoughSpace> for DeserializeError {
+    fn from(_value: NotEnoughSpace) -> Self {
+        Self::NotEnoughSpace
+    }
+}
 
 // TODO: get version from packet body where it matters? e.g. ASCII vs. PAP auth
 #[repr(u8)]
@@ -67,7 +101,6 @@ bitflags! {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct HeaderInfo {
-    // TODO: method instead?
     pub minor_version: MinorVersion,
     pub sequence_number: u8,
     pub flags: HeaderFlags,
@@ -106,15 +139,17 @@ pub trait PacketBody {
     const MINIMUM_LENGTH: usize;
 
     /// Required protocol minor version based on the contents of the packet body.
+    /// This really only exists since certain authentication methods are supposed to be gated by minor version.
     fn required_minor_version(&self) -> Option<MinorVersion> {
         None
     }
 }
 
-// TODO: naming
 pub trait Serialize {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
+
+    /// Serializes
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace>;
 }
 
@@ -206,7 +241,7 @@ impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> Deserialize
 
             let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
 
-            if body_length as usize <= buffer[12..].len() {
+            if body_length <= buffer[12..].len() {
                 let body =
                     B::deserialize_from_buffer(&buffer[12..12 + body_length], argument_space)?;
 

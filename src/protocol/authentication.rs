@@ -1,6 +1,6 @@
 use super::{
-    common::{AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError},
-    MinorVersion, NotEnoughSpace, PacketBody, PacketType, Serialize,
+    AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError, MinorVersion,
+    NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
 use crate::AsciiStr;
 
@@ -40,18 +40,16 @@ impl TryFrom<u8> for Status {
     type Error = DeserializeError;
 
     fn try_from(value: u8) -> Result<Self, DeserializeError> {
-        use Status::*;
-
         match value {
-            0x01 => Ok(Pass),
-            0x02 => Ok(Fail),
-            0x03 => Ok(GetData),
-            0x04 => Ok(GetUser),
-            0x05 => Ok(GetPassword),
-            0x06 => Ok(Restart),
-            0x07 => Ok(Error),
+            0x01 => Ok(Self::Pass),
+            0x02 => Ok(Self::Fail),
+            0x03 => Ok(Self::GetData),
+            0x04 => Ok(Self::GetUser),
+            0x05 => Ok(Self::GetPassword),
+            0x06 => Ok(Self::Restart),
+            0x07 => Ok(Self::Error),
             #[allow(deprecated)]
-            0x21 => Ok(Follow),
+            0x21 => Ok(Self::Follow),
             _ => Err(DeserializeError::InvalidWireBytes),
         }
     }
@@ -166,13 +164,13 @@ impl Reply<'_> {
     // 1 byte for status, 1 for flags, 2 for server_msg_len, 2 for data_len
     const HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
 
-    pub fn claimed_packet_body_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
+    pub fn claimed_packet_body_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::HEADER_SIZE_BYTES {
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
-            Ok(Self::HEADER_SIZE_BYTES + server_message_length + data_length)
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?) as usize;
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?) as usize;
+            Some(Self::HEADER_SIZE_BYTES + server_message_length + data_length)
         } else {
-            Err(DeserializeError::UnexpectedEnd)
+            None
         }
     }
 
@@ -187,6 +185,11 @@ impl Reply<'_> {
     pub fn no_echo(&self) -> bool {
         self.no_echo
     }
+}
+
+impl PacketBody for Reply<'_> {
+    const TYPE: PacketType = PacketType::Authentication;
+    const MINIMUM_LENGTH: usize = 6;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
@@ -211,7 +214,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             // TODO: exact size or allow for bigger?
             // allowing for bigger should come with caveat of zeroing out the buffer somehow, but I don't think Rust can enforce that
-            if total_len >= Reply::claimed_packet_body_length(buffer)? {
+            if total_len
+                >= Reply::claimed_packet_body_length(buffer)
+                    .ok_or(DeserializeError::InvalidWireBytes)?
+            {
                 let body_begin = Self::HEADER_SIZE_BYTES;
                 Ok(Reply {
                     status,
@@ -263,6 +269,12 @@ impl<'packet> Continue<'packet> {
         } else {
             Err(DataTooLong)
         }
+    }
+}
+
+impl Default for Continue<'_> {
+    fn default() -> Self {
+        Continue::new()
     }
 }
 

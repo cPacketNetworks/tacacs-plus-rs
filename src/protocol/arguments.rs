@@ -1,7 +1,7 @@
 use core::ops::{Deref, DerefMut};
 use tinyvec::SliceVec;
 
-use super::{common::DeserializeError, NotEnoughSpace};
+use super::{DeserializeError, NotEnoughSpace};
 use crate::AsciiStr;
 
 /// An argument in the TACACS+ protocol, which has various uses.
@@ -13,7 +13,7 @@ pub struct Argument<'data> {
 }
 
 impl<'data> Argument<'data> {
-    /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of u8::MAX (as it must fit in a single byte).
+    /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).
     pub fn new(name: AsciiStr<'data>, value: AsciiStr<'data>, required: bool) -> Option<Self> {
         // "An argument name MUST NOT contain either of the separators." [RFC 8907]
         // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
@@ -81,13 +81,13 @@ pub struct Arguments<'storage>(SliceVec<'storage, Argument<'storage>>);
 
 impl<'storage> Arguments<'storage> {
     /// Attempts to convert a full mutable Argument slice to an Arguments object.
-    /// Succeeds if the length of the provided slice is less than u8::MAX.
+    /// Succeeds if the length of the provided slice is less than `u8::MAX`.
     pub fn try_from_full_slice(storage: &'storage mut [Argument<'storage>]) -> Option<Self> {
         Self::try_from_slice_len(storage, storage.len())
     }
 
     /// Attempts to construct an Arguments object from a mutable Argument slice with some amount of existing parameters.
-    /// The backing storage should be of length of at most u8::MAX, the maximum number of arguments supported in the TACACS+ protocol due to how they are represented into packets.
+    /// The backing storage should be of length of at most `u8::MAX`, the maximum number of arguments supported in the TACACS+ protocol due to how they are represented into packets.
     pub fn try_from_slice_len(
         storage: &'storage mut [Argument<'storage>],
         length: usize,

@@ -1,7 +1,7 @@
 use super::*;
-
-use crate::protocol::common::{
-    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, Service,
+use crate::protocol::{
+    AuthenticationContext, AuthenticationService, AuthenticationType, ClientInformation,
+    PrivilegeLevel,
 };
 use crate::types::force_ascii;
 
@@ -12,7 +12,7 @@ fn serialize_authentication_start_no_data() {
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(3).expect("privilege level 3 should be valid"),
             authentication_type: AuthenticationType::Pap,
-            service: Service::Ppp,
+            service: AuthenticationService::Ppp,
         },
         ClientInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
             .expect("client information should be valid"),
@@ -48,7 +48,7 @@ fn serialize_authentication_start_with_data() {
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(4).expect("privilege level 4 should be valid"),
             authentication_type: AuthenticationType::MsChap,
-            service: Service::X25,
+            service: AuthenticationService::X25,
         },
         ClientInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
             .expect("client information should be valid"),
@@ -89,7 +89,7 @@ fn serialize_authentication_start_data_too_long() {
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(5).expect("privilege level 5 should be valid"),
             authentication_type: AuthenticationType::Ascii,
-            service: Service::Nasi,
+            service: AuthenticationService::Nasi,
         },
         ClientInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
             .expect("client information should be valid"),

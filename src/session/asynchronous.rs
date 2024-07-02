@@ -1,9 +1,9 @@
 use futures::{AsyncRead, AsyncWrite};
 use std::marker::PhantomData;
 
-#[derive(thiserror::Error, Debug)]
+// #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Unknown Connection error")]
+    // #[error("Unknown Connection error")]
     Unknown,
 }
 

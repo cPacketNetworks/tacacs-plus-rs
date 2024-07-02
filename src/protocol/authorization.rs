@@ -1,10 +1,9 @@
 use crate::AsciiStr;
 
 use super::{
-    common::{AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError},
-    DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize,
+    Argument, Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation,
+    DeserializeError, DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
-use super::{Argument, Arguments};
 
 #[cfg(test)]
 mod tests;

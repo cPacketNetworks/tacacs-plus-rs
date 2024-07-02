@@ -1,8 +1,4 @@
-use super::common::{
-    AuthenticationContext, AuthenticationType, ClientInformation, PrivilegeLevel, Service,
-};
 use super::*;
-use super::{Argument, Arguments};
 use crate::types::force_ascii;
 
 #[test]
@@ -19,7 +15,7 @@ fn serialize_authentication_start_with_header() {
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(0).unwrap(),
             authentication_type: AuthenticationType::Pap,
-            service: Service::Ppp,
+            service: AuthenticationService::Ppp,
         },
         ClientInformation::new("startup", force_ascii("49"), force_ascii("192.168.23.10")).unwrap(),
     );
@@ -105,7 +101,7 @@ fn serialize_authentication_start_version_mismatch() {
             privilege_level: PrivilegeLevel::of(2).unwrap(),
             // ascii requires v0/default, but we set v1 above so this fails
             authentication_type: AuthenticationType::Ascii,
-            service: Service::Login,
+            service: AuthenticationService::Login,
         },
         ClientInformation::new("bad", force_ascii("49"), force_ascii("::1")).unwrap(),
     );

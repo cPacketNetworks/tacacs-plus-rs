@@ -1,12 +1,7 @@
-use tinyvec::SliceVec;
-
 use super::*;
 use crate::protocol::{
-    common::{
-        AuthenticationContext, AuthenticationMethod, AuthenticationType, ClientInformation,
-        PrivilegeLevel, Service,
-    },
-    Serialize,
+    AuthenticationContext, AuthenticationMethod, AuthenticationService, AuthenticationType,
+    ClientInformation, PrivilegeLevel, Serialize,
 };
 use crate::types::force_ascii;
 
@@ -15,7 +10,7 @@ fn serialize_request_no_arguments() {
     let authentication_context = AuthenticationContext {
         privilege_level: PrivilegeLevel::of(1).unwrap(),
         authentication_type: AuthenticationType::Ascii,
-        service: Service::Enable,
+        service: AuthenticationService::Enable,
     };
 
     let client_information =
@@ -60,7 +55,7 @@ fn serialize_authorization_request_one_argument() {
     let authentication_context = AuthenticationContext {
         privilege_level: PrivilegeLevel::of(15).expect("15 should be a valid privilege level"),
         authentication_type: AuthenticationType::MsChapV2,
-        service: Service::FwProxy,
+        service: AuthenticationService::FwProxy,
     };
 
     let client_information =

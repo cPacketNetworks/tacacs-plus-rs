@@ -2,6 +2,7 @@ use core::fmt;
 use core::ops::Deref;
 
 // TODO: placement
+// TODO: expose as pub as well?
 #[cfg(test)]
 pub(crate) fn force_ascii(value: &str) -> AsciiStr {
     value.try_into().expect("ASCII conversion failed")
@@ -10,12 +11,10 @@ pub(crate) fn force_ascii(value: &str) -> AsciiStr {
 #[cfg(test)]
 mod tests;
 
-// TODO: Error impl? experimental in core though
 #[derive(Debug)]
 pub struct InvalidAscii(());
 
-// TODO: store &str, str, or &[u8]/[u8]?
-/// A wrapper for strs that are guaranteed to be valid ASCII.
+/// A wrapper for &strs that are checked to be valid ASCII.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct AsciiStr<'string>(&'string str);
 

@@ -2,10 +2,10 @@ use bitflags::bitflags;
 
 use crate::AsciiStr;
 
-use super::common::{
-    AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
+use super::{
+    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
+    NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
-use super::{Arguments, NotEnoughSpace, PacketBody, PacketType, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -20,16 +20,16 @@ bitflags! {
 
 /// Valid accounting flag combinations for a TACACS+ account REQUEST packet.
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum AccountingFlags {
+pub enum Flags {
     StartRecord,
     StopRecord,
     WatchdogNoUpdate,
     WatchdogUpdate,
 }
 
-impl From<AccountingFlags> for RawFlags {
-    fn from(value: AccountingFlags) -> Self {
-        use AccountingFlags::*;
+impl From<Flags> for RawFlags {
+    fn from(value: Flags) -> Self {
+        use Flags::*;
 
         match value {
             StartRecord => RawFlags::Start,
@@ -40,12 +40,12 @@ impl From<AccountingFlags> for RawFlags {
     }
 }
 
-impl AccountingFlags {
+impl Flags {
     pub const WIRE_SIZE: usize = 1;
 }
 
 pub struct Request<'request> {
-    pub flags: AccountingFlags,
+    pub flags: Flags,
     pub authentication_method: AuthenticationMethod,
     pub authentication: AuthenticationContext,
     pub client_information: ClientInformation<'request>,
@@ -54,15 +54,13 @@ pub struct Request<'request> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Accounting;
-    const MINIMUM_LENGTH: usize = AccountingFlags::WIRE_SIZE
-        + AuthenticationMethod::WIRE_SIZE
-        + AuthenticationContext::WIRE_SIZE
-        + 4;
+    const MINIMUM_LENGTH: usize =
+        Flags::WIRE_SIZE + AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
 
 impl Serialize for Request<'_> {
     fn wire_size(&self) -> usize {
-        AccountingFlags::WIRE_SIZE
+        Flags::WIRE_SIZE
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.client_information.wire_size()
