@@ -3,8 +3,8 @@
 use bitflags::bitflags;
 
 use super::{
-    Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
-    NotEnoughSpace, PacketBody, PacketType, Serialize,
+    Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, NotEnoughSpace,
+    PacketBody, PacketType, Serialize, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -50,7 +50,7 @@ pub struct Request<'request> {
     pub flags: Flags,
     pub authentication_method: AuthenticationMethod,
     pub authentication: AuthenticationContext,
-    pub client_information: ClientInformation<'request>,
+    pub user_information: UserInformation<'request>,
     pub arguments: Arguments<'request>,
 }
 
@@ -65,7 +65,7 @@ impl Serialize for Request<'_> {
         Flags::WIRE_SIZE
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
-            + self.client_information.wire_size()
+            + self.user_information.wire_size()
             + self.arguments.wire_size()
     }
 
@@ -79,7 +79,7 @@ impl Serialize for Request<'_> {
             // header information (lengths, etc.)
             self.authentication
                 .serialize_header_information(&mut buffer[2..5]);
-            self.client_information
+            self.user_information
                 .serialize_header_information(&mut buffer[5..8]);
             self.arguments.serialize_header(&mut buffer[8..])?;
 
@@ -89,11 +89,11 @@ impl Serialize for Request<'_> {
             let body_start = Self::MINIMUM_LENGTH + argument_count as usize;
 
             // actual request content
-            let client_information_len = self
-                .client_information
+            let user_information_len = self
+                .user_information
                 .serialize_body_information(&mut buffer[body_start..]);
             self.arguments
-                .serialize_body(&mut buffer[body_start + client_information_len..])?;
+                .serialize_body(&mut buffer[body_start + user_information_len..])?;
 
             Ok(wire_size)
         } else {

@@ -1,8 +1,8 @@
 //! Authentication-related protocol packets.
 
 use super::{
-    AuthenticationContext, AuthenticationType, ClientInformation, DeserializeError, MinorVersion,
-    NotEnoughSpace, PacketBody, PacketType, Serialize,
+    AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, NotEnoughSpace,
+    PacketBody, PacketType, Serialize, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -62,7 +62,7 @@ impl TryFrom<u8> for Status {
 pub struct Start<'packet> {
     action: Action,
     authentication: AuthenticationContext,
-    client_information: ClientInformation<'packet>,
+    user_information: UserInformation<'packet>,
     data: Option<&'packet [u8]>,
 }
 
@@ -71,7 +71,7 @@ impl<'packet> Start<'packet> {
     pub fn new(
         action: Action,
         authentication: AuthenticationContext,
-        client_information: ClientInformation<'packet>,
+        user_information: UserInformation<'packet>,
         data: Option<&'packet [u8]>,
     ) -> Option<Self> {
         // TODO: ensure action/authentication method compatibility?
@@ -81,7 +81,7 @@ impl<'packet> Start<'packet> {
             Some(Self {
                 action,
                 authentication,
-                client_information,
+                user_information,
                 data,
             })
         } else {
@@ -106,7 +106,7 @@ impl Serialize for Start<'_> {
     fn wire_size(&self) -> usize {
         Action::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
-            + self.client_information.wire_size()
+            + self.user_information.wire_size()
             + 1 // extra byte to include length of data
             + self.data.map_or(0, |data| data.len())
     }
@@ -118,11 +118,11 @@ impl Serialize for Start<'_> {
             self.authentication
                 .serialize_header_information(&mut buffer[1..4]);
 
-            self.client_information
+            self.user_information
                 .serialize_header_information(&mut buffer[4..7]);
 
-            let client_information_len = self
-                .client_information
+            let user_information_len = self
+                .user_information
                 .serialize_body_information(&mut buffer[8..]);
 
             if let Some(data) = self.data {
@@ -132,7 +132,7 @@ impl Serialize for Start<'_> {
                 buffer[7] = data_len as u8;
 
                 // copy over packet data
-                buffer[8 + client_information_len..8 + client_information_len + data_len]
+                buffer[8 + user_information_len..8 + user_information_len + data_len]
                     .copy_from_slice(data);
             } else {
                 // set data_len field to 0; no data has to be copied to the data section of the packet

@@ -3,8 +3,8 @@
 use crate::AsciiStr;
 
 use super::{
-    Argument, Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation,
-    DeserializeError, DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize,
+    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
+    DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize, UserInformation,
 };
 
 #[cfg(test)]
@@ -14,7 +14,7 @@ mod tests;
 pub struct Request<'request> {
     pub method: AuthenticationMethod,
     pub authentication_context: AuthenticationContext,
-    pub client_information: ClientInformation<'request>,
+    pub user_information: UserInformation<'request>,
     pub arguments: Arguments<'request>,
 }
 
@@ -28,7 +28,7 @@ impl Serialize for Request<'_> {
     fn wire_size(&self) -> usize {
         AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
-            + self.client_information.wire_size()
+            + self.user_information.wire_size()
             + self.arguments.wire_size()
     }
 
@@ -37,19 +37,19 @@ impl Serialize for Request<'_> {
             buffer[0] = self.method as u8;
             self.authentication_context
                 .serialize_header_information(&mut buffer[1..4]);
-            self.client_information
+            self.user_information
                 .serialize_header_information(&mut buffer[4..7]);
 
             self.arguments.serialize_header(&mut buffer[7..])?;
 
             let body_start: usize = Self::MINIMUM_LENGTH + self.arguments.argument_count() as usize;
 
-            let client_information_len = self
-                .client_information
+            let user_information_len = self
+                .user_information
                 .serialize_body_information(&mut buffer[body_start..]);
 
             self.arguments
-                .serialize_body(&mut buffer[body_start + client_information_len..])?;
+                .serialize_body(&mut buffer[body_start + user_information_len..])?;
 
             Ok(self.wire_size())
         } else {

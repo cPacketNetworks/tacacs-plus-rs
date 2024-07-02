@@ -2,7 +2,7 @@ use super::*;
 use crate::ascii::force_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationMethod, AuthenticationService, AuthenticationType,
-    ClientInformation, PrivilegeLevel, Serialize,
+    PrivilegeLevel, Serialize, UserInformation,
 };
 
 #[test]
@@ -13,8 +13,8 @@ fn serialize_request_no_arguments() {
         service: AuthenticationService::Enable,
     };
 
-    let client_information =
-        ClientInformation::new("testuser", force_ascii("tcp49"), force_ascii("127.0.0.1"))
+    let user_information =
+        UserInformation::new("testuser", force_ascii("tcp49"), force_ascii("127.0.0.1"))
             .expect("client information should have been valid");
 
     let mut empty_arguments = [];
@@ -22,7 +22,7 @@ fn serialize_request_no_arguments() {
     let request = Request {
         method: AuthenticationMethod::Enable,
         authentication_context,
-        client_information,
+        user_information,
         arguments: Arguments::try_from_full_slice(empty_arguments.as_mut_slice())
             .expect("empty argument list should be valid"),
     };
@@ -58,8 +58,8 @@ fn serialize_authorization_request_one_argument() {
         service: AuthenticationService::FwProxy,
     };
 
-    let client_information =
-        ClientInformation::new("testuser", force_ascii("ttyAMA0"), force_ascii("127.1.2.2"))
+    let user_information =
+        UserInformation::new("testuser", force_ascii("ttyAMA0"), force_ascii("127.1.2.2"))
             .expect("client information should have been valid");
 
     let mut argument_array = [Argument::new(
@@ -75,7 +75,7 @@ fn serialize_authorization_request_one_argument() {
     let request = Request {
         method: AuthenticationMethod::TacacsPlus,
         authentication_context,
-        client_information,
+        user_information,
         arguments,
     };
 

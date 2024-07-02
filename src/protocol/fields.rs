@@ -64,21 +64,43 @@ pub enum AuthenticationType {
     MsChapV2 = 0x06,
 }
 
+/// A TACACS+ authentication service. Most of these values are only kept for backwards compatibility, so that's something to keep in mind.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum AuthenticationService {
+    /// No authentication performed.
     None = 0x00,
+
+    /// Regular login to a client device.
     Login = 0x01,
+
+    /// Request for a change in privileges, a la `su(1)`.
     Enable = 0x02,
+
+    /// Point-to-Point Protocol
     Ppp = 0x03,
+
+    /// AppleTalk Remote Access Protocol
     Arap = 0x04,
+
+    // I'm gonna be honest I have no idea what this stands for and I don't know if anyone else does either
+    // could be NAT protocol translation (but draft predates RFC 2766), plaintext, and who knows what else
     Pt = 0x05,
-    Rcmd = 0x06,
+
+    /// Authentication from the r-command suite, e.g. via `rlogin(1)`.
+    RCommand = 0x06,
+
+    /// [X.25 suite](https://en.wikipedia.org/wiki/X.25) (I assume), potentially its NetWare flavor.
     X25 = 0x07,
+
+    /// NetWare Asynchronous Support Interface
     Nasi = 0x08,
+
+    /// Firewall proxy
     FwProxy = 0x09,
 }
 
+/// Some authentication information about a request, sent or received from a server.
 pub struct AuthenticationContext {
     pub privilege_level: PrivilegeLevel,
     pub authentication_type: AuthenticationType,
@@ -86,7 +108,7 @@ pub struct AuthenticationContext {
 }
 
 impl AuthenticationContext {
-    pub(super) const WIRE_SIZE: usize = 3;
+    pub const WIRE_SIZE: usize = 3;
 
     pub(super) fn serialize_header_information(&self, buffer: &mut [u8]) {
         buffer[0] = self.privilege_level.0;
@@ -95,14 +117,15 @@ impl AuthenticationContext {
     }
 }
 
+/// Some information about the user connected to a TACACS+ client.
 #[derive(Debug)]
-pub struct ClientInformation<'info> {
+pub struct UserInformation<'info> {
     user: &'info str,
     port: AsciiStr<'info>,
     remote_address: AsciiStr<'info>,
 }
 
-impl<'info> ClientInformation<'info> {
+impl<'info> UserInformation<'info> {
     // three lengths in header
     const HEADER_INFORMATION_SIZE: usize = 3;
 
@@ -113,7 +136,7 @@ impl<'info> ClientInformation<'info> {
             + self.remote_address.len()
     }
 
-    /// Bundles together information about a TACACS+ client, performing some length checks on fields to ensure validity.
+    /// Bundles together information about a TACACS+ client user, performing some length checks on fields to ensure validity.
     pub fn new(
         user: &'info str,
         port: AsciiStr<'info>,

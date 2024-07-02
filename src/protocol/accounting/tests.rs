@@ -2,7 +2,7 @@ use super::*;
 use crate::ascii::force_ascii;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, ClientInformation, PrivilegeLevel,
+    AuthenticationType, PrivilegeLevel, UserInformation,
 };
 
 #[test]
@@ -24,7 +24,7 @@ fn serialize_accounting_packet_with_argument() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Login,
         },
-        client_information: ClientInformation::new(
+        user_information: UserInformation::new(
             "guest",
             force_ascii("tty0"),
             force_ascii("127.10.0.100"),

@@ -1,8 +1,8 @@
 use super::*;
 use crate::ascii::force_ascii;
 use crate::protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, ClientInformation,
-    PrivilegeLevel,
+    AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
+    UserInformation,
 };
 
 #[test]
@@ -14,8 +14,8 @@ fn serialize_authentication_start_no_data() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        ClientInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
-            .expect("client information should be valid"),
+        UserInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
+            .expect("user information should be valid"),
         None,
     )
     .expect("start construction should have succeeded");
@@ -52,8 +52,8 @@ fn serialize_authentication_start_with_data() {
             authentication_type: AuthenticationType::MsChap,
             service: AuthenticationService::X25,
         },
-        ClientInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
-            .expect("client information should be valid"),
+        UserInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
+            .expect("user information should be valid"),
         Some("some test data with ✨ unicode ✨".as_bytes()),
     )
     .expect("start construction should have succeeded");
@@ -92,8 +92,8 @@ fn serialize_authentication_start_data_too_long() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Nasi,
         },
-        ClientInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
-            .expect("client information should be valid"),
+        UserInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
+            .expect("user information should be valid"),
         Some(&long_data),
     );
 

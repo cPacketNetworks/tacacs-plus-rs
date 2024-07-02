@@ -17,7 +17,7 @@ fn serialize_authentication_start_with_header() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        ClientInformation::new("startup", force_ascii("49"), force_ascii("192.168.23.10")).unwrap(),
+        UserInformation::new("startup", force_ascii("49"), force_ascii("192.168.23.10")).unwrap(),
         Some(b"E"),
     )
     .expect("start construction should have succeeded");
@@ -103,7 +103,7 @@ fn serialize_authentication_start_version_mismatch() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Login,
         },
-        ClientInformation::new("bad", force_ascii("49"), force_ascii("::1")).unwrap(),
+        UserInformation::new("bad", force_ascii("49"), force_ascii("::1")).unwrap(),
         None,
     )
     .expect("packet construction should have succeeded");

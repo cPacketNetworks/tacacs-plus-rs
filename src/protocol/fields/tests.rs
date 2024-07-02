@@ -11,7 +11,7 @@ fn invalid_privilege_level_none() {
 #[test]
 fn client_information_long_username() {
     let username = [0x41u8; 512]; // AAA...AAA
-    let client_information = ClientInformation::new(
+    let client_information = UserInformation::new(
         core::str::from_utf8(&username).unwrap(),
         force_ascii("tcp49"),
         force_ascii("127.0.0.1"),
