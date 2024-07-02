@@ -1,3 +1,7 @@
+//! # tacacs-plus
+//!
+//! Rust library implementation of a TACACS+ ([RFC-8907](https://www.rfc-editor.org/rfc/rfc8907)) client.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod protocol;

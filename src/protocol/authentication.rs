@@ -117,15 +117,15 @@ impl Serialize for Start<'_> {
             + self.data.map_or(0, |data| data.len())
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
 
             self.authentication
-                .serialize_header_information(&mut buffer[1..=3]);
+                .serialize_header_information(&mut buffer[1..4]);
 
             self.client_information
-                .serialize_header_information(&mut buffer[4..=6]);
+                .serialize_header_information(&mut buffer[4..7]);
 
             let client_information_len = self
                 .client_information
@@ -145,7 +145,7 @@ impl Serialize for Start<'_> {
                 buffer[7] = 0;
             }
 
-            Ok(())
+            Ok(self.wire_size())
         } else {
             Err(NotEnoughSpace(()))
         }
@@ -290,7 +290,7 @@ impl Serialize for Continue<'_> {
             + self.data.map_or(0, |data| data.len())
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
             buffer[4] = self.abort as u8;
@@ -313,7 +313,7 @@ impl Serialize for Continue<'_> {
             // set data length
             buffer[2..4].copy_from_slice(&(data_len as u16).to_be_bytes());
 
-            Ok(())
+            Ok(self.wire_size())
         } else {
             Err(NotEnoughSpace(()))
         }

@@ -29,7 +29,7 @@ impl Serialize for Request<'_> {
             + self.arguments.wire_size()
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         // TODO: just rely on checks in components?
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.method as u8;
@@ -52,7 +52,7 @@ impl Serialize for Request<'_> {
             self.arguments
                 .serialize_body(&mut buffer[body_start + client_information_len..])?;
 
-            Ok(())
+            Ok(self.wire_size())
         } else {
             Err(NotEnoughSpace(()))
         }

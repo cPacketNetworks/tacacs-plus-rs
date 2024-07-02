@@ -51,7 +51,7 @@ impl From<NotEnoughSpace> for DeserializeError {
     }
 }
 
-// TODO: get version from packet body where it matters? e.g. ASCII vs. PAP auth
+/// The major version of the TACACS+ protocol.
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -59,6 +59,7 @@ pub enum MajorVersion {
     TheOnlyVersion = 0xc,
 }
 
+/// The minor version of the TACACS+ protocol in use, which specifies choices for authentication methods.
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -67,8 +68,15 @@ pub enum MinorVersion {
     V1 = 0x1,
 }
 
+/// The full protocol version.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct Version(MajorVersion, MinorVersion);
+
+impl Version {
+    pub fn of(major: MajorVersion, minor: MinorVersion) -> Self {
+        Self(major, minor)
+    }
+}
 
 impl TryFrom<u8> for Version {
     type Error = DeserializeError;
@@ -89,6 +97,12 @@ impl TryFrom<u8> for Version {
     }
 }
 
+impl From<Version> for u8 {
+    fn from(value: Version) -> Self {
+        ((value.0 as u8) << 4) | (value.1 as u8 & 0xf)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct HeaderFlags(u8);
 
@@ -101,7 +115,7 @@ bitflags! {
 
 #[derive(PartialEq, Eq, Debug)]
 pub struct HeaderInfo {
-    pub minor_version: MinorVersion,
+    pub version: Version,
     pub sequence_number: u8,
     pub flags: HeaderFlags,
     pub session_id: u32,
@@ -114,7 +128,7 @@ impl TryFrom<&[u8]> for HeaderInfo {
         let version: Version = buffer[0].try_into()?;
 
         let header = Self {
-            minor_version: version.1,
+            version,
             sequence_number: buffer[2],
             flags: HeaderFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
             session_id: u32::from_be_bytes(buffer[4..8].try_into()?),
@@ -149,8 +163,8 @@ pub trait Serialize {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
 
-    /// Serializes
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace>;
+    /// Serializes data into a buffer, returning the resulting length on success or `NotEnoughSpace` on error.
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace>;
 }
 
 // TODO: this is only implemented by authorization reply, remove maybe? I thought accounting did it too but guess not
@@ -174,7 +188,7 @@ impl<B: PacketBody> Packet<B> {
 
     pub fn new(header: HeaderInfo, body: B) -> Option<Self> {
         match body.required_minor_version() {
-            Some(required_version) if header.minor_version != required_version => None,
+            Some(required_version) if header.version.1 != required_version => None,
             _ => Some(Self { header, body }),
         }
     }
@@ -185,21 +199,22 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
         Self::HEADER_SIZE_BYTES + self.body.wire_size()
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
-        let body_length = self.body.wire_size();
-
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // fill in header information
-            buffer[0] = ((MajorVersion::TheOnlyVersion as u8) << 4)
-                | (self.header.minor_version as u8) & 0xf;
+            buffer[0] = self.header.version.into();
             buffer[1] = B::TYPE as u8;
             buffer[2] = self.header.sequence_number;
             buffer[3] = self.header.flags.bits();
 
             buffer[4..8].copy_from_slice(self.header.session_id.to_be_bytes().as_slice());
+
+            let body_length = self
+                .body
+                .serialize_into_buffer(&mut buffer[Self::HEADER_SIZE_BYTES..])?;
             buffer[8..12].copy_from_slice((body_length as u32).to_be_bytes().as_slice());
 
-            self.body.serialize_into_buffer(&mut buffer[12..])
+            Ok(Self::HEADER_SIZE_BYTES + body_length)
         } else {
             Err(NotEnoughSpace(()))
         }

@@ -1,16 +1,16 @@
 use bitflags::bitflags;
 
-use crate::AsciiStr;
-
 use super::{
     Arguments, AuthenticationContext, AuthenticationMethod, ClientInformation, DeserializeError,
     NotEnoughSpace, PacketBody, PacketType, Serialize,
 };
+use crate::AsciiStr;
 
 #[cfg(test)]
 mod tests;
 
 bitflags! {
+    /// Raw bitflags for accounting request packet.
     struct RawFlags: u8 {
         const Start = 0x02;
         const Stop = 0x04;
@@ -18,7 +18,7 @@ bitflags! {
     }
 }
 
-/// Valid accounting flag combinations for a TACACS+ account REQUEST packet.
+/// Valid flag combinations for a TACACS+ account REQUEST packet.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Flags {
     StartRecord,
@@ -29,13 +29,11 @@ pub enum Flags {
 
 impl From<Flags> for RawFlags {
     fn from(value: Flags) -> Self {
-        use Flags::*;
-
         match value {
-            StartRecord => RawFlags::Start,
-            StopRecord => RawFlags::Stop,
-            WatchdogNoUpdate => RawFlags::Watchdog,
-            WatchdogUpdate => RawFlags::Watchdog | RawFlags::Start,
+            Flags::StartRecord => RawFlags::Start,
+            Flags::StopRecord => RawFlags::Stop,
+            Flags::WatchdogNoUpdate => RawFlags::Watchdog,
+            Flags::WatchdogUpdate => RawFlags::Watchdog | RawFlags::Start,
         }
     }
 }
@@ -67,17 +65,16 @@ impl Serialize for Request<'_> {
             + self.arguments.wire_size()
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = RawFlags::from(self.flags).bits();
             buffer[1] = self.authentication_method as u8;
 
-            // TODO: return & check result along the way?
             // header information (lengths, etc.)
             self.authentication
-                .serialize_header_information(&mut buffer[2..=4]);
+                .serialize_header_information(&mut buffer[2..5]);
             self.client_information
-                .serialize_header_information(&mut buffer[5..=7]);
+                .serialize_header_information(&mut buffer[5..8]);
             self.arguments.serialize_header(&mut buffer[8..])?;
 
             let argument_count = self.arguments.argument_count();
@@ -92,7 +89,7 @@ impl Serialize for Request<'_> {
             self.arguments
                 .serialize_body(&mut buffer[body_start + client_information_len..])?;
 
-            Ok(())
+            Ok(self.wire_size())
         } else {
             Err(NotEnoughSpace(()))
         }

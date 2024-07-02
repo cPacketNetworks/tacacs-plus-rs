@@ -17,7 +17,7 @@ fn serialize_accounting_packet_with_argument() {
         .expect("argument array should be valid");
 
     let request = Request {
-        flags: AccountingFlags::StartRecord,
+        flags: Flags::StartRecord,
         authentication_method: AuthenticationMethod::Guest,
         authentication: AuthenticationContext {
             privilege_level: PrivilegeLevel::of(0).unwrap(),

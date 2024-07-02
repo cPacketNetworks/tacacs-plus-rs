@@ -4,7 +4,7 @@ use crate::types::force_ascii;
 #[test]
 fn serialize_authentication_start_with_header() {
     let header = HeaderInfo {
-        minor_version: MinorVersion::V1,
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 1,
         flags: HeaderFlags::SingleConnection,
         session_id: 123456,
@@ -89,7 +89,7 @@ fn serialize_authentication_start_with_header() {
 #[test]
 fn serialize_authentication_start_version_mismatch() {
     let header = HeaderInfo {
-        minor_version: MinorVersion::V1,
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 3,
         flags: HeaderFlags::Unencrypted,
         session_id: 9128374,
@@ -187,7 +187,7 @@ fn deserialize_authorization_reply_with_header() {
         [Argument::new(force_ascii("service"), force_ascii("nah"), true).unwrap()];
 
     let expected_header = HeaderInfo {
-        minor_version: MinorVersion::Default,
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
         sequence_number: 4,
         flags: HeaderFlags::Unencrypted | HeaderFlags::SingleConnection,
         session_id: 92837492,
