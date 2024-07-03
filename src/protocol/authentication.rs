@@ -13,8 +13,14 @@ mod tests;
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Action {
+    /// Login request.
     Login = 0x01,
+
+    /// Password change request.
     ChangePassword = 0x02,
+
+    /// Outbound authentication request.
+    #[deprecated = "Outbound authentication should not be used due to its security implications, according to RFC-8907."]
     SendAuth = 0x04,
 }
 
@@ -27,13 +33,27 @@ impl Action {
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
+    /// Authentication succeeded.
     Pass = 0x01,
+
+    /// Authentication failed.
     Fail = 0x02,
+
+    /// Request for more domain-specific data.
     GetData = 0x03,
+
+    /// Request for username.
     GetUser = 0x04,
+
+    /// Request for password.
     GetPassword = 0x05,
+
+    /// Restart session, discarding current one.
     Restart = 0x06,
+
+    /// Server-side error while authenticating.
     Error = 0x07,
+
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }
@@ -76,7 +96,7 @@ impl<'packet> Start<'packet> {
         // TODO: ensure action/authentication type compatibility?
 
         // ensure data length is small enough to be properly encoded without truncation
-        if data.map_or(true, |slice| slice.len() <= u8::MAX as usize)
+        if data.map_or(true, |slice| u8::try_from(slice.len()).is_ok())
             && authentication.authentication_type != AuthenticationType::NotSet
         {
             Some(Self {
@@ -96,6 +116,7 @@ impl PacketBody for Start<'_> {
     const MINIMUM_LENGTH: usize = Action::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 
     fn required_minor_version(&self) -> Option<MinorVersion> {
+        // NOTE: a check in Start::new() guarantees that the authentication type will not be NotSet
         match self.authentication.authentication_type {
             AuthenticationType::Ascii => Some(MinorVersion::Default),
             _ => Some(MinorVersion::V1),
@@ -109,7 +130,7 @@ impl Serialize for Start<'_> {
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
             + 1 // extra byte to include length of data
-            + self.data.map_or(0, |data| data.len())
+            + self.data.map_or(0, <[u8]>::len)
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
@@ -275,14 +296,14 @@ impl PacketBody for Continue<'_> {
 impl Serialize for Continue<'_> {
     fn wire_size(&self) -> usize {
         Self::MINIMUM_LENGTH
-            + self.user_message.map_or(0, |message| message.len())
-            + self.data.map_or(0, |data| data.len())
+            + self.user_message.map_or(0, <[u8]>::len)
+            + self.data.map_or(0, <[u8]>::len)
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
-            buffer[4] = self.abort as u8;
+            buffer[4] = u8::from(self.abort);
 
             let mut user_message_len = 0;
             if let Some(message) = self.user_message {

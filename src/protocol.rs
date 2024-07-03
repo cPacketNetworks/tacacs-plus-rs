@@ -14,9 +14,6 @@ pub use arguments::{Argument, Arguments};
 mod fields;
 pub use fields::*;
 
-#[cfg(test)]
-mod tests;
-
 /// An error type indicating that there is not enough space to complete an operation.
 #[derive(Debug)]
 pub struct NotEnoughSpace(());
@@ -97,7 +94,7 @@ impl From<Version> for u8 {
 }
 
 /// Flags to indicate information about packets or the client/server.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PacketFlags(u8);
 
 bitflags! {
@@ -111,7 +108,7 @@ bitflags! {
 }
 
 /// Information included in a TACACS+ packet header.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct HeaderInfo {
     pub version: Version,
     pub sequence_number: u8,
@@ -201,6 +198,7 @@ pub struct Packet<B: PacketBody> {
 }
 
 impl<B: PacketBody> Packet<B> {
+    /// Size of a TACACS+ packet header, in bytes.
     pub const HEADER_SIZE_BYTES: usize = 12;
 
     /// Assembles a header and body into a packet, barring minor version incompatibility.
@@ -209,6 +207,16 @@ impl<B: PacketBody> Packet<B> {
             Some(required_version) if header.version.1 != required_version => None,
             _ => Some(Self { header, body }),
         }
+    }
+
+    /// Returns (a copy of) the header information of this packet.
+    pub fn header(&self) -> HeaderInfo {
+        self.header
+    }
+
+    /// Getter for the body of a packet.
+    pub fn body(&self) -> &B {
+        &self.body
     }
 }
 
@@ -252,7 +260,7 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
                 let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
 
                 if body_length <= buffer[12..].len() {
-                    let body = buffer[12..].try_into()?;
+                    let body = buffer[12..12 + body_length].try_into()?;
                     Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
                 } else {
                     Err(DeserializeError::UnexpectedEnd)

@@ -92,8 +92,7 @@ impl<'storage> Arguments<'storage> {
         storage: &'storage mut [Argument<'storage>],
         length: usize,
     ) -> Option<Self> {
-        // TODO: should this be enforced in overridden {try_,}push() impls instead?
-        if storage.len() <= u8::MAX as usize {
+        if u8::try_from(storage.len()).is_ok() {
             SliceVec::try_from_slice_len(storage, length).map(Self)
         } else {
             None

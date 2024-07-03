@@ -1,12 +1,12 @@
 use super::*;
 use crate::ascii::assert_ascii;
 use crate::protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
-    UserInformation,
+    AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, MajorVersion,
+    MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
 };
 
 #[test]
-fn serialize_authentication_start_no_data() {
+fn serialize_start_no_data() {
     let start_body = Start::new(
         Action::Login,
         AuthenticationContext {
@@ -44,7 +44,7 @@ fn serialize_authentication_start_no_data() {
 }
 
 #[test]
-fn serialize_authentication_start_with_data() {
+fn serialize_start_with_data() {
     let start_body = Start::new(
         Action::ChangePassword,
         AuthenticationContext {
@@ -83,10 +83,10 @@ fn serialize_authentication_start_with_data() {
 }
 
 #[test]
-fn serialize_authentication_start_data_too_long() {
+fn serialize_start_data_too_long() {
     let long_data = [0x2a; 256];
     let start_body = Start::new(
-        Action::SendAuth,
+        Action::Login,
         AuthenticationContext {
             privilege_level: PrivilegeLevel::of(5).expect("privilege level 5 should be valid"),
             authentication_type: AuthenticationType::Ascii,
@@ -104,6 +104,120 @@ fn serialize_authentication_start_data_too_long() {
     assert!(
         start_body.is_none(),
         "data should have been too long to construct start"
+    );
+}
+
+#[test]
+fn serialize_full_start_packet() {
+    let header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        sequence_number: 1,
+        flags: PacketFlags::SingleConnection,
+        session_id: 123456,
+    };
+
+    let body = Start::new(
+        Action::Login,
+        AuthenticationContext {
+            privilege_level: PrivilegeLevel::of(0).unwrap(),
+            authentication_type: AuthenticationType::Pap,
+            service: AuthenticationService::Ppp,
+        },
+        UserInformation::new("startup", assert_ascii("49"), assert_ascii("192.168.23.10")).unwrap(),
+        Some(b"E"),
+    )
+    .expect("start construction should have succeeded");
+
+    let packet = Packet::new(header, body).expect("packet construction should have succeeded");
+
+    let mut buffer = [42; 100];
+    packet
+        .serialize_into_buffer(&mut buffer)
+        .expect("buffer should have been large enough for packet");
+
+    assert_eq!(
+        buffer[..43],
+        [
+            // HEADER
+            (0xc << 4) | 0x1, // major/minor version (default)
+            0x01,             // authentication
+            1,                // sequence number
+            0x04,             // single connection flag set
+            // session ID
+            0x0,
+            0x1,
+            0xe2,
+            0x40,
+            // length
+            0,
+            0,
+            0,
+            31,
+            // BODY
+            0x01, // action: login
+            0,    // privilege level 0
+            0x02, // authentication type: PAP
+            0x03, // authentication service: PPP
+            7,    // user length
+            2,    // port length
+            13,   // remote address length
+            1,    // data length
+            // user
+            0x73,
+            0x74,
+            0x61,
+            0x72,
+            0x74,
+            0x75,
+            0x70,
+            // port
+            0x34,
+            0x39,
+            // remote address
+            0x31,
+            0x39,
+            0x32,
+            0x2e,
+            0x31,
+            0x36,
+            0x38,
+            0x2e,
+            0x32,
+            0x33,
+            0x2e,
+            0x31,
+            0x30,
+            // data
+            0x45
+        ]
+    );
+}
+
+#[test]
+fn serialize_full_start_packet_version_mismatch() {
+    let header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        sequence_number: 3,
+        flags: PacketFlags::Unencrypted,
+        session_id: 9128374,
+    };
+
+    let body = Start::new(
+        Action::Login,
+        AuthenticationContext {
+            privilege_level: PrivilegeLevel::of(2).unwrap(),
+            // ascii requires v0/default, but we set v1 above so this fails
+            authentication_type: AuthenticationType::Ascii,
+            service: AuthenticationService::Login,
+        },
+        UserInformation::new("bad", assert_ascii("49"), assert_ascii("::1")).unwrap(),
+        None,
+    )
+    .expect("packet construction should have succeeded");
+
+    assert!(
+        Packet::new(header, body).is_none(),
+        "packet construction should have failed"
     );
 }
 
@@ -200,7 +314,109 @@ fn deserialize_reply_bad_flags() {
 }
 
 #[test]
-fn serialize_authentication_continue_no_data() {
+fn deserialize_reply_full_packet() {
+    let raw_packet = [
+        // HEADER
+        (0xc << 4) | 1, // version
+        1,              // authentication packet
+        4,              // sequence number
+        1,              // unencrypted flag set
+        // session id
+        0x3a,
+        0x9b,
+        0x95,
+        0xb1,
+        // packet body length
+        0,
+        0,
+        0,
+        22,
+        // BODY
+        6, // status: restart
+        0, // no flags set
+        // server message length
+        0,
+        9,
+        // data length
+        0,
+        7,
+        // server message
+        0x74,
+        0x72,
+        0x79,
+        0x20,
+        0x61,
+        0x67,
+        0x61,
+        0x69,
+        0x6e,
+        // data
+        1,
+        1,
+        2,
+        3,
+        5,
+        8,
+        13,
+    ];
+
+    let expected_header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        sequence_number: 4,
+        flags: PacketFlags::Unencrypted,
+        session_id: 983274929,
+    };
+
+    let expected_body = Reply {
+        status: Status::Restart,
+        server_message: assert_ascii("try again"),
+        data: &[1, 1, 2, 3, 5, 8, 13],
+        no_echo: false,
+    };
+
+    let expected_packet = Packet::new(expected_header, expected_body)
+        .expect("packet construction should have succeeded");
+
+    assert_eq!(raw_packet.as_slice().try_into(), Ok(expected_packet));
+}
+
+#[test]
+fn deserialize_reply_type_mismatch() {
+    let raw_packet = [
+        // HEADER
+        0xc << 4, // version
+        2,        // authorization packet!
+        2,        // sequence number
+        0,        // no flags set
+        // session id
+        0xf7,
+        0x23,
+        0x98,
+        0x93,
+        // body length
+        0,
+        0,
+        0,
+        6,
+        // BODY
+        1, // status: pass
+        0, // no flags set
+        // server message length
+        0,
+        0,
+        // data length
+        0,
+        0,
+    ];
+
+    assert_eq!(
+        Packet::<Reply>::try_from(raw_packet.as_slice()),
+        Err(DeserializeError::InvalidWireBytes)
+    );
+}
+
+#[test]
+fn serialize_continue_no_data() {
     let continue_body =
         Continue::new(None, None, false).expect("continue construction should have succeeded");
 
@@ -220,7 +436,7 @@ fn serialize_authentication_continue_no_data() {
 }
 
 #[test]
-fn serialize_authentication_continue_both_valid_data_fields() {
+fn serialize_continue_both_valid_data_fields() {
     let user_message = b"secure-password";
     let user_message_length = user_message.len();
     let data = b"\x12\x34\x45\x78";
@@ -250,7 +466,7 @@ fn serialize_authentication_continue_both_valid_data_fields() {
 }
 
 #[test]
-fn serialize_authentication_continue_only_data_field() {
+fn serialize_continue_only_data_field() {
     let data = b"textand\x2abinary\x11";
     let data_length = data.len();
 
@@ -273,4 +489,82 @@ fn serialize_authentication_continue_only_data_field() {
 
     // actual data
     assert_eq!(&buffer[5..5 + data_length], data);
+}
+
+#[test]
+fn serialize_continue_full_packet() {
+    let header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
+        sequence_number: 49,
+        flags: PacketFlags::SingleConnection,
+        session_id: 856473784,
+    };
+
+    let body = Continue::new(
+        Some(b"this is a message"),
+        Some(&[64, 43, 2, 255, 2]),
+        false,
+    )
+    .expect("continue construction should have worked");
+
+    let packet = Packet::new(header, body).expect("packet construction should have worked");
+
+    let mut buffer = [0x64; 50];
+    let serialized_length = packet
+        .serialize_into_buffer(buffer.as_mut_slice())
+        .expect("packet serialization should succeed");
+
+    assert_eq!(
+        buffer[..serialized_length],
+        [
+            // HEADER
+            0xc << 4, // version
+            1,        // authentication packet
+            49,       // sequence number
+            4,        // single connection flag set
+            // session id
+            0x33,
+            0xc,
+            0xc0,
+            0xb8,
+            // body length
+            0,
+            0,
+            0,
+            27,
+            // BODY
+            // user message length
+            0,
+            17,
+            // data length
+            0,
+            5,
+            // abort flag unset
+            0,
+            // user message
+            0x74,
+            0x68,
+            0x69,
+            0x73,
+            0x20,
+            0x69,
+            0x73,
+            0x20,
+            0x61,
+            0x20,
+            0x6d,
+            0x65,
+            0x73,
+            0x73,
+            0x61,
+            0x67,
+            0x65,
+            // data
+            64,
+            43,
+            2,
+            255,
+            2
+        ]
+    );
 }

@@ -82,15 +82,13 @@ impl TryFrom<u8> for Status {
     type Error = DeserializeError;
 
     fn try_from(value: u8) -> Result<Self, DeserializeError> {
-        use Status::*;
-
         match value {
-            0x01 => Ok(PassAdd),
-            0x02 => Ok(PassReplace),
-            0x10 => Ok(Fail),
-            0x11 => Ok(Error),
+            0x01 => Ok(Status::PassAdd),
+            0x02 => Ok(Status::PassReplace),
+            0x10 => Ok(Status::Fail),
+            0x11 => Ok(Status::Error),
             #[allow(deprecated)]
-            0x21 => Ok(Follow),
+            0x21 => Ok(Status::Follow),
             _ => Err(DeserializeError::InvalidWireBytes),
         }
     }
