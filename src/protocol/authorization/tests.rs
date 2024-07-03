@@ -52,7 +52,7 @@ fn serialize_request_no_arguments() {
 }
 
 #[test]
-fn serialize_authorization_request_one_argument() {
+fn serialize_request_one_argument() {
     let authentication_context = AuthenticationContext {
         privilege_level: PrivilegeLevel::of(15).expect("15 should be a valid privilege level"),
         authentication_type: AuthenticationType::MsChapV2,
@@ -108,6 +108,118 @@ fn serialize_authorization_request_one_argument() {
 }
 
 #[test]
+fn serialize_full_request_packet() {
+    let header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
+        sequence_number: 1,
+        flags: PacketFlags::Unencrypted,
+        session_id: 578263403,
+    };
+
+    let mut arguments =
+        [Argument::new(assert_ascii("service"), assert_ascii("fulltest"), true).unwrap()];
+
+    let body = Request {
+        method: AuthenticationMethod::Kerberos5,
+        authentication_context: AuthenticationContext {
+            privilege_level: PrivilegeLevel::of(14).unwrap(),
+            authentication_type: AuthenticationType::NotSet,
+            service: AuthenticationService::Enable,
+        },
+        user_information: UserInformation::new(
+            "requestor",
+            assert_ascii("tcp23"),
+            assert_ascii("127.254.1.2"),
+        )
+        .unwrap(),
+        arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
+    };
+
+    let packet = Packet::new(header, body).expect("packet construction should have succeeded");
+
+    let mut buffer = [0x43; 70];
+    let serialized_length = packet
+        .serialize_into_buffer(buffer.as_mut_slice())
+        .expect("packet serialization should have succeeded");
+
+    assert_eq!(
+        buffer[..serialized_length],
+        [
+            // HEADER
+            0xc << 4, // version
+            2,        // authorization packet
+            1,        // sequence number
+            1,        // unencrypted flag set
+            // session id
+            0x22,
+            0x77,
+            0x99,
+            0x6b,
+            // body length
+            0,
+            0,
+            0,
+            50,
+            // BODY
+            2,  // authentication method: Kerberos 5
+            14, // privilege level
+            0,  // authentication type: not set
+            2,  // authentication service: enable
+            9,  // user length
+            5,  // port length
+            11, // remote address length
+            1,  // argument count
+            16, // argument 1 length
+            // user
+            0x72,
+            0x65,
+            0x71,
+            0x75,
+            0x65,
+            0x73,
+            0x74,
+            0x6f,
+            0x72,
+            // port
+            0x74,
+            0x63,
+            0x70,
+            0x32,
+            0x33,
+            // remote address
+            0x31,
+            0x32,
+            0x37,
+            0x2e,
+            0x32,
+            0x35,
+            0x34,
+            0x2e,
+            0x31,
+            0x2e,
+            0x32,
+            // argument 1: service
+            0x73,
+            0x65,
+            0x72,
+            0x76,
+            0x69,
+            0x63,
+            0x65,
+            0x3d,
+            0x66,
+            0x75,
+            0x6c,
+            0x6c,
+            0x74,
+            0x65,
+            0x73,
+            0x74
+        ]
+    );
+}
+
+#[test]
 fn deserialize_reply_two_arguments() {
     let raw_bytes = [
         0x01, // status: add
@@ -146,7 +258,6 @@ fn deserialize_reply_two_arguments() {
 }
 
 #[test]
-
 fn deserialize_full_reply_packet() {
     let raw_packet = [
         0xc << 4,    // major/minor version
