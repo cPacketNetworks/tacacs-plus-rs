@@ -48,7 +48,6 @@ impl<'data> Argument<'data> {
         buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
     }
 
-    // TODO: visibility
     /// Attempts to deserialize a packet from its name-value encoding on the wire.
     pub(super) fn deserialize(buffer: &'data [u8]) -> Option<Self> {
         // note: these are guaranteed to be unequal
@@ -76,8 +75,6 @@ impl<'data> Argument<'data> {
     }
 }
 
-// TODO: mention somewhere that duplicate arguments won't be handled/will be passed as-is
-// TODO: deserialize logic here instead of wherever it is now?
 /// A set of arguments, with some validation of length requirements and such.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Arguments<'storage>(SliceVec<'storage, Argument<'storage>>);

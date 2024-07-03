@@ -37,15 +37,16 @@ fn serialize_authentication_start_with_header() {
             0x01,             // authentication
             1,                // sequence number
             0x04,             // single connection flag set
-            // TODO: format :(
+            // session ID
             0x0,
             0x1,
             0xe2,
-            0x40, // session id
+            0x40,
+            // length
             0,
             0,
             0,
-            31, // length
+            31,
             // BODY
             0x01, // action: login
             0,    // privilege level 0

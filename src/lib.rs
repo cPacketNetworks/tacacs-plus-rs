@@ -7,7 +7,6 @@
 pub mod protocol;
 // mod session;
 
-// TODO: error impl? error in core will be stabilized in 1.81 supposedly
 #[derive(Debug)]
 pub enum TacacsError {
     // #[error("Connection to TACACS+ server failed")]

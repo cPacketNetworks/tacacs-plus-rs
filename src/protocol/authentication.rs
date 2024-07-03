@@ -15,7 +15,6 @@ mod tests;
 pub enum Action {
     Login = 0x01,
     ChangePassword = 0x02,
-    // TODO: deprecate or something? or have some sort of warning
     SendAuth = 0x04,
 }
 
