@@ -40,6 +40,7 @@ pub enum AuthenticationMethod {
 }
 
 impl AuthenticationMethod {
+    /// The number of bytes an `AuthenticationMethod` occupies on the wire.
     pub const WIRE_SIZE: usize = 1;
 }
 
@@ -128,6 +129,7 @@ pub enum AuthenticationService {
 
     // I'm gonna be honest I have no idea what this stands for and I don't know if anyone else does either
     // could be NAT protocol translation (but draft predates RFC 2766), plaintext, and who knows what else
+    /// PT authentication (not sure exactly what the acronym stands for).
     Pt = 0x05,
 
     /// Authentication from the r-command suite, e.g. via `rlogin(1)`.
@@ -145,8 +147,13 @@ pub enum AuthenticationService {
 
 /// Some authentication information about a request, sent or received from a server.
 pub struct AuthenticationContext {
+    /// The privilege level of the request.
     pub privilege_level: PrivilegeLevel,
+
+    /// The method used to authenticate to the TACACS+ client.
     pub authentication_type: AuthenticationType,
+
+    /// The service used to authenticate to the TACACS+ client.
     pub service: AuthenticationService,
 }
 

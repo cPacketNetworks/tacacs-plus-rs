@@ -21,9 +21,16 @@ pub struct NotEnoughSpace(());
 /// An error that occurred during deserialization of a full/partial packet.
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeserializeError {
+    /// Invalid byte representation of an object.
     InvalidWireBytes,
+
+    /// Object representation was cut off in some way.
     UnexpectedEnd,
+
+    /// There wasn't enough space in a target buffer.
     NotEnoughSpace,
+
+    /// Mismatch between expected/actual protocol versions, if relevant.
     VersionMismatch,
 }
 
@@ -46,6 +53,7 @@ impl From<NotEnoughSpace> for DeserializeError {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MajorVersion {
+    /// The only current major version specified in RFC-8907.
     TheOnlyVersion = 0xc,
 }
 
@@ -54,7 +62,9 @@ pub enum MajorVersion {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MinorVersion {
+    /// Default minor version, used for ASCII authentication.
     Default = 0x0,
+    /// Minor version 1, which switches out ASCII authentication for (MS)CHAP/PAP/etc.
     V1 = 0x1,
 }
 
@@ -63,6 +73,7 @@ pub enum MinorVersion {
 pub struct Version(MajorVersion, MinorVersion);
 
 impl Version {
+    /// Creates a full version from a major and minor version.
     pub fn of(major: MajorVersion, minor: MinorVersion) -> Self {
         Self(major, minor)
     }
@@ -110,9 +121,16 @@ bitflags! {
 /// Information included in a TACACS+ packet header.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct HeaderInfo {
+    /// The packet's protocol version.
     pub version: Version,
+
+    /// The sequence number of the packet. This should be odd for client packets, and even for server packets.
     pub sequence_number: u8,
+
+    /// Session/packet flags.
     pub flags: PacketFlags,
+
+    /// ID of the current session.
     pub session_id: u32,
 }
 
@@ -137,8 +155,13 @@ impl TryFrom<&[u8]> for HeaderInfo {
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PacketType {
+    /// Authentication packet.
     Authentication = 0x1,
+
+    /// Authorization packet.
     Authorization = 0x2,
+
+    /// Accounting packet.
     Accounting = 0x3,
 }
 

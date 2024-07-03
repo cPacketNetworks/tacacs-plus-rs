@@ -3,19 +3,20 @@
 //! Rust library implementation of a TACACS+ ([RFC-8907](https://www.rfc-editor.org/rfc/rfc8907)) client.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![warn(missing_docs)]
 
 pub mod protocol;
 // mod session;
 
+/// An error that occurred during a TACACS+ session.
 #[derive(Debug)]
 pub enum TacacsError {
-    // #[error("Connection to TACACS+ server failed")]
+    /// Connection to TACACS+ server failed
     ConnectionError,
 
-    // #[error("The TACACS+ server sent an invalid or corrupt response")]
+    /// Invalid/corrupt response received from TACACS+ server
     BadResponse,
-    // #[error(transparent)]
-    // IOError(#[from] std::io::Error),
+    // TODO: I/O error (perhaps in session/client module, as core::io does not exist)
 }
 
 pub mod ascii;

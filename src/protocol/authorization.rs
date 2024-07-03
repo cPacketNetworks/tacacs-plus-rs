@@ -12,9 +12,16 @@ mod tests;
 
 /// An authorization request packet body, including arguments.
 pub struct Request<'packet> {
+    /// Method used to authenticate to TACACS+ client.
     pub method: AuthenticationMethod,
+
+    /// Other client authentication information.
     pub authentication_context: AuthenticationContext,
+
+    /// Information about the user connected to the TACACS+ client.
     pub user_information: UserInformation<'packet>,
+
+    /// Additional arguments to provide as part of an authorization request.
     pub arguments: Arguments<'packet>,
 }
 
@@ -74,6 +81,7 @@ pub enum Status {
     /// An error ocurred on the server.
     Error = 0x11,
 
+    /// Forward authorization request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
 }
@@ -104,6 +112,7 @@ pub struct Reply<'packet> {
 }
 
 impl<'packet> Reply<'packet> {
+    /// Determines the length of a reply packet encoded into the provided buffer, if possible.
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::MINIMUM_LENGTH {
             let argument_count = buffer[1] as usize;

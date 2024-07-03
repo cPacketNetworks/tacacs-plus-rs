@@ -54,6 +54,7 @@ pub enum Status {
     /// Server-side error while authenticating.
     Error = 0x07,
 
+    /// Forward authentication request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }

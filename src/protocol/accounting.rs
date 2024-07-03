@@ -54,10 +54,19 @@ impl Flags {
 
 /// An accounting request packet, used to start, stop, or provide progress on a running job.
 pub struct Request<'packet> {
+    /// Flags to indicate what kind of accounting record this packet includes.
     pub flags: Flags,
+
+    /// Method used to authenticate to TACACS+ client.
     pub authentication_method: AuthenticationMethod,
+
+    /// Other information about authentication to TACACS+ client.
     pub authentication: AuthenticationContext,
+
+    /// Information about the user connected to the client.
     pub user_information: UserInformation<'packet>,
+
+    /// Arguments to provide additional information to the server.
     pub arguments: Arguments<'packet>,
 }
 
@@ -113,8 +122,13 @@ impl Serialize for Request<'_> {
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Status {
+    /// Task logging succeeded.
     Success = 0x01,
+
+    /// Something went wrong when logging the task.
     Error = 0x02,
+
+    /// Forward accounting request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }

@@ -162,7 +162,6 @@ impl<'storage> Arguments<'storage> {
         storage: &'storage mut [Argument<'storage>],
     ) -> Result<Self, DeserializeError> {
         if storage.len() >= lengths.len() {
-            // TODO: error type?
             let mut arguments =
                 Self::try_from_slice_len(storage, 0).ok_or(DeserializeError::NotEnoughSpace)?;
 
