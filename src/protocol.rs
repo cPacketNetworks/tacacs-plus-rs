@@ -23,7 +23,6 @@ pub struct NotEnoughSpace(());
 pub enum DeserializeError {
     InvalidWireBytes,
     UnexpectedEnd,
-    LengthMismatch,
     NotEnoughSpace,
     // TODO: placement?
     VersionMismatch,
@@ -131,10 +130,24 @@ impl TryFrom<&[u8]> for HeaderInfo {
 }
 
 #[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PacketType {
     Authentication = 0x1,
     Authorization = 0x2,
     Accounting = 0x3,
+}
+
+impl TryFrom<u8> for PacketType {
+    type Error = DeserializeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Authentication),
+            2 => Ok(Self::Authorization),
+            3 => Ok(Self::Accounting),
+            _ => Err(DeserializeError::InvalidWireBytes),
+        }
+    }
 }
 
 pub trait PacketBody {
@@ -222,13 +235,17 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
         if buffer.len() > Self::HEADER_SIZE_BYTES {
             let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
 
-            let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
+            if PacketType::try_from(buffer[1])? == B::TYPE {
+                let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
 
-            if body_length <= buffer[12..].len() {
-                let body = buffer[12..].try_into()?;
-                Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+                if body_length <= buffer[12..].len() {
+                    let body = buffer[12..].try_into()?;
+                    Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+                } else {
+                    Err(DeserializeError::UnexpectedEnd)
+                }
             } else {
-                Err(DeserializeError::LengthMismatch)
+                Err(DeserializeError::InvalidWireBytes)
             }
         } else {
             Err(DeserializeError::UnexpectedEnd)
@@ -246,15 +263,19 @@ impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> Deserialize
         if buffer.len() > Self::HEADER_SIZE_BYTES {
             let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
 
-            let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
+            if PacketType::try_from(buffer[1])? == B::TYPE {
+                let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
 
-            if body_length <= buffer[12..].len() {
-                let body =
-                    B::deserialize_from_buffer(&buffer[12..12 + body_length], argument_space)?;
+                if body_length <= buffer[12..].len() {
+                    let body =
+                        B::deserialize_from_buffer(&buffer[12..12 + body_length], argument_space)?;
 
-                Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+                    Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+                } else {
+                    Err(DeserializeError::UnexpectedEnd)
+                }
             } else {
-                Err(DeserializeError::LengthMismatch)
+                Err(DeserializeError::InvalidWireBytes)
             }
         } else {
             Err(DeserializeError::UnexpectedEnd)

@@ -4,7 +4,7 @@ use tinyvec::SliceVec;
 use super::{DeserializeError, NotEnoughSpace};
 use crate::AsciiStr;
 
-/// An argument in the TACACS+ protocol, which has various uses.
+/// An argument in the TACACS+ protocol, which exists for extensibility.
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct Argument<'data> {
     name: AsciiStr<'data>,

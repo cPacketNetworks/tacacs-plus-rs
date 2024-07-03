@@ -30,7 +30,7 @@ impl<'string> AsciiStr<'string> {
     }
 }
 
-/// Asserts a string is ASCII, converting it to an AsciiStr or panicking if it is not actually ASCII.
+/// Asserts a string is ASCII, converting it to an [`AsciiStr`] or panicking if it is not actually ASCII.
 pub const fn assert_ascii(string: &str) -> AsciiStr {
     if string.is_ascii() {
         AsciiStr(string)
