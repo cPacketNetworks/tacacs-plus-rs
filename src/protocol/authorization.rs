@@ -99,11 +99,10 @@ impl TryFrom<u8> for Status {
 /// The body of an authorization reply packet.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
-    // TODO: make not pub(super) (it's only like this for protocol module level tests)
-    pub(super) status: Status,
-    pub(super) server_message: AsciiStr<'data>,
-    pub(super) data: &'data [u8],
-    pub(super) arguments: Arguments<'data>,
+    status: Status,
+    server_message: AsciiStr<'data>,
+    data: &'data [u8],
+    arguments: Arguments<'data>,
 }
 
 impl<'body> Reply<'body> {
