@@ -58,7 +58,7 @@ impl TryFrom<u8> for Status {
     }
 }
 
-/// An authentication START packet, used to initiate an authentication session.
+/// An authentication start packet, used to initiate an authentication session.
 pub struct Start<'packet> {
     action: Action,
     authentication: AuthenticationContext,

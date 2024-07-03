@@ -58,13 +58,22 @@ impl Serialize for Request<'_> {
     }
 }
 
+/// The status of an authorization operation, as returned by the server.
 #[repr(u8)]
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Status {
+    /// Authorization passed; server may have additional arguments for the client.
     PassAdd = 0x01,
+
+    /// Authorization passed; server provides argument values to override those provided in the request.
     PassReplace = 0x02,
+
+    /// Authorization request was denied.
     Fail = 0x10,
+
+    /// An error ocurred on the server.
     Error = 0x11,
+
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
 }
@@ -87,6 +96,7 @@ impl TryFrom<u8> for Status {
     }
 }
 
+/// The body of an authorization reply packet.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'data> {
     // TODO: make not pub(super) (it's only like this for protocol module level tests)

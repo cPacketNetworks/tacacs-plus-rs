@@ -2,7 +2,7 @@ use super::*;
 use crate::ascii::assert_ascii;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, HeaderFlags, HeaderInfo, MajorVersion, MinorVersion, Packet,
+    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
     PrivilegeLevel, UserInformation, Version,
 };
 
@@ -90,7 +90,7 @@ fn serialize_full_request_packet() {
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 1,
-        flags: HeaderFlags::empty(),
+        flags: PacketFlags::empty(),
         session_id: 298734923,
     };
 

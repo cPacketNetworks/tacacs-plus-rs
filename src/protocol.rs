@@ -1,3 +1,5 @@
+//! TACACS+ protocol packet <-> binary format conversions.
+
 use core::array::TryFromSliceError;
 
 use bitflags::bitflags;
@@ -15,6 +17,7 @@ pub use fields::*;
 #[cfg(test)]
 mod tests;
 
+/// An error type indicating that there is not enough space to complete an operation.
 #[derive(Debug)]
 pub struct NotEnoughSpace(());
 
@@ -94,21 +97,26 @@ impl From<Version> for u8 {
     }
 }
 
+/// Flags to indicate information about packets or the client/server.
 #[derive(Debug, PartialEq, Eq)]
-pub struct HeaderFlags(u8);
+pub struct PacketFlags(u8);
 
 bitflags! {
-    impl HeaderFlags: u8 {
+    impl PacketFlags: u8 {
+        /// Indicates the body of the packet is unobfuscated.
         const Unencrypted      = 0x01;
+
+        /// Signals to the server that the client would like to reuse a TCP connection across multiple sessions.
         const SingleConnection = 0x04;
     }
 }
 
+/// Information included in a TACACS+ packet header.
 #[derive(PartialEq, Eq, Debug)]
 pub struct HeaderInfo {
     pub version: Version,
     pub sequence_number: u8,
-    pub flags: HeaderFlags,
+    pub flags: PacketFlags,
     pub session_id: u32,
 }
 
@@ -121,7 +129,7 @@ impl TryFrom<&[u8]> for HeaderInfo {
         let header = Self {
             version,
             sequence_number: buffer[2],
-            flags: HeaderFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
+            flags: PacketFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
             session_id: u32::from_be_bytes(buffer[4..8].try_into()?),
         };
 
@@ -129,6 +137,7 @@ impl TryFrom<&[u8]> for HeaderInfo {
     }
 }
 
+/// The type of a protocol packet.
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PacketType {
@@ -150,6 +159,7 @@ impl TryFrom<u8> for PacketType {
     }
 }
 
+/// A type that can be treated as a TACACS+ protocol packet body.
 pub trait PacketBody {
     /// Type of the packet (one of authentication, authorization, or accounting).
     const TYPE: PacketType;
@@ -164,6 +174,7 @@ pub trait PacketBody {
     }
 }
 
+/// Something that can be serialized into a binary format.
 pub trait Serialize {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
@@ -172,16 +183,18 @@ pub trait Serialize {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace>;
 }
 
-// TODO: this is only implemented by authorization reply, remove maybe? I thought accounting did it too but guess not
+/// Something that includes arguments that can be deserialized from a binary arguments.
 pub trait DeserializeWithArguments<'raw> {
+    /// Attempts to deserialize an object from its binary format, storing its arguments in the provided slice.
     fn deserialize_from_buffer(
         buffer: &'raw [u8],
         argument_space: &'raw mut [Argument<'raw>],
     ) -> Result<Self, DeserializeError>
     where
-        Self: Sized + 'raw;
+        Self: Sized;
 }
 
+/// A full TACACS+ protocol packet.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Packet<B: PacketBody> {
     header: HeaderInfo,
@@ -253,12 +266,12 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
     }
 }
 
-impl<'body, B: PacketBody + DeserializeWithArguments<'body> + 'body> DeserializeWithArguments<'body>
+impl<'raw, B: PacketBody + DeserializeWithArguments<'raw> + 'raw> DeserializeWithArguments<'raw>
     for Packet<B>
 {
     fn deserialize_from_buffer(
-        buffer: &'body [u8],
-        argument_space: &'body mut [Argument<'body>],
+        buffer: &'raw [u8],
+        argument_space: &'raw mut [Argument<'raw>],
     ) -> Result<Self, DeserializeError> {
         if buffer.len() > Self::HEADER_SIZE_BYTES {
             let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;

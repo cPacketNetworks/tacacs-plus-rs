@@ -6,7 +6,7 @@ fn serialize_authentication_start_with_header() {
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 1,
-        flags: HeaderFlags::SingleConnection,
+        flags: PacketFlags::SingleConnection,
         session_id: 123456,
     };
 
@@ -91,7 +91,7 @@ fn serialize_authentication_start_version_mismatch() {
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 3,
-        flags: HeaderFlags::Unencrypted,
+        flags: PacketFlags::Unencrypted,
         session_id: 9128374,
     };
 
@@ -191,7 +191,7 @@ fn deserialize_authorization_reply_with_header() {
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
         sequence_number: 4,
-        flags: HeaderFlags::Unencrypted | HeaderFlags::SingleConnection,
+        flags: PacketFlags::Unencrypted | PacketFlags::SingleConnection,
         session_id: 92837492,
     };
 

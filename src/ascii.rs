@@ -1,3 +1,5 @@
+//! Convenience types for enforcing valid ASCII strings.
+
 use core::fmt;
 use core::ops::Deref;
 
