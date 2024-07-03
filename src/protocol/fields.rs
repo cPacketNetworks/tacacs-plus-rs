@@ -1,9 +1,6 @@
 use crate::protocol::MinorVersion;
 use crate::AsciiStr;
 
-#[cfg(test)]
-mod tests;
-
 /// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -51,6 +48,17 @@ pub struct PrivilegeLevel(u8);
 
 impl PrivilegeLevel {
     /// Converts an integer to a `PrivilegeLevel` if it is in the proper range (0-15).
+    ///
+    /// # Examples
+    /// ```
+    /// use tacacs_plus::protocol::PrivilegeLevel;
+    ///
+    /// let valid_level = PrivilegeLevel::of(3);
+    /// assert!(valid_level.is_some());
+    ///
+    /// let too_big = PrivilegeLevel::of(42);
+    /// assert!(too_big.is_none());
+    /// ```
     pub fn of(level: u8) -> Option<Self> {
         if level <= 15 {
             Some(Self(level))
@@ -166,6 +174,7 @@ impl<'info> UserInformation<'info> {
     // three lengths in header
     const HEADER_INFORMATION_SIZE: usize = 3;
 
+    /// Returns the number of bytes this information bundle will occupy on the wire.
     pub fn wire_size(&self) -> usize {
         Self::HEADER_INFORMATION_SIZE
             + self.user.len()

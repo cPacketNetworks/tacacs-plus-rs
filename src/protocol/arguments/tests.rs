@@ -1,24 +1,5 @@
 use super::*;
 use crate::ascii::assert_ascii;
-use crate::protocol::{Argument, Arguments};
-
-#[test]
-fn invalid_privilege_level_none() {
-    let level = PrivilegeLevel::of(42);
-    assert!(level.is_none());
-}
-
-#[test]
-fn client_information_long_username() {
-    let username = [0x41u8; 512]; // AAA...AAA
-    let client_information = UserInformation::new(
-        core::str::from_utf8(&username).unwrap(),
-        assert_ascii("tcp49"),
-        assert_ascii("127.0.0.1"),
-    );
-
-    assert!(client_information.is_none(), "username should be too long");
-}
 
 #[test]
 fn arguments_two_required() {

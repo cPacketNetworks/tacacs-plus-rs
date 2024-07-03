@@ -4,6 +4,9 @@ use tinyvec::SliceVec;
 use super::{DeserializeError, NotEnoughSpace};
 use crate::AsciiStr;
 
+#[cfg(test)]
+mod tests;
+
 /// An argument in the TACACS+ protocol, which exists for extensibility.
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct Argument<'data> {
