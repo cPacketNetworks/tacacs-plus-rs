@@ -19,5 +19,5 @@ pub enum TacacsError {
     // IOError(#[from] std::io::Error),
 }
 
-mod ascii;
+pub mod ascii;
 pub use ascii::AsciiStr;

@@ -158,15 +158,23 @@ pub struct Reply<'data> {
 }
 
 impl Reply<'_> {
-    // 1 byte for status, 1 for flags, 2 for server_msg_len, 2 for data_len
-    const HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
-
     /// Attempts to extract the claimed reply packed body length from a buffer.
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
-        if buffer.len() >= Self::HEADER_SIZE_BYTES {
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?) as usize;
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?) as usize;
-            Some(Self::HEADER_SIZE_BYTES + server_message_length + data_length)
+        if buffer.len() >= Self::MINIMUM_LENGTH {
+            let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
+            Some(Self::MINIMUM_LENGTH + server_message_length + data_length)
+        } else {
+            None
+        }
+    }
+
+    /// Extracts the server message and data field lengths from a buffer, treating it as if it were a serialized reply packet body.
+    fn extract_field_lengths(buffer: &[u8]) -> Option<(usize, usize)> {
+        if buffer.len() >= 4 {
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?);
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?);
+
+            Some((server_message_length as usize, data_length as usize))
         } else {
             None
         }
@@ -202,9 +210,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        let total_len = buffer.len();
+        let claimed_length = Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+        let buffer_length = buffer.len();
 
-        if total_len >= Self::HEADER_SIZE_BYTES {
+        if buffer_length >= claimed_length {
             let status: Status = buffer[0].try_into()?;
             let no_echo = match buffer[1] {
                 0 => Ok(false),
@@ -212,26 +221,19 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 _ => Err(DeserializeError::InvalidWireBytes),
             }?;
 
-            // attempt to convert slices into arrays which u16::from_be_bytes needs
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
+            let (server_message_length, data_length) =
+                Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
 
-            if total_len
-                >= Reply::claimed_length(buffer).ok_or(DeserializeError::InvalidWireBytes)?
-            {
-                let body_begin = Self::HEADER_SIZE_BYTES;
-                let data_begin = body_begin + server_message_length;
+            let body_begin = Self::MINIMUM_LENGTH;
+            let data_begin = body_begin + server_message_length;
 
-                Ok(Reply {
-                    status,
-                    server_message: AsciiStr::try_from_bytes(&buffer[body_begin..data_begin])
-                        .ok_or(DeserializeError::InvalidWireBytes)?,
-                    data: &buffer[data_begin..data_begin + data_length],
-                    no_echo,
-                })
-            } else {
-                Err(DeserializeError::LengthMismatch)
-            }
+            Ok(Reply {
+                status,
+                server_message: AsciiStr::try_from_bytes(&buffer[body_begin..data_begin])
+                    .ok_or(DeserializeError::InvalidWireBytes)?,
+                data: &buffer[data_begin..data_begin + data_length],
+                no_echo,
+            })
         } else {
             Err(DeserializeError::UnexpectedEnd)
         }

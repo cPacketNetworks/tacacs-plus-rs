@@ -150,7 +150,7 @@ fn deserialize_reply_bad_server_message_length() {
     // guard on specific error flavor
     assert_eq!(
         Reply::try_from(packet_data.as_slice()),
-        Err(DeserializeError::LengthMismatch)
+        Err(DeserializeError::UnexpectedEnd)
     );
 }
 
