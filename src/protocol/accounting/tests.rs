@@ -215,3 +215,72 @@ fn deserialize_reply_all_fields() {
         body_raw.as_slice().try_into().unwrap()
     );
 }
+
+#[test]
+fn deserialize_full_reply_packet() {
+    let raw_packet = [
+        // HEADER
+        (0xc << 4) | 1, // version
+        3,              // accounting packet
+        2,              // sequence number
+        5,              // both unencrypted and single connection flags set
+        // session id
+        2,
+        239,
+        92,
+        75,
+        // body length
+        0,
+        0,
+        0,
+        25,
+        // BODY
+        // server message length
+        0,
+        5,
+        // data length
+        0,
+        15,
+        2, // status: error
+        // server message
+        0x68,
+        0x65,
+        0x6c,
+        0x6c,
+        0x6f,
+        // data
+        0x66,
+        0x69,
+        0x66,
+        0x74,
+        0x65,
+        0x65,
+        0x6e,
+        0x20,
+        0x6c,
+        0x65,
+        0x74,
+        0x74,
+        0x65,
+        0x72,
+        0x73,
+    ];
+
+    let expected_header = HeaderInfo {
+        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        sequence_number: 2,
+        flags: PacketFlags::all(),
+        session_id: 49241163,
+    };
+
+    let expected_body = Reply {
+        status: Status::Error,
+        server_message: assert_ascii("hello"),
+        data: b"fifteen letters",
+    };
+
+    let expected_packet = Packet::new(expected_header, expected_body)
+        .expect("packet construction should have succeeded");
+
+    assert_eq!(raw_packet.as_slice().try_into(), Ok(expected_packet));
+}
