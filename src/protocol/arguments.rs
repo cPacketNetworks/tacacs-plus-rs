@@ -17,7 +17,10 @@ impl<'data> Argument<'data> {
     pub fn new(name: AsciiStr<'data>, value: AsciiStr<'data>, required: bool) -> Option<Self> {
         // "An argument name MUST NOT contain either of the separators." [RFC 8907]
         // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
-        if !name.contains(|c| c == '=' || c == '*') && name.len() + value.len() < u8::MAX as usize {
+        if !name.is_empty()
+            && !name.contains(|c| c == '=' || c == '*')
+            && name.len() + value.len() < u8::MAX as usize
+        {
             Some(Argument {
                 name,
                 value,

@@ -97,6 +97,47 @@ pub struct Reply<'data> {
 }
 
 impl<'body> Reply<'body> {
+    pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
+        if buffer.len() >= Self::MINIMUM_LENGTH {
+            let argument_count = buffer[1] as usize;
+
+            // also ensure that all argument lengths are present
+            if buffer.len() >= Self::MINIMUM_LENGTH + argument_count {
+                let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
+                let encoded_arguments_length: usize = buffer
+                    [Self::MINIMUM_LENGTH..Self::MINIMUM_LENGTH + argument_count]
+                    .iter()
+                    .map(|&length| length as usize)
+                    .sum();
+
+                Some(
+                    Self::MINIMUM_LENGTH
+                        + server_message_length
+                        + data_length
+                        + argument_count // argument lengths in "header"
+                        + encoded_arguments_length,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Extracts the server message and data lengths from a raw reply packet, if possible.
+    fn extract_field_lengths(buffer: &[u8]) -> Option<(usize, usize)> {
+        // data length is the last field in the required part of the header, so we need a full (minimal) header
+        if buffer.len() >= Self::MINIMUM_LENGTH {
+            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?);
+            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?);
+
+            Some((server_message_length as usize, data_length as usize))
+        } else {
+            None
+        }
+    }
+
     /// The result status of the request.
     pub fn status(&self) -> Status {
         self.status
@@ -128,11 +169,14 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
         buffer: &'raw [u8],
         argument_space: &'raw mut [Argument<'raw>],
     ) -> Result<Self, DeserializeError> {
-        if buffer.len() >= Self::MINIMUM_LENGTH {
+        let claimed_length = Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+
+        if buffer.len() >= claimed_length {
             let status: Status = buffer[0].try_into()?;
             let argument_count = buffer[1] as usize;
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into()?) as usize;
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
+
+            let (server_message_length, data_length) =
+                Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
 
             let body_start = 6 + argument_count;
             let data_start = body_start + server_message_length;
