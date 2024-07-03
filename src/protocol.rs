@@ -27,7 +27,6 @@ pub enum DeserializeError {
     InvalidWireBytes,
     UnexpectedEnd,
     NotEnoughSpace,
-    // TODO: placement?
     VersionMismatch,
 }
 
@@ -204,6 +203,7 @@ pub struct Packet<B: PacketBody> {
 impl<B: PacketBody> Packet<B> {
     pub const HEADER_SIZE_BYTES: usize = 12;
 
+    /// Assembles a header and body into a packet, barring minor version incompatibility.
     pub fn new(header: HeaderInfo, body: B) -> Option<Self> {
         match body.required_minor_version() {
             Some(required_version) if header.version.1 != required_version => None,

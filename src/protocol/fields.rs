@@ -1,3 +1,4 @@
+use crate::protocol::MinorVersion;
 use crate::AsciiStr;
 
 #[cfg(test)]
@@ -61,6 +62,8 @@ impl PrivilegeLevel {
 
 /// Types of authentication supported by the TACACS+ protocol.
 ///
+/// RFC-8907 partitions these by supported minor version: [`Ascii`](AuthenticationType::Ascii) requires [`MinorVersion::Default`](crate::protocol::MinorVersion::Default), while the rest (beside [`NotSet`](AuthenticationType::NotSet), I believe) require [`MinorVersion::V1`](crate::protocol::MinorVersion::V1).
+///
 /// *Note:* TACACS+ as a protocol does not meet modern standards of security; access to the data lines must be protected. See [RFC-8907 Section 10.1]
 ///
 /// [RFC-8907 Section 10.1]: https://datatracker.ietf.org/doc/html/rfc8907#section-10.1.
@@ -81,14 +84,22 @@ pub enum AuthenticationType {
     /// The Challenge-Handshake Authentication Protocol, also specified in [RFC-1334](https://www.rfc-editor.org/rfc/rfc1334.html).
     Chap = 0x03,
 
-    /// The AppleTalk Remote Access Protocol. Not present in RFC-8907, but kept here for completeness.
-    Arap = 0x04,
-
     /// Version 1 of Microsoft's CHAP extension.
     MsChap = 0x05,
 
     /// Version 2 of Microsoft's CHAP extension.
     MsChapV2 = 0x06,
+}
+
+impl AuthenticationType {
+    /// Returns the required minor version for this `AuthenticationType`, if applicable.
+    pub const fn required_minor_version(&self) -> Option<MinorVersion> {
+        match self {
+            AuthenticationType::NotSet => None,
+            AuthenticationType::Ascii => Some(MinorVersion::Default),
+            _ => Some(MinorVersion::V1),
+        }
+    }
 }
 
 /// A TACACS+ authentication service. Most of these values are only kept for backwards compatibility, so that's something to keep in mind.
@@ -106,9 +117,6 @@ pub enum AuthenticationService {
 
     /// Point-to-Point Protocol
     Ppp = 0x03,
-
-    /// AppleTalk Remote Access Protocol
-    Arap = 0x04,
 
     // I'm gonna be honest I have no idea what this stands for and I don't know if anyone else does either
     // could be NAT protocol translation (but draft predates RFC 2766), plaintext, and who knows what else
@@ -135,8 +143,10 @@ pub struct AuthenticationContext {
 }
 
 impl AuthenticationContext {
+    /// Size of authentication context information on the wire, in bytes.
     pub const WIRE_SIZE: usize = 3;
 
+    /// Serializes authentication context information into a packet body "header."
     pub(super) fn serialize_header_information(&self, buffer: &mut [u8]) {
         buffer[0] = self.privilege_level.0;
         buffer[1] = self.authentication_type as u8;
