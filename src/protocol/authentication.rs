@@ -162,7 +162,7 @@ impl Reply<'_> {
     const HEADER_SIZE_BYTES: usize = 1 + 1 + 2 + 2;
 
     /// Attempts to extract the claimed reply packed body length from a buffer.
-    pub fn claimed_packet_body_length(buffer: &[u8]) -> Option<usize> {
+    pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::HEADER_SIZE_BYTES {
             let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?) as usize;
             let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?) as usize;
@@ -217,8 +217,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let data_length = u16::from_be_bytes(buffer[4..6].try_into()?) as usize;
 
             if total_len
-                >= Reply::claimed_packet_body_length(buffer)
-                    .ok_or(DeserializeError::InvalidWireBytes)?
+                >= Reply::claimed_length(buffer).ok_or(DeserializeError::InvalidWireBytes)?
             {
                 let body_begin = Self::HEADER_SIZE_BYTES;
                 let data_begin = body_begin + server_message_length;
