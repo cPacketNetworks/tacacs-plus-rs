@@ -74,7 +74,7 @@ impl<'packet> Start<'packet> {
         user_information: UserInformation<'packet>,
         data: Option<&'packet [u8]>,
     ) -> Option<Self> {
-        // TODO: ensure action/authentication method compatibility?
+        // TODO: ensure action/authentication type compatibility?
 
         // ensure data length is small enough to be properly encoded without truncation
         if data.map_or(true, |slice| slice.len() <= u8::MAX as usize)
@@ -150,10 +150,10 @@ impl Serialize for Start<'_> {
 
 /// An authentication reply packet received from a server.
 #[derive(Debug, PartialEq)]
-pub struct Reply<'data> {
+pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'data>,
-    data: &'data [u8],
+    server_message: AsciiStr<'packet>,
+    data: &'packet [u8],
     no_echo: bool,
 }
 

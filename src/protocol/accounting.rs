@@ -53,12 +53,12 @@ impl Flags {
 }
 
 /// An accounting request packet, used to start, stop, or provide progress on a running job.
-pub struct Request<'request> {
+pub struct Request<'packet> {
     pub flags: Flags,
     pub authentication_method: AuthenticationMethod,
     pub authentication: AuthenticationContext,
-    pub user_information: UserInformation<'request>,
-    pub arguments: Arguments<'request>,
+    pub user_information: UserInformation<'packet>,
+    pub arguments: Arguments<'packet>,
 }
 
 impl PacketBody for Request<'_> {
@@ -135,10 +135,10 @@ impl TryFrom<u8> for Status {
 
 /// An accounting reply packet received from a TACACS+ server.
 #[derive(PartialEq, Eq, Debug)]
-pub struct Reply<'data> {
+pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'data>,
-    data: &'data [u8],
+    server_message: AsciiStr<'packet>,
+    data: &'packet [u8],
 }
 
 impl Reply<'_> {

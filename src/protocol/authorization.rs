@@ -11,11 +11,11 @@ use super::{
 mod tests;
 
 /// An authorization request packet body, including arguments.
-pub struct Request<'request> {
+pub struct Request<'packet> {
     pub method: AuthenticationMethod,
     pub authentication_context: AuthenticationContext,
-    pub user_information: UserInformation<'request>,
-    pub arguments: Arguments<'request>,
+    pub user_information: UserInformation<'packet>,
+    pub arguments: Arguments<'packet>,
 }
 
 impl PacketBody for Request<'_> {
@@ -98,14 +98,14 @@ impl TryFrom<u8> for Status {
 
 /// The body of an authorization reply packet.
 #[derive(PartialEq, Eq, Debug)]
-pub struct Reply<'data> {
+pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'data>,
-    data: &'data [u8],
-    arguments: Arguments<'data>,
+    server_message: AsciiStr<'packet>,
+    data: &'packet [u8],
+    arguments: Arguments<'packet>,
 }
 
-impl<'body> Reply<'body> {
+impl<'packet> Reply<'packet> {
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::MINIMUM_LENGTH {
             let argument_count = buffer[1] as usize;
@@ -163,7 +163,7 @@ impl<'body> Reply<'body> {
     }
 
     /// The arguments sent by the server.
-    pub fn arguments(&self) -> &Arguments<'body> {
+    pub fn arguments(&self) -> &Arguments<'packet> {
         &self.arguments
     }
 }

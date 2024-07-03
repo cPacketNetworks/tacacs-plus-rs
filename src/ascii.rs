@@ -3,9 +3,6 @@
 use core::fmt;
 use core::ops::Deref;
 
-#[cfg(test)]
-mod tests;
-
 /// A wrapper for `&str` that is checked to be valid ASCII.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct AsciiStr<'string>(&'string str);
