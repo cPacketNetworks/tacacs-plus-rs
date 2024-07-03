@@ -163,7 +163,10 @@ impl<'info> UserInformation<'info> {
             + self.remote_address.len()
     }
 
-    /// Bundles together information about a TACACS+ client user, performing some length checks on fields to ensure validity.
+    /// Bundles together information about a TACACS+ client user, performing some length & ASCII checks on fields to ensure validity.
+    ///
+    /// `user` can be any (UTF-8) string, but `port` and `remote_address` must be valid ASCII.
+    /// All three fields must also be at most 255 characters long (i.e., `u8::MAX`).
     pub fn new(
         user: &'info str,
         port: AsciiStr<'info>,

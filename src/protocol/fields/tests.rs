@@ -1,5 +1,5 @@
 use super::*;
-use crate::ascii::force_ascii;
+use crate::ascii::assert_ascii;
 use crate::protocol::{Argument, Arguments};
 
 #[test]
@@ -13,8 +13,8 @@ fn client_information_long_username() {
     let username = [0x41u8; 512]; // AAA...AAA
     let client_information = UserInformation::new(
         core::str::from_utf8(&username).unwrap(),
-        force_ascii("tcp49"),
-        force_ascii("127.0.0.1"),
+        assert_ascii("tcp49"),
+        assert_ascii("127.0.0.1"),
     );
 
     assert!(client_information.is_none(), "username should be too long");
@@ -23,9 +23,9 @@ fn client_information_long_username() {
 #[test]
 fn arguments_two_required() {
     let mut argument_array = [
-        Argument::new(force_ascii("service"), force_ascii("test"), true)
+        Argument::new(assert_ascii("service"), assert_ascii("test"), true)
             .expect("argument should be valid"),
-        Argument::new(force_ascii("random-argument"), force_ascii(""), true)
+        Argument::new(assert_ascii("random-argument"), assert_ascii(""), true)
             .expect("argument should be valid"),
     ];
 
@@ -49,8 +49,8 @@ fn arguments_two_required() {
 #[test]
 fn arguments_one_optional() {
     let mut arguments_array = [Argument::new(
-        force_ascii("optional-arg"),
-        force_ascii("unimportant"),
+        assert_ascii("optional-arg"),
+        assert_ascii("unimportant"),
         false,
     )
     .expect("argument should be valid")];

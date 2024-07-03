@@ -1,49 +1,41 @@
 use core::fmt;
 use core::ops::Deref;
 
-// TODO: placement
-// TODO: expose as pub as well?
-#[cfg(test)]
-pub(crate) fn force_ascii(value: &str) -> AsciiStr {
-    value.try_into().expect("ASCII conversion failed")
-}
-
 #[cfg(test)]
 mod tests;
-
-/// An error when attempting to convert a non-ASCII `&str` to an [`AsciiStr`].
-#[derive(Debug)]
-pub struct InvalidAscii(());
 
 /// A wrapper for `&str` that is checked to be valid ASCII.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub struct AsciiStr<'string>(&'string str);
 
-impl<'bytes> TryFrom<&'bytes [u8]> for AsciiStr<'bytes> {
-    type Error = InvalidAscii;
-
-    fn try_from(value: &'bytes [u8]) -> Result<Self, Self::Error> {
-        if value.is_ascii() {
-            if let Ok(string) = core::str::from_utf8(value) {
-                Ok(Self(string))
-            } else {
-                Err(InvalidAscii(()))
-            }
+impl<'string> AsciiStr<'string> {
+    /// Attempts to convert a `&str` to an `AsciiStr`.
+    /// Returns `Some` if the string is indeed ASCII, and `None` otherwise.
+    pub fn try_from_str(string: &'string str) -> Option<Self> {
+        if string.is_ascii() {
+            Some(Self(string))
         } else {
-            Err(InvalidAscii(()))
+            None
+        }
+    }
+
+    /// Attempts to convert a byte slice to an `AsciiStr`.
+    /// Returns `Some` if the slice contains only ASCII codepoints, and `None` if not.
+    pub fn try_from_bytes(bytes: &'string [u8]) -> Option<Self> {
+        if bytes.is_ascii() {
+            core::str::from_utf8(bytes).ok().map(Self)
+        } else {
+            None
         }
     }
 }
 
-impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
-    type Error = InvalidAscii;
-
-    fn try_from(value: &'string str) -> Result<Self, Self::Error> {
-        if value.is_ascii() {
-            Ok(Self(value))
-        } else {
-            Err(InvalidAscii(()))
-        }
+/// Asserts a string is ASCII, converting it to an AsciiStr or panicking if it is not actually ASCII.
+pub const fn assert_ascii(string: &str) -> AsciiStr {
+    if string.is_ascii() {
+        AsciiStr(string)
+    } else {
+        panic!("non-ASCII string passed to force_ascii");
     }
 }
 

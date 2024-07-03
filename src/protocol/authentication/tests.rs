@@ -1,5 +1,5 @@
 use super::*;
-use crate::ascii::force_ascii;
+use crate::ascii::assert_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
     UserInformation,
@@ -14,7 +14,7 @@ fn serialize_authentication_start_no_data() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        UserInformation::new("authtest", force_ascii("serial"), force_ascii("serial"))
+        UserInformation::new("authtest", assert_ascii("serial"), assert_ascii("serial"))
             .expect("user information should be valid"),
         None,
     )
@@ -52,7 +52,7 @@ fn serialize_authentication_start_with_data() {
             authentication_type: AuthenticationType::MsChap,
             service: AuthenticationService::X25,
         },
-        UserInformation::new("authtest2", force_ascii("49"), force_ascii("10.0.2.24"))
+        UserInformation::new("authtest2", assert_ascii("49"), assert_ascii("10.0.2.24"))
             .expect("user information should be valid"),
         Some("some test data with ✨ unicode ✨".as_bytes()),
     )
@@ -92,8 +92,12 @@ fn serialize_authentication_start_data_too_long() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Nasi,
         },
-        UserInformation::new("invalid", force_ascii("theport"), force_ascii("somewhere"))
-            .expect("user information should be valid"),
+        UserInformation::new(
+            "invalid",
+            assert_ascii("theport"),
+            assert_ascii("somewhere"),
+        )
+        .expect("user information should be valid"),
         Some(&long_data),
     );
 
@@ -124,7 +128,7 @@ fn deserialize_reply_pass_both_data_fields() {
         parsed_reply,
         Reply {
             status: Status::Pass,
-            server_message: force_ascii("login successful"),
+            server_message: assert_ascii("login successful"),
             data: b"\x12\x77\xfa\xcc",
             no_echo: false
         }

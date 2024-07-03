@@ -2,8 +2,6 @@ use core::array::TryFromSliceError;
 
 use bitflags::bitflags;
 
-use crate::InvalidAscii;
-
 pub mod accounting;
 pub mod authentication;
 pub mod authorization;
@@ -36,12 +34,6 @@ impl From<TryFromSliceError> for DeserializeError {
     fn from(_value: TryFromSliceError) -> Self {
         // slice conversion error means there was a length mismatch, which probably means we were expecting more data
         Self::UnexpectedEnd
-    }
-}
-
-impl From<InvalidAscii> for DeserializeError {
-    fn from(_value: InvalidAscii) -> Self {
-        Self::InvalidWireBytes
     }
 }
 

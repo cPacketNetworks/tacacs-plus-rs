@@ -1,5 +1,5 @@
 use super::*;
-use crate::ascii::force_ascii;
+use crate::ascii::assert_ascii;
 
 #[test]
 fn serialize_authentication_start_with_header() {
@@ -17,7 +17,7 @@ fn serialize_authentication_start_with_header() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        UserInformation::new("startup", force_ascii("49"), force_ascii("192.168.23.10")).unwrap(),
+        UserInformation::new("startup", assert_ascii("49"), assert_ascii("192.168.23.10")).unwrap(),
         Some(b"E"),
     )
     .expect("start construction should have succeeded");
@@ -103,7 +103,7 @@ fn serialize_authentication_start_version_mismatch() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Login,
         },
-        UserInformation::new("bad", force_ascii("49"), force_ascii("::1")).unwrap(),
+        UserInformation::new("bad", assert_ascii("49"), assert_ascii("::1")).unwrap(),
         None,
     )
     .expect("packet construction should have succeeded");
@@ -186,7 +186,7 @@ fn deserialize_authorization_reply_with_header() {
     ];
 
     let mut expected_arguments =
-        [Argument::new(force_ascii("service"), force_ascii("nah"), true).unwrap()];
+        [Argument::new(assert_ascii("service"), assert_ascii("nah"), true).unwrap()];
 
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
@@ -197,7 +197,7 @@ fn deserialize_authorization_reply_with_header() {
 
     let expected_body = authorization::Reply {
         status: authorization::Status::Fail,
-        server_message: force_ascii("something went wrong :("),
+        server_message: assert_ascii("something went wrong :("),
         data: b"\x88\x88\x88\x88",
         arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice()).unwrap(),
     };

@@ -1,5 +1,5 @@
 use super::*;
-use crate::ascii::force_ascii;
+use crate::ascii::assert_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationMethod, AuthenticationService, AuthenticationType,
     PrivilegeLevel, Serialize, UserInformation,
@@ -14,7 +14,7 @@ fn serialize_request_no_arguments() {
     };
 
     let user_information =
-        UserInformation::new("testuser", force_ascii("tcp49"), force_ascii("127.0.0.1"))
+        UserInformation::new("testuser", assert_ascii("tcp49"), assert_ascii("127.0.0.1"))
             .expect("client information should have been valid");
 
     let mut empty_arguments = [];
@@ -58,13 +58,16 @@ fn serialize_authorization_request_one_argument() {
         service: AuthenticationService::FwProxy,
     };
 
-    let user_information =
-        UserInformation::new("testuser", force_ascii("ttyAMA0"), force_ascii("127.1.2.2"))
-            .expect("client information should have been valid");
+    let user_information = UserInformation::new(
+        "testuser",
+        assert_ascii("ttyAMA0"),
+        assert_ascii("127.1.2.2"),
+    )
+    .expect("client information should have been valid");
 
     let mut argument_array = [Argument::new(
-        force_ascii("service"),
-        force_ascii("serialization-test"),
+        assert_ascii("service"),
+        assert_ascii("serialization-test"),
         true,
     )
     .expect("argument should be valid")];
@@ -121,13 +124,13 @@ fn deserialize_reply_two_arguments() {
     ];
 
     let mut expected_arguments = [
-        Argument::new(force_ascii("service"), force_ascii("greet"), true).unwrap(),
-        Argument::new(force_ascii("person"), force_ascii("world!"), false).unwrap(),
+        Argument::new(assert_ascii("service"), assert_ascii("greet"), true).unwrap(),
+        Argument::new(assert_ascii("person"), assert_ascii("world!"), false).unwrap(),
     ];
 
     let expected = Reply {
         status: Status::PassAdd,
-        server_message: force_ascii("hello"),
+        server_message: assert_ascii("hello"),
         data: b"world",
         arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice())
             .expect("argument construction shouldn't have failed"),

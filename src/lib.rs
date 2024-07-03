@@ -20,4 +20,4 @@ pub enum TacacsError {
 }
 
 mod ascii;
-pub use ascii::{AsciiStr, InvalidAscii};
+pub use ascii::AsciiStr;

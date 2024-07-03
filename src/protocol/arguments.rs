@@ -62,8 +62,8 @@ impl<'data> Argument<'data> {
         // at this point, delimiter_index was non-None and must contain one of {*, =}
         let required = buffer[delimiter_index] == b'=';
 
-        let name = AsciiStr::try_from(&buffer[..delimiter_index]).ok()?;
-        let value = AsciiStr::try_from(&buffer[delimiter_index + 1..]).ok()?;
+        let name = AsciiStr::try_from_bytes(&buffer[..delimiter_index])?;
+        let value = AsciiStr::try_from_bytes(&buffer[delimiter_index + 1..])?;
 
         Some(Self {
             name,

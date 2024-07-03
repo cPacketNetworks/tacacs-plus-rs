@@ -23,9 +23,16 @@ bitflags! {
 /// Valid flag combinations for a TACACS+ account REQUEST packet.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Flags {
+    /// Start of a task.
     StartRecord,
+
+    /// Task complete.
     StopRecord,
+
+    /// Indication that task is still running, with no extra arguments.
     WatchdogNoUpdate,
+
+    /// Update on long-running task, including updated/new argument values.
     WatchdogUpdate,
 }
 
@@ -169,7 +176,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let server_message_start = 5;
             let data_start = server_message_start + server_message_length as usize;
 
-            let server_message = AsciiStr::try_from(&buffer[server_message_start..data_start])?;
+            let server_message =
+                AsciiStr::try_from_bytes(&buffer[server_message_start..data_start])
+                    .ok_or(DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..data_start + data_length as usize];
 
             Ok(Self {
