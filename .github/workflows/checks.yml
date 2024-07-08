@@ -1,0 +1,38 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  format-and-clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          key: cargodeps-${{ hashFiles('Cargo.lock') }}
+          # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+          # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Run Clippy
+        run: cargo clippy --verbose
