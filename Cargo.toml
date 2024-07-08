@@ -7,10 +7,11 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["dep:futures"]
+std = ["dep:futures", "byteorder/std"]
 
 [dependencies]
 bitflags = { version = "2.4.2" }
+byteorder = { version = "1.5.0", default-features = false }
 futures = { version = "0.3.21", optional = true }
 rand = { version = "0.8.5", default-features = false }
 tinyvec = { version = "1.6.1", features = ["rustc_1_57"] }

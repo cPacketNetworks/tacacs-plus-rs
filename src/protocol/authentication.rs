@@ -1,5 +1,7 @@
 //! Authentication-related protocol packets.
 
+use byteorder::{ByteOrder, NetworkEndian};
+
 use super::{
     AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, NotEnoughSpace,
     PacketBody, PacketType, Serialize, UserInformation,
@@ -313,7 +315,7 @@ impl Serialize for Continue<'_> {
             }
 
             // set user message length in packet buffer
-            buffer[..2].copy_from_slice(&(user_message_len as u16).to_be_bytes());
+            NetworkEndian::write_u16(&mut buffer[..2], user_message_len as u16);
 
             let mut data_len = 0;
             if let Some(data) = self.data {
@@ -322,7 +324,7 @@ impl Serialize for Continue<'_> {
             }
 
             // set data length
-            buffer[2..4].copy_from_slice(&(data_len as u16).to_be_bytes());
+            NetworkEndian::write_u16(&mut buffer[2..4], data_len as u16);
 
             Ok(self.wire_size())
         } else {

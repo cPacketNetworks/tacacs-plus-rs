@@ -12,6 +12,7 @@ mod arguments;
 pub use arguments::{Argument, Arguments};
 
 mod fields;
+use byteorder::{ByteOrder, NetworkEndian};
 pub use fields::*;
 
 /// An error type indicating that there is not enough space to complete an operation.
@@ -256,12 +257,13 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
             buffer[2] = self.header.sequence_number;
             buffer[3] = self.header.flags.bits();
 
-            buffer[4..8].copy_from_slice(self.header.session_id.to_be_bytes().as_slice());
+            NetworkEndian::write_u32(&mut buffer[4..8], self.header.session_id);
 
             let body_length = self
                 .body
                 .serialize_into_buffer(&mut buffer[Self::HEADER_SIZE_BYTES..])?;
-            buffer[8..12].copy_from_slice((body_length as u32).to_be_bytes().as_slice());
+
+            NetworkEndian::write_u32(&mut buffer[8..12], body_length as u32);
 
             Ok(Self::HEADER_SIZE_BYTES + body_length)
         } else {
