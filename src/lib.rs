@@ -19,5 +19,5 @@ pub enum TacacsError {
     // TODO: I/O error (perhaps in session/client module, as core::io does not exist)
 }
 
-pub mod ascii;
+mod ascii;
 pub use ascii::AsciiStr;

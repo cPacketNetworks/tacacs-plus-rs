@@ -1,7 +1,6 @@
 //! Convenience types for enforcing valid ASCII strings.
 
 use core::fmt;
-use core::ops::Deref;
 
 /// A wrapper for `&str` that is checked to be valid ASCII.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -51,23 +50,35 @@ impl<'string> AsciiStr<'string> {
             None
         }
     }
+
+    /// Gets the length of the underlying `&str`.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Gets the byte slice representation of the underlying `&str`.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    /// Returns true if the underlying `&str` is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Returns `true` if the underlying `&str` contains any of the provided characters, or false otherwise.
+    pub fn contains_any(&self, characters: &[char]) -> bool {
+        self.0.contains(characters)
+    }
 }
 
 /// Asserts a string is ASCII, converting it to an [`AsciiStr`] or panicking if it is not actually ASCII.
-pub const fn assert_ascii(string: &str) -> AsciiStr {
+#[cfg(test)]
+pub(crate) const fn assert_ascii(string: &str) -> AsciiStr {
     if string.is_ascii() {
         AsciiStr(string)
     } else {
         panic!("non-ASCII string passed to force_ascii");
-    }
-}
-
-// deref coercion is really convenient :)
-impl Deref for AsciiStr<'_> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
     }
 }
 

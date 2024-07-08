@@ -21,7 +21,7 @@ impl<'data> Argument<'data> {
         // "An argument name MUST NOT contain either of the separators." [RFC 8907]
         // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
         if !name.is_empty()
-            && !name.contains(|c| c == '=' || c == '*')
+            && !name.contains_any(&['=', '*'])
             && name.len() + value.len() < u8::MAX as usize
         {
             Some(Argument {
