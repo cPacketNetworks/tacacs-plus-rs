@@ -1,4 +1,4 @@
-name: Commit checks
+name: Build/Tests
 
 on:
   push:
@@ -11,13 +11,11 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # see https://github.com/dtolnay/rust-toolchain/issues/26#issuecomment-1190685219
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: -Dwarnings
 
 jobs:
-  format-and-clippy:
-    name: Format check & Clippy
+  cargo-build-test:
+    name: Cargo build and test
     runs-on: ubuntu-latest
 
     steps:
@@ -27,15 +25,13 @@ jobs:
         uses: actions/cache@v4
         with:
           key: cargodeps-${{ hashFiles('Cargo.lock') }}
-          # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
-          # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
       - name: Update Rust toolchain (stable)
         run: rustup update stable
-      - name: Check formatting
-        run: cargo fmt --check
-      - name: Run Clippy
-        run: cargo clippy --verbose
+      - name: Build crate
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
