@@ -1,4 +1,3 @@
-use core::ops::{Deref, DerefMut};
 use tinyvec::SliceVec;
 
 use super::{DeserializeError, NotEnoughSpace};
@@ -102,7 +101,7 @@ impl<'storage> Arguments<'storage> {
         }
     }
 
-    /// The total size in bytes that the current set of arguments would occupy, including encoded argument values and their lengths.
+    /// The total size in bytes that the current set of arguments would occupy on the wire, including encoded argument values and their lengths.
     pub fn wire_size(&self) -> usize {
         // minimum length is 1 octet (argument count)
         self.0.iter().fold(1, |total, argument| {
@@ -174,7 +173,7 @@ impl<'storage> Arguments<'storage> {
                     .ok_or(DeserializeError::InvalidWireBytes)?;
 
                 // length is checked above so we can do the unchecked push safely
-                arguments.push(parsed_argument);
+                arguments.0.push(parsed_argument);
 
                 argument_start = next_argument_start;
             }
@@ -183,20 +182,5 @@ impl<'storage> Arguments<'storage> {
         } else {
             Err(DeserializeError::NotEnoughSpace)
         }
-    }
-}
-
-// Convenience implementations to provide access to SliceVec methods on Arguments objects.
-impl<'storage> Deref for Arguments<'storage> {
-    type Target = SliceVec<'storage, Argument<'storage>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Arguments<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
