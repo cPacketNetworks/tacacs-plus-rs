@@ -111,10 +111,10 @@ pub struct PacketFlags(u8);
 bitflags! {
     impl PacketFlags: u8 {
         /// Indicates the body of the packet is unobfuscated.
-        const Unencrypted      = 0x01;
+        const Unencrypted      = 0b00000001;
 
         /// Signals to the server that the client would like to reuse a TCP connection across multiple sessions.
-        const SingleConnection = 0x04;
+        const SingleConnection = 0b00000100;
     }
 }
 
