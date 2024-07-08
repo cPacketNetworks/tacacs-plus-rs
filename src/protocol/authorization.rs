@@ -160,7 +160,7 @@ impl<'packet> Reply<'packet> {
     }
 
     /// The message received from the server.
-    pub fn server_mesage(&self) -> AsciiStr {
+    pub fn server_mesage(&self) -> AsciiStr<'_> {
         self.server_message
     }
 

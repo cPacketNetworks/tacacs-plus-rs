@@ -184,7 +184,7 @@ impl Reply<'_> {
     }
 
     /// The message received from the server, potentially to display to a user.
-    pub fn server_message(&self) -> AsciiStr {
+    pub fn server_message(&self) -> AsciiStr<'_> {
         self.server_message
     }
 
