@@ -44,7 +44,7 @@ impl<'data> Argument<'data> {
         let name_len = self.name.len();
         buffer[..name_len].copy_from_slice(self.name.as_bytes());
 
-        buffer[name_len] = if self.required { '=' } else { '*' } as u8;
+        buffer[name_len] = if self.required { b'=' } else { b'*' };
 
         let value_len = self.value.len();
         buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());

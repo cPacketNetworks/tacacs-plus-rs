@@ -14,9 +14,9 @@ mod tests;
 bitflags! {
     /// Raw bitflags for accounting request packet.
     struct RawFlags: u8 {
-        const Start = 0x02;
-        const Stop = 0x04;
-        const Watchdog = 0x08;
+        const Start    = 0b00000010;
+        const Stop     = 0b00000100;
+        const Watchdog = 0b00001000;
     }
 }
 
