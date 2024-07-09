@@ -11,31 +11,39 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # see https://github.com/dtolnay/rust-toolchain/issues/26#issuecomment-1190685219
-  CARGO_INCREMENTAL: 0
   RUSTFLAGS: -Dwarnings
 
 jobs:
-  format-and-clippy:
-    name: Format check & Clippy
+  formatting:
+    name: Formatting check
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          key: cargodeps-${{ hashFiles('Cargo.lock') }}
-          # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
-          # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
       - name: Update Rust toolchain (stable)
-        run: rustup update stable
+        run: rustup update stable --no-self-update
       - name: Check formatting
         run: cargo fmt --check
-      - name: Run Clippy
-        run: cargo clippy --verbose
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [std, no_std]
+
+    concurrency: cargodeps-${{ matrix.features }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Rust artifact cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cargodeps-${{ matrix.features }}
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable --no-self-update
+      - name: Run Clippy (${{ matrix.features }})
+        run: cargo clippy --verbose ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
