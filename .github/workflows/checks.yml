@@ -1,10 +1,11 @@
-name: Commit checks
+name: Code checks
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,6 +34,7 @@ jobs:
     strategy:
       matrix:
         features: [std, no_std]
+      fail-fast: false
 
     concurrency: cargodeps-${{ matrix.features }}
 

@@ -1,26 +1,29 @@
-name: Build/Tests
+name: Build/Test
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
 
 jobs:
   cargo-build-test:
     name: Cargo build and test
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
         features: [std, no_std]
+      fail-fast: false
 
+    # allow for cache to be shared between jobs
     concurrency: cargodeps-${{ matrix.features }}
 
     env:
