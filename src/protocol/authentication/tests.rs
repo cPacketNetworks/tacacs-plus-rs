@@ -5,6 +5,8 @@ use crate::protocol::{
     MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
 };
 
+use tinyvec::array_vec;
+
 #[test]
 fn serialize_start_no_data() {
     let start_body = Start::new(
@@ -25,22 +27,24 @@ fn serialize_start_no_data() {
         .serialize_into_buffer(&mut buffer)
         .expect("buffer should be large enough to accommodate start packet");
 
-    assert_eq!(
-        buffer,
-        [
-            0x01, // action: login
-            3,    // privilege level
-            0x02, // authentication type: PAP
-            0x03, // authentication service: PPP
-            8,    // user length
-            6,    // port length
-            6,    // remote address length
-            0,    // data length (0 since there's no data)
-            0x61, 0x75, 0x74, 0x68, 0x74, 0x65, 0x73, 0x74, // user: authtest
-            0x73, 0x65, 0x72, 0x69, 0x61, 0x6c, // port: serial
-            0x73, 0x65, 0x72, 0x69, 0x61, 0x6c, // remote address: serial
-        ]
-    );
+    let mut expected = array_vec!([u8; 30]);
+    expected.extend_from_slice(&[
+        0x01, // action: login
+        3,    // privilege level
+        0x02, // authentication type: PAP
+        0x03, // authentication service: PPP
+        8,    // user length
+        6,    // port length
+        6,    // remote address length
+        0,    // data length (0 since there's no data)
+    ]);
+
+    // user information
+    expected.extend_from_slice(b"authtest");
+    expected.extend_from_slice(b"serial"); // port
+    expected.extend_from_slice(b"serial"); // remote address
+
+    assert_eq!(buffer, expected.as_slice());
 }
 
 #[test]
@@ -63,26 +67,27 @@ fn serialize_start_with_data() {
         .serialize_into_buffer(&mut buffer)
         .expect("buffer should be long enough");
 
-    assert_eq!(
-        buffer[..serialized_length],
-        [
-            0x02, // action: change password
-            4,    // privilege level
-            0x05, // authentication type: MSCHAP
-            0x07, // authentication service: X25
-            9,    // user length
-            2,    // port length
-            9,    // remote address length
-            35,   // data length
-            0x61, 0x75, 0x74, 0x68, 0x74, 0x65, 0x73, 0x74, 0x32, // user: authtest2
-            0x34, 0x39, // port: 49
-            0x31, 0x30, 0x2e, 0x30, 0x2e, 0x32, 0x2e, 0x32, 0x34, // remote address
-            // supplied data (UTF-8 encoded, as a proxy for arbitrary binary data)
-            0x73, 0x6f, 0x6d, 0x65, 0x20, 0x74, 0x65, 0x73, 0x74, 0x20, 0x64, 0x61, 0x74, 0x61,
-            0x20, 0x77, 0x69, 0x74, 0x68, 0x20, 0xe2, 0x9c, 0xa8, 0x20, 0x75, 0x6e, 0x69, 0x63,
-            0x6f, 0x64, 0x65, 0x20, 0xe2, 0x9c, 0xa8
-        ]
-    );
+    let mut expected = array_vec!([u8; 80]);
+    expected.extend_from_slice(&[
+        0x02, // action: change password
+        4,    // privilege level
+        0x05, // authentication type: MSCHAP
+        0x07, // authentication service: X25
+        9,    // user length
+        2,    // port length
+        9,    // remote address length
+        35,   // data length
+    ]);
+
+    // user information
+    expected.extend_from_slice(b"authtest2");
+    expected.extend_from_slice(b"49");
+    expected.extend_from_slice(b"10.0.2.24");
+
+    // data (with some unicode, as proxy for arbitrary binary data)
+    expected.extend_from_slice("some test data with ✨ unicode ✨".as_bytes());
+
+    assert_eq!(&buffer[..serialized_length], expected.as_slice());
 }
 
 #[test]
@@ -112,11 +117,12 @@ fn serialize_start_data_too_long() {
 
 #[test]
 fn serialize_full_start_packet() {
+    let session_id = 123457;
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::SingleConnection,
-        session_id: 123456,
+        session_id,
     };
 
     let body = Start::new(
@@ -133,67 +139,44 @@ fn serialize_full_start_packet() {
 
     let packet = Packet::new(header, body).expect("packet construction should have succeeded");
 
-    let mut buffer = [42; 100];
+    let mut buffer = [42; 50];
     packet
         .serialize_into_buffer(&mut buffer)
         .expect("buffer should have been large enough for packet");
 
-    assert_eq!(
-        buffer[..43],
-        [
-            // HEADER
-            (0xc << 4) | 0x1, // major/minor version (default)
-            0x01,             // authentication
-            1,                // sequence number
-            0x04,             // single connection flag set
-            // session ID
-            0x0,
-            0x1,
-            0xe2,
-            0x40,
-            // length
-            0,
-            0,
-            0,
-            31,
-            // BODY
-            0x01, // action: login
-            0,    // privilege level 0
-            0x02, // authentication type: PAP
-            0x03, // authentication service: PPP
-            7,    // user length
-            2,    // port length
-            13,   // remote address length
-            1,    // data length
-            // user
-            0x73,
-            0x74,
-            0x61,
-            0x72,
-            0x74,
-            0x75,
-            0x70,
-            // port
-            0x34,
-            0x39,
-            // remote address
-            0x31,
-            0x39,
-            0x32,
-            0x2e,
-            0x31,
-            0x36,
-            0x38,
-            0x2e,
-            0x32,
-            0x33,
-            0x2e,
-            0x31,
-            0x30,
-            // data
-            0x45
-        ]
-    );
+    let mut expected = array_vec!([u8; 50]);
+
+    // HEADER
+    expected.extend_from_slice(&[
+        (0xc << 4) | 0x1, // major/minor version (default)
+        0x01,             // authentication
+        1,                // sequence number
+        0x04,             // single connection flag set
+    ]);
+    expected.extend_from_slice(session_id.to_be_bytes().as_slice());
+    expected.extend_from_slice(31_u32.to_be_bytes().as_slice()); // body length
+
+    // BODY
+    expected.extend_from_slice(&[
+        0x01, // action: login
+        0,    // privilege level 0
+        0x02, // authentication type: PAP
+        0x03, // authentication service: PPP
+        7,    // user length
+        2,    // port length
+        13,   // remote address length
+        1,    // data length
+    ]);
+
+    // user information
+    expected.extend_from_slice(b"startup");
+    expected.extend_from_slice(b"49"); // port
+    expected.extend_from_slice(b"192.168.23.10"); // remote address
+
+    // data
+    expected.push(b'E');
+
+    assert_eq!(&buffer[..43], expected.as_slice());
 }
 
 #[test]
@@ -226,43 +209,46 @@ fn serialize_full_start_packet_version_mismatch() {
 
 #[test]
 fn deserialize_reply_pass_both_data_fields() {
-    let packet_data = [
+    let mut packet_data = array_vec!([u8; 40]);
+
+    packet_data.extend_from_slice(&[
         0x01, // status: pass
         0,    // no flags set
         0, 16, // server message length
         0, 4, // data length
-        // server message: "login successful" (without quotes)
-        0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x20, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x66, 0x75,
-        0x6c, // end server message
-        0x12, 0x77, 0xfa, 0xcc, // data: some random bytes for good measure
-        0xde, // extra byte for good measure; should still be valid
-    ];
+    ]);
 
-    let parsed_reply =
-        Reply::try_from(packet_data.as_slice()).expect("reply packet should be valid");
+    // server message
+    packet_data.extend_from_slice(b"login successful");
+
+    // data
+    packet_data.extend_from_slice(&[0x12, 0x77, 0xfa, 0xcc]);
+
+    // extra byte that is not part of packet
+    packet_data.push(0xde);
 
     assert_eq!(
-        parsed_reply,
-        Reply {
+        Reply::try_from(packet_data.as_slice()),
+        Ok(Reply {
             status: Status::Pass,
             server_message: assert_ascii("login successful"),
             data: b"\x12\x77\xfa\xcc",
             no_echo: false
-        }
+        })
     );
 }
 
 #[test]
 fn deserialize_reply_bad_server_message_length() {
-    let packet_data = [
+    let mut packet_data = array_vec!([u8; 30]);
+
+    packet_data.extend_from_slice(&[
         0x02, // status: fail
         0,    // no flags set
-        13, 37, // way too large server length
-        0, 0, // data length shouldn't matter
-        // server message: "something's wrong"
-        0x73, 0x6f, 0x6d, 0x65, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x27, 0x73, 0x20, 0x77, 0x72, 0x6f,
-        0x6e, 0x67,
-    ];
+        13, 37, // server length - way too large
+        0, 0, // arbitrary data length - shouldn't matter
+    ]);
+    packet_data.extend_from_slice(b"something's wrong"); // server message
 
     // guard on specific error flavor
     assert_eq!(
@@ -291,7 +277,7 @@ fn deserialize_reply_bad_status() {
         0,  // no flags set
         0, 1, // server message length
         0, 0,    // data length
-        0x41, // server message: "a"
+        b'a', // server message
     ];
 
     assert_eq!(
@@ -318,56 +304,35 @@ fn deserialize_reply_bad_flags() {
 
 #[test]
 fn deserialize_reply_full_packet() {
-    let raw_packet = [
-        // HEADER
+    let session_id: u32 = 983274929;
+    let mut raw_packet = array_vec!([u8; 40]);
+
+    // HEADER
+    raw_packet.extend_from_slice(&[
         (0xc << 4) | 1, // version
         1,              // authentication packet
         4,              // sequence number
         1,              // unencrypted flag set
-        // session id
-        0x3a,
-        0x9b,
-        0x95,
-        0xb1,
-        // packet body length
-        0,
-        0,
-        0,
-        22,
-        // BODY
+    ]);
+    raw_packet.extend_from_slice(session_id.to_be_bytes().as_slice());
+    raw_packet.extend_from_slice(22_u32.to_be_bytes().as_slice()); // body length
+
+    // BODY
+    raw_packet.extend_from_slice(&[
         6, // status: restart
         0, // no flags set
-        // server message length
-        0,
-        9,
-        // data length
-        0,
-        7,
-        // server message
-        0x74,
-        0x72,
-        0x79,
-        0x20,
-        0x61,
-        0x67,
-        0x61,
-        0x69,
-        0x6e,
-        // data
-        1,
-        1,
-        2,
-        3,
-        5,
-        8,
-        13,
-    ];
+        0, 9, // server message length
+        0, 7, // data length
+    ]);
+
+    raw_packet.extend_from_slice(b"try again"); // server message
+    raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 4,
         flags: PacketFlags::Unencrypted,
-        session_id: 983274929,
+        session_id,
     };
 
     let expected_body = Reply {
@@ -496,11 +461,12 @@ fn serialize_continue_only_data_field() {
 
 #[test]
 fn serialize_continue_full_packet() {
+    let session_id = 856473784;
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
         sequence_number: 49,
         flags: PacketFlags::SingleConnection,
-        session_id: 856473784,
+        session_id,
     };
 
     let body = Continue::new(
@@ -517,57 +483,28 @@ fn serialize_continue_full_packet() {
         .serialize_into_buffer(buffer.as_mut_slice())
         .expect("packet serialization should succeed");
 
-    assert_eq!(
-        buffer[..serialized_length],
-        [
-            // HEADER
-            0xc << 4, // version
-            1,        // authentication packet
-            49,       // sequence number
-            4,        // single connection flag set
-            // session id
-            0x33,
-            0xc,
-            0xc0,
-            0xb8,
-            // body length
-            0,
-            0,
-            0,
-            27,
-            // BODY
-            // user message length
-            0,
-            17,
-            // data length
-            0,
-            5,
-            // abort flag unset
-            0,
-            // user message
-            0x74,
-            0x68,
-            0x69,
-            0x73,
-            0x20,
-            0x69,
-            0x73,
-            0x20,
-            0x61,
-            0x20,
-            0x6d,
-            0x65,
-            0x73,
-            0x73,
-            0x61,
-            0x67,
-            0x65,
-            // data
-            64,
-            43,
-            2,
-            255,
-            2
-        ]
-    );
+    let mut expected = array_vec!([u8; 50]);
+
+    // HEADER
+    expected.extend_from_slice(&[
+        // HEADER
+        0xc << 4, // version
+        1,        // authentication packet
+        49,       // sequence number
+        4,        // single connection flag set
+    ]);
+    expected.extend_from_slice(session_id.to_be_bytes().as_slice());
+    expected.extend_from_slice(27_u32.to_be_bytes().as_slice()); // body length
+
+    // BODY
+    expected.extend_from_slice(&[
+        0, 17, // user message length
+        0, 5, // data length
+        0, // no flags set
+    ]);
+
+    expected.extend_from_slice(b"this is a message"); // user message
+    expected.extend_from_slice(&[64, 43, 2, 255, 2]); // data
+
+    assert_eq!(&buffer[..serialized_length], expected.as_slice());
 }
