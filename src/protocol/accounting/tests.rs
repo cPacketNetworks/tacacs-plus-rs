@@ -6,6 +6,8 @@ use crate::protocol::{
     PrivilegeLevel, UserInformation, Version,
 };
 
+use tinyvec::array_vec;
+
 #[test]
 fn serialize_request_body_with_argument() {
     let mut argument_array =
@@ -39,28 +41,26 @@ fn serialize_request_body_with_argument() {
         .serialize_into_buffer(&mut buffer)
         .expect("buffer should have been large enough");
 
-    assert_eq!(
-        buffer,
-        [
-            0x02, // just start flag set
-            0x08, // Guest authentication method
-            0,    // privilege level 0 (minimum)
-            0x01, // ASCII authentication type
-            0x01, // authentication service: login
-            5,    // user length
-            4,    // port length
-            12,   // remote address length
-            1,    // argument count
-            19,   // argument 1 length
-            0x67, 0x75, 0x65, 0x73, 0x74, // user: guest
-            0x74, 0x74, 0x79, 0x30, // port: tty0
-            // remote address: 127.10.0.100
-            0x31, 0x32, 0x37, 0x2e, 0x31, 0x30, 0x2e, 0x30, 0x2e, 0x31, 0x30, 0x30,
-            // required argument: service=tacacs-test
-            0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x3d, 0x74, 0x61, 0x63, 0x61, 0x63, 0x73,
-            0x2d, 0x74, 0x65, 0x73, 0x74
-        ]
-    );
+    let mut expected = array_vec!([u8; 50]);
+    expected.extend_from_slice(&[
+        0x02, // just start flag set
+        0x08, // Guest authentication method
+        0,    // privilege level 0 (minimum)
+        0x01, // ASCII authentication type
+        0x01, // authentication service: login
+        5,    // user length
+        4,    // port length
+        12,   // remote address length
+        1,    // argument count
+        19,   // argument 1 length
+    ]);
+
+    expected.extend_from_slice(b"guest"); // user
+    expected.extend_from_slice(b"tty0"); // port
+    expected.extend_from_slice(b"127.10.0.100"); // remote address
+    expected.extend_from_slice(b"service=tacacs-test"); // argument
+
+    assert_eq!(buffer, expected.as_slice());
 }
 
 #[test]
@@ -87,11 +87,12 @@ fn serialize_full_request_packet() {
         arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
     };
 
+    let session_id = 298734923;
     let header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::empty(),
-        session_id: 298734923,
+        session_id,
     };
 
     let packet = Packet::new(header, body).expect("packet construction should have succeeded");
@@ -101,176 +102,102 @@ fn serialize_full_request_packet() {
         .serialize_into_buffer(buffer.as_mut_slice())
         .expect("packet serialization failed");
 
-    assert_eq!(
-        buffer[..packet_size],
-        [
-            // HEADER
-            (0xc << 4) | 0x1, // version
-            0x3,              // accounting packet
-            1,                // sequence number
-            0,                // no flags set
-            // session id
-            0x11,
-            0xce,
-            0x55,
-            0x4b,
-            // length
-            0,
-            0,
-            0,
-            62,
-            // BODY
-            0x08, // watchdog flag set (no update)
-            0x00, // authentication method: not set
-            10,   // privilege level
-            0x00, // authentication type: not set
-            0x05, // authentication service: PT
-            6,    // user length
-            4,    // port length
-            11,   // remote address length
-            2,    // argument count
-            12,   // argument 1 length
-            18,   // argument 2 length
-            // user
-            0x73,
-            0x65,
-            0x63,
-            0x72,
-            0x65,
-            0x74,
-            // port
-            0x74,
-            0x74,
-            0x79,
-            0x36,
-            // remote address
-            0x31,
-            0x30,
-            0x2e,
-            0x31,
-            0x30,
-            0x2e,
-            0x31,
-            0x30,
-            0x2e,
-            0x31,
-            0x30,
-            // argument 1 (task_id)
-            0x74,
-            0x61,
-            0x73,
-            0x6b,
-            0x5f,
-            0x69,
-            0x64,
-            0x3d,
-            0x31,
-            0x32,
-            0x33,
-            0x34,
-            // argument 2 (service)
-            0x73,
-            0x65,
-            0x72,
-            0x76,
-            0x69,
-            0x63,
-            0x65,
-            0x3d,
-            0x66,
-            0x75,
-            0x6c,
-            0x6c,
-            0x70,
-            0x61,
-            0x63,
-            0x6b,
-            0x65,
-            0x74
-        ]
-    );
+    let mut expected = array_vec!([u8; 100]);
+
+    // HEADER
+    expected.extend_from_slice(&[
+        (0xc << 4) | 0x1, // version
+        0x3,              // accounting packet
+        1,                // sequence number
+        0,                // no flags set
+    ]);
+    expected.extend_from_slice(session_id.to_be_bytes().as_slice());
+    expected.extend_from_slice(62_u32.to_be_bytes().as_slice()); // body length
+
+    // BODY
+    expected.extend_from_slice(&[
+        0x08, // watchdog flag set (no update)
+        0x00, // authentication method: not set
+        10,   // privilege level
+        0x00, // authentication type: not set
+        0x05, // authentication service: PT
+        6,    // user length
+        4,    // port length
+        11,   // remote address length
+        2,    // argument count
+        12,   // argument 1 length
+        18,   // argument 2 length
+    ]);
+
+    // user information
+    expected.extend_from_slice(b"secret");
+    expected.extend_from_slice(b"tty6"); // port
+    expected.extend_from_slice(b"10.10.10.10"); // remote address
+
+    // arguments
+    expected.extend_from_slice(b"task_id=1234");
+    expected.extend_from_slice(b"service=fullpacket");
+
+    assert_eq!(&buffer[..packet_size], expected.as_slice());
 }
 
 #[test]
 fn deserialize_reply_all_fields() {
-    let body_raw = [
+    let mut body_raw = array_vec!([u8; 60]);
+
+    body_raw.extend_from_slice(&[
         0, 47, // server message length
         0, 2,    // data length,
         0x02, // status: error
-        // server message
-        0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
-        0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
-        0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
-        0x41, 0x41, // end server message
-        // data
-        0xa4, 0x42,
-    ];
+    ]);
+
+    let server_message = [b'A'; 47];
+    body_raw.extend_from_slice(&server_message);
+
+    // data
+    body_raw.extend_from_slice(&[0xa4, 0x42]);
 
     assert_eq!(
-        Reply {
+        Ok(Reply {
             status: Status::Error,
-            server_message: AsciiStr::try_from_bytes([b'A'; 47].as_slice()).unwrap(),
+            server_message: AsciiStr::try_from_bytes(server_message.as_slice()).unwrap(),
             data: &[0xa4, 0x42]
-        },
-        body_raw.as_slice().try_into().unwrap()
+        }),
+        body_raw.as_slice().try_into()
     );
 }
 
 #[test]
 fn deserialize_full_reply_packet() {
-    let raw_packet = [
-        // HEADER
+    let session_id: u32 = 49241163;
+
+    let mut raw_packet = array_vec!([u8; 40]);
+
+    // HEADER
+    raw_packet.extend_from_slice(&[
         (0xc << 4) | 1, // version
         3,              // accounting packet
         2,              // sequence number
         5,              // both unencrypted and single connection flags set
-        // session id
-        2,
-        239,
-        92,
-        75,
-        // body length
-        0,
-        0,
-        0,
-        25,
-        // BODY
-        // server message length
-        0,
-        5,
-        // data length
-        0,
-        15,
-        2, // status: error
-        // server message
-        0x68,
-        0x65,
-        0x6c,
-        0x6c,
-        0x6f,
-        // data
-        0x66,
-        0x69,
-        0x66,
-        0x74,
-        0x65,
-        0x65,
-        0x6e,
-        0x20,
-        0x6c,
-        0x65,
-        0x74,
-        0x74,
-        0x65,
-        0x72,
-        0x73,
-    ];
+    ]);
+    raw_packet.extend_from_slice(session_id.to_be_bytes().as_slice());
+    raw_packet.extend_from_slice(25_u32.to_be_bytes().as_slice());
+
+    // BODY
+    raw_packet.extend_from_slice(&[
+        0, 5, // server message length
+        0, 15, // data length
+        2,  // status: error
+    ]);
+
+    raw_packet.extend_from_slice(b"hello"); // server message
+    raw_packet.extend_from_slice(b"fifteen letters"); // data
 
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
         sequence_number: 2,
         flags: PacketFlags::all(),
-        session_id: 49241163,
+        session_id,
     };
 
     let expected_body = Reply {
