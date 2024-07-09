@@ -39,11 +39,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable --no-self-update
       - name: Set up Rust artifact cache
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: cargodeps-${{ matrix.features }}
-      - name: Update Rust toolchain (stable)
-        run: rustup update stable --no-self-update
       - name: Run Clippy (${{ matrix.features }})
         run: cargo clippy --verbose ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}

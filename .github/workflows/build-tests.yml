@@ -16,22 +16,26 @@ env:
 jobs:
   cargo-build-test:
     name: Cargo build and test
-    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [std, no_std]
+
+    concurrency: cargodeps-${{ matrix.features }}
+
+    env:
+      FEATURE_FLAGS: ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          key: cargodeps-${{ hashFiles('Cargo.lock') }}
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
       - name: Update Rust toolchain (stable)
-        run: rustup update stable
+        run: rustup update stable --no-self-update
+      - name: Set up Rust artifact cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cargodeps-${{ matrix.features }}
       - name: Build crate
-        run: cargo build --verbose
+        run: cargo build --verbose $FEATURE_FLAGS
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose $FEATURE_FLAGS
