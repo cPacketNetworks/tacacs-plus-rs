@@ -68,6 +68,12 @@ impl<'string> AsciiStr<'string> {
     }
 }
 
+impl AsRef<str> for AsciiStr<'_> {
+    fn as_ref(&self) -> &str {
+        self.0
+    }
+}
+
 impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
     type Error = &'string str;
 
