@@ -235,12 +235,6 @@ impl<'packet> Reply<'packet> {
         self.data
     }
 
-    // TODO: iter
-    // The arguments sent by the server.
-    // pub fn arguments(&self) -> &Arguments<'packet> {
-    //     &self.arguments
-    // }
-
     /// Returns an iterator over the arguments included in this reply packet.
     pub fn iter_arguments(&self) -> ArgumentsIterator<'_> {
         ArgumentsIterator {
