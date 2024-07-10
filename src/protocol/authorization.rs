@@ -1,10 +1,11 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
+use byteorder::{ByteOrder, NetworkEndian};
 use num_enum::TryFromPrimitive;
 
 use super::{
-    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
-    DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize, UserInformation,
+    Argument, AuthenticationContext, AuthenticationMethod, DeserializeError, NotEnoughSpace,
+    PacketBody, PacketType, Serialize, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -22,13 +23,14 @@ pub struct Request<'packet> {
     /// Information about the user connected to the TACACS+ client.
     pub user_information: UserInformation<'packet>,
 
+    // TODO: make just a reference
     /// Additional arguments to provide as part of an authorization request.
-    pub arguments: Arguments<'packet>,
+    pub arguments: super::Arguments<'packet>,
 }
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Authorization;
-    const MINIMUM_LENGTH: usize =
+    const REQUIRED_FIELDS_LENGTH: usize =
         AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
 
@@ -50,7 +52,8 @@ impl Serialize for Request<'_> {
 
             self.arguments.serialize_header(&mut buffer[7..])?;
 
-            let body_start: usize = Self::MINIMUM_LENGTH + self.arguments.argument_count() as usize;
+            let body_start: usize =
+                Self::REQUIRED_FIELDS_LENGTH + self.arguments.argument_count() as usize;
 
             let user_information_len = self
                 .user_information
@@ -87,37 +90,111 @@ pub enum Status {
     Follow = 0x21,
 }
 
+/// Some information about the arguments in the binary representation of a reply packet.
+#[derive(Debug)]
+struct ArgumentsInfo<'raw> {
+    argument_count: usize,
+    argument_lengths: &'raw [u8],
+    arguments_buffer: &'raw [u8],
+}
+
 /// The body of an authorization reply packet.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct Reply<'packet> {
     status: Status,
     server_message: AsciiStr<'packet>,
     data: &'packet [u8],
-    arguments: Arguments<'packet>,
+    arguments_info: ArgumentsInfo<'packet>,
 }
 
+/// The non-argument field lengths of a (raw) authorization reply packet, as well as its total length.
+struct ReplyFieldLengths {
+    data_length: usize,
+    server_message_length: usize,
+    total_length: usize,
+}
+
+/// An iterator over the arguments in an authorization reply packet.
+pub struct ArgumentsIterator<'iter> {
+    arguments_info: &'iter ArgumentsInfo<'iter>,
+    next_argument_number: usize,
+    next_offset: usize,
+}
+
+impl<'iter> Iterator for ArgumentsIterator<'iter> {
+    type Item = Argument<'iter>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_argument_number < self.arguments_info.argument_count {
+            let next_length =
+                self.arguments_info.argument_lengths[self.next_argument_number] as usize;
+            let raw_argument = &self.arguments_info.arguments_buffer
+                [self.next_offset..self.next_offset + next_length];
+
+            // NOTE: this should always return Some, since the validity of arguments is checked in Reply's TryFrom impl
+            // we might want to remove the assert eventually, but I have it there for testing purposes at least
+            let deserialized = Argument::deserialize(raw_argument);
+            assert!(
+                deserialized.is_some(),
+                "invalid argument in ArgumentsIterator, despite checks on construction"
+            );
+
+            // update iterator state
+            self.next_argument_number += 1;
+            self.next_offset += next_length;
+
+            deserialized
+        } else {
+            None
+        }
+    }
+
+    // required for ExactSizeIterator impl
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.arguments_info.argument_count;
+        // these are asserted to be equal in the default ExactSizeIterator::len() implementation
+        (size, Some(size))
+    }
+}
+
+impl ExactSizeIterator for ArgumentsIterator<'_> {}
+
 impl<'packet> Reply<'packet> {
+    const ARGUMENT_LENGTHS_START: usize = 6;
+
     /// Determines the length of a reply packet encoded into the provided buffer, if possible.
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
-        if buffer.len() >= Self::MINIMUM_LENGTH {
+        Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
+    }
+
+    /// Extracts the server message and data lengths from a raw reply packet, if possible.
+    fn extract_field_lengths(buffer: &[u8]) -> Option<ReplyFieldLengths> {
+        // data length is the last field in the required part of the header, so we need a full (minimal) header
+        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
             let argument_count = buffer[1] as usize;
 
             // also ensure that all argument lengths are present
-            if buffer.len() >= Self::MINIMUM_LENGTH + argument_count {
-                let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
+            if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH + argument_count {
+                let server_message_length = NetworkEndian::read_u16(&buffer[2..4]) as usize;
+                let data_length = NetworkEndian::read_u16(&buffer[4..6]) as usize;
+
                 let encoded_arguments_length: usize = buffer
-                    [Self::MINIMUM_LENGTH..Self::MINIMUM_LENGTH + argument_count]
+                    [Self::ARGUMENT_LENGTHS_START..Self::ARGUMENT_LENGTHS_START + argument_count]
                     .iter()
                     .map(|&length| length as usize)
                     .sum();
 
-                Some(
-                    Self::MINIMUM_LENGTH
-                        + server_message_length
-                        + data_length
-                        + argument_count // argument lengths in "header"
-                        + encoded_arguments_length,
-                )
+                let total_length = Self::REQUIRED_FIELDS_LENGTH
+                    + argument_count // argument lengths in "header"
+                    + server_message_length
+                    + data_length
+                    + encoded_arguments_length;
+
+                Some(ReplyFieldLengths {
+                    data_length,
+                    server_message_length,
+                    total_length,
+                })
             } else {
                 None
             }
@@ -126,17 +203,20 @@ impl<'packet> Reply<'packet> {
         }
     }
 
-    /// Extracts the server message and data lengths from a raw reply packet, if possible.
-    fn extract_field_lengths(buffer: &[u8]) -> Option<(usize, usize)> {
-        // data length is the last field in the required part of the header, so we need a full (minimal) header
-        if buffer.len() >= Self::MINIMUM_LENGTH {
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?);
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?);
+    /// Ensures a list of argument lengths and their raw values represent a valid set of arguments.
+    fn arguments_valid(lengths: &[u8], values: &[u8]) -> bool {
+        let mut argument_start = 0;
 
-            Some((server_message_length as usize, data_length as usize))
-        } else {
-            None
-        }
+        lengths.iter().all(|&length| {
+            let raw_argument = &values[argument_start..argument_start + length as usize];
+            argument_start += length as usize;
+
+            // valid -> fully ASCII & contains a delimiter
+            // (length is guaranteed to be okay since it's converted directly from a u8)
+            // TODO: make this method on Argument instead?
+            raw_argument.is_ascii()
+                && (raw_argument.contains(&b'=') || raw_argument.contains(&b'*'))
+        })
     }
 
     /// The result status of the request.
@@ -154,32 +234,43 @@ impl<'packet> Reply<'packet> {
         self.data
     }
 
-    /// The arguments sent by the server.
-    pub fn arguments(&self) -> &Arguments<'packet> {
-        &self.arguments
+    // TODO: iter
+    // The arguments sent by the server.
+    // pub fn arguments(&self) -> &Arguments<'packet> {
+    //     &self.arguments
+    // }
+
+    /// Returns an iterator over the arguments included in this reply packet.
+    pub fn iter_arguments(&self) -> ArgumentsIterator<'_> {
+        ArgumentsIterator {
+            arguments_info: &self.arguments_info,
+            next_argument_number: 0,
+            next_offset: 0,
+        }
     }
 }
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Authorization;
-    const MINIMUM_LENGTH: usize = 6;
+    const REQUIRED_FIELDS_LENGTH: usize = 6;
 }
 
-impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
-    fn deserialize_from_buffer(
-        buffer: &'raw [u8],
-        argument_space: &'raw mut [Argument<'raw>],
-    ) -> Result<Self, DeserializeError> {
-        let claimed_length = Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
+    type Error = DeserializeError;
 
-        if buffer.len() >= claimed_length {
+    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        // TODO: this duplicates argument length calculations
+        let ReplyFieldLengths {
+            data_length,
+            server_message_length,
+            total_length,
+        } = Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+
+        if buffer.len() >= total_length {
             let status: Status = buffer[0].try_into()?;
             let argument_count = buffer[1] as usize;
 
-            let (server_message_length, data_length) =
-                Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
-
-            let body_start = 6 + argument_count;
+            let body_start = Self::ARGUMENT_LENGTHS_START + argument_count;
             let data_start = body_start + server_message_length;
             let arguments_start = data_start + data_length;
 
@@ -187,25 +278,28 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
                 .map_err(|_| DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..arguments_start];
 
-            let argument_lengths = &buffer[6..6 + argument_count];
-            let total_argument_length: usize = argument_lengths
-                .iter()
-                .map(|&length| usize::from(length))
-                .sum();
-            let argument_values = &buffer[arguments_start..arguments_start + total_argument_length];
-            let arguments =
-                Arguments::deserialize(argument_lengths, argument_values, argument_space)?;
+            // arguments occupy the rest of the buffer
+            let argument_lengths = &buffer[Self::ARGUMENT_LENGTHS_START..body_start];
+            let argument_values = &buffer[arguments_start..total_length];
 
-            Ok(Self {
-                status,
-                server_message,
-                data,
-                arguments,
-            })
+            if Self::arguments_valid(argument_lengths, argument_values) {
+                let arguments_info = ArgumentsInfo {
+                    argument_count,
+                    argument_lengths,
+                    arguments_buffer: argument_values,
+                };
+
+                Ok(Self {
+                    status,
+                    server_message,
+                    data,
+                    arguments_info,
+                })
+            } else {
+                Err(DeserializeError::InvalidWireBytes)
+            }
         } else {
             Err(DeserializeError::UnexpectedEnd)
         }
     }
 }
-
-// TODO: reconciling Request arguments with Reply? (ADD/REPL status)

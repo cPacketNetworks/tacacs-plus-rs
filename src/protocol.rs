@@ -16,11 +16,16 @@ mod fields;
 use byteorder::{ByteOrder, NetworkEndian};
 pub use fields::*;
 
+// Error trait is only available on std (on stable; stabilized in nightly 1.81) so this has to be std-gated
+#[cfg(feature = "std")]
+mod error_impls;
+
 /// An error type indicating that there is not enough space to complete an operation.
 #[derive(Debug)]
 pub struct NotEnoughSpace(());
 
 /// An error that occurred during deserialization of a full/partial packet.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeserializeError {
     /// Invalid byte representation of an object.
@@ -182,8 +187,8 @@ pub trait PacketBody {
     /// Type of the packet (one of authentication, authorization, or accounting).
     const TYPE: PacketType;
 
-    /// Minimum length of packet, in bytes.
-    const MINIMUM_LENGTH: usize;
+    /// Length of body just including required fields.
+    const REQUIRED_FIELDS_LENGTH: usize;
 
     /// Required protocol minor version based on the contents of the packet body.
     /// This really only exists since certain authentication methods are supposed to be gated by minor version.
@@ -284,36 +289,6 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
 
                 if body_length <= buffer[12..].len() {
                     let body = buffer[12..12 + body_length].try_into()?;
-                    Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
-                } else {
-                    Err(DeserializeError::UnexpectedEnd)
-                }
-            } else {
-                Err(DeserializeError::InvalidWireBytes)
-            }
-        } else {
-            Err(DeserializeError::UnexpectedEnd)
-        }
-    }
-}
-
-impl<'raw, B: PacketBody + DeserializeWithArguments<'raw> + 'raw> DeserializeWithArguments<'raw>
-    for Packet<B>
-{
-    fn deserialize_from_buffer(
-        buffer: &'raw [u8],
-        argument_space: &'raw mut [Argument<'raw>],
-    ) -> Result<Self, DeserializeError> {
-        if buffer.len() > Self::HEADER_SIZE_BYTES {
-            let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
-
-            if PacketType::try_from(buffer[1])? == B::TYPE {
-                let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
-
-                if body_length <= buffer[12..].len() {
-                    let body =
-                        B::deserialize_from_buffer(&buffer[12..12 + body_length], argument_space)?;
-
                     Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
                 } else {
                     Err(DeserializeError::UnexpectedEnd)

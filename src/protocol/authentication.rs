@@ -98,7 +98,7 @@ impl<'packet> Start<'packet> {
 
 impl PacketBody for Start<'_> {
     const TYPE: PacketType = PacketType::Authentication;
-    const MINIMUM_LENGTH: usize = Action::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
+    const REQUIRED_FIELDS_LENGTH: usize = Action::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 
     fn required_minor_version(&self) -> Option<MinorVersion> {
         // NOTE: a check in Start::new() guarantees that the authentication type will not be NotSet
@@ -165,9 +165,9 @@ pub struct Reply<'packet> {
 impl Reply<'_> {
     /// Attempts to extract the claimed reply packed body length from a buffer.
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
-        if buffer.len() >= Self::MINIMUM_LENGTH {
+        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
             let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
-            Some(Self::MINIMUM_LENGTH + server_message_length + data_length)
+            Some(Self::REQUIRED_FIELDS_LENGTH + server_message_length + data_length)
         } else {
             None
         }
@@ -208,7 +208,7 @@ impl Reply<'_> {
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Authentication;
-    const MINIMUM_LENGTH: usize = 6;
+    const REQUIRED_FIELDS_LENGTH: usize = 6;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
@@ -229,7 +229,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let (server_message_length, data_length) =
                 Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
 
-            let body_begin = Self::MINIMUM_LENGTH;
+            let body_begin = Self::REQUIRED_FIELDS_LENGTH;
             let data_begin = body_begin + server_message_length;
 
             Ok(Reply {
@@ -275,12 +275,12 @@ impl<'packet> Continue<'packet> {
 
 impl PacketBody for Continue<'_> {
     const TYPE: PacketType = PacketType::Authentication;
-    const MINIMUM_LENGTH: usize = 5;
+    const REQUIRED_FIELDS_LENGTH: usize = 5;
 }
 
 impl Serialize for Continue<'_> {
     fn wire_size(&self) -> usize {
-        Self::MINIMUM_LENGTH
+        Self::REQUIRED_FIELDS_LENGTH
             + self.user_message.map_or(0, <[u8]>::len)
             + self.data.map_or(0, <[u8]>::len)
     }

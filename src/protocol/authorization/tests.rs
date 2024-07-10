@@ -1,8 +1,8 @@
 use super::*;
 use crate::protocol::{
-    AuthenticationContext, AuthenticationMethod, AuthenticationService, AuthenticationType,
-    HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags, PrivilegeLevel, Serialize,
-    UserInformation, Version,
+    Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationService,
+    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
+    PrivilegeLevel, Serialize, UserInformation, Version,
 };
 use crate::AsciiStr;
 
@@ -196,6 +196,35 @@ fn serialize_full_request_packet() {
 }
 
 #[test]
+fn deserialize_reply_no_arguments() {
+    let mut raw_bytes = array_vec!([u8; 50]);
+    raw_bytes.extend_from_slice(&[
+        0x01, // status: pass/add
+        0,    // no arguments
+        0, 15, // server message length
+        0, 6, // data length
+    ]);
+
+    raw_bytes.extend_from_slice(b"this is a reply"); // server message
+    raw_bytes.extend_from_slice(&[123, 91, 3, 4, 21, 168]); // data
+
+    let parsed: Reply = raw_bytes
+        .as_slice()
+        .try_into()
+        .expect("packet parsing should have succeeded");
+
+    // field checks
+    assert_eq!(parsed.status, Status::PassAdd);
+    assert_eq!(parsed.server_message, AsciiStr::assert("this is a reply"));
+    assert_eq!(parsed.data, &[123, 91, 3, 4, 21, 168]);
+
+    // ensure iterator has no elements & reports a length of 0
+    let mut argument_iter = parsed.iter_arguments();
+    assert_eq!(argument_iter.len(), 0);
+    assert_eq!(argument_iter.next(), None);
+}
+
+#[test]
 fn deserialize_reply_two_arguments() {
     let mut raw_bytes = array_vec!([u8; 50]);
     raw_bytes.extend_from_slice(&[
@@ -214,7 +243,7 @@ fn deserialize_reply_two_arguments() {
     raw_bytes.extend_from_slice(b"service=greet");
     raw_bytes.extend_from_slice(b"person*world!");
 
-    let mut expected_arguments = [
+    let expected_arguments = [
         Argument::new(AsciiStr::assert("service"), AsciiStr::assert("greet"), true).unwrap(),
         Argument::new(
             AsciiStr::assert("person"),
@@ -224,20 +253,26 @@ fn deserialize_reply_two_arguments() {
         .unwrap(),
     ];
 
-    let expected = Reply {
-        status: Status::PassAdd,
-        server_message: AsciiStr::assert("hello"),
-        data: b"world",
-        arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice())
-            .expect("argument construction shouldn't have failed"),
-    };
+    let parsed: Reply = raw_bytes
+        .as_slice()
+        .try_into()
+        .expect("argument parsing should have succeeded");
 
-    let mut parsed_argument_space: [Argument; 2] = Default::default();
+    // check specific fields, as iterator's can't really implement PartialEq
+    assert_eq!(parsed.status, Status::PassAdd);
+    assert_eq!(parsed.server_message, AsciiStr::assert("hello"));
+    assert_eq!(parsed.data, b"world");
 
-    assert_eq!(
-        Ok(expected),
-        Reply::deserialize_from_buffer(raw_bytes.as_slice(), parsed_argument_space.as_mut_slice())
-    );
+    // ensure argument iteration works properly
+    let mut arguments_iter = parsed.iter_arguments();
+
+    // check ExactSizeIterator impl
+    assert_eq!(arguments_iter.len(), 2);
+
+    // check actual arguments
+    assert_eq!(arguments_iter.next(), Some(expected_arguments[0]));
+    assert_eq!(arguments_iter.next(), Some(expected_arguments[1]));
+    assert_eq!(arguments_iter.next(), None);
 }
 
 #[test]
@@ -270,8 +305,8 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(&[0x88; 4]); // data
     raw_packet.extend_from_slice(b"service=nah");
 
-    let mut expected_arguments =
-        [Argument::new(AsciiStr::assert("service"), AsciiStr::assert("nah"), true).unwrap()];
+    let expected_argument =
+        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("nah"), true).unwrap();
 
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::RFC8907, MinorVersion::Default),
@@ -280,23 +315,27 @@ fn deserialize_full_reply_packet() {
         session_id: 92837492,
     };
 
-    let expected_body = Reply {
-        status: Status::Fail,
-        server_message: AsciiStr::assert("something went wrong :("),
-        data: b"\x88\x88\x88\x88",
-        arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice()).unwrap(),
-    };
+    let parsed: Packet<Reply> = raw_packet
+        .as_slice()
+        .try_into()
+        .expect("packet deserialization should succeed");
 
-    let expected_packet = Packet::new(expected_header, expected_body).unwrap();
+    // check fields individually, since PartialEq and argument iteration don't play well together
+    assert_eq!(parsed.header, expected_header);
 
-    let mut parsed_arguments_space: [Argument<'_>; 1] = Default::default();
-
+    assert_eq!(parsed.body.status, Status::Fail);
     assert_eq!(
-        expected_packet,
-        Packet::<Reply>::deserialize_from_buffer(
-            &raw_packet,
-            parsed_arguments_space.as_mut_slice()
-        )
-        .expect("packet parsing should have succeeded")
+        parsed.body.server_message,
+        AsciiStr::assert("something went wrong :(")
     );
+    assert_eq!(parsed.body.data, b"\x88\x88\x88\x88");
+
+    // argument check: iterator should yield only 1 argument and then none
+    let mut argument_iter = parsed.body.iter_arguments();
+
+    // also check ExactSizeIterator impl
+    assert_eq!(argument_iter.len(), 1);
+
+    assert_eq!(argument_iter.next(), Some(expected_argument));
+    assert_eq!(argument_iter.next(), None);
 }

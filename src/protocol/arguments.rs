@@ -7,12 +7,14 @@ use crate::AsciiStr;
 mod tests;
 
 /// An argument in the TACACS+ protocol, which exists for extensibility.
-#[derive(Clone, Default, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct Argument<'data> {
     name: AsciiStr<'data>,
     value: AsciiStr<'data>,
     required: bool,
 }
+
+// TODO!!! do away with argument; just expose as methods on an authorization::Reply and a Packet<authorization::Reply>
 
 impl<'data> Argument<'data> {
     /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).

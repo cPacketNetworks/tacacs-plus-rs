@@ -73,7 +73,7 @@ pub struct Request<'packet> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Accounting;
-    const MINIMUM_LENGTH: usize =
+    const REQUIRED_FIELDS_LENGTH: usize =
         Flags::WIRE_SIZE + AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
 
@@ -103,7 +103,7 @@ impl Serialize for Request<'_> {
             let argument_count = self.arguments.argument_count();
 
             // extra 1 is added to avoid overwriting the last argument length
-            let body_start = Self::MINIMUM_LENGTH + argument_count as usize;
+            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count as usize;
 
             // actual request content
             let user_information_len = self
@@ -145,9 +145,9 @@ pub struct Reply<'packet> {
 impl Reply<'_> {
     /// Determines how long a raw reply packet claims to be, if applicable, based on various lengths stored in the body "header."
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
-        if buffer.len() >= Self::MINIMUM_LENGTH {
+        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
             let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
-            Some(Self::MINIMUM_LENGTH + server_message_length + data_length)
+            Some(Self::REQUIRED_FIELDS_LENGTH + server_message_length + data_length)
         } else {
             None
         }
@@ -183,7 +183,7 @@ impl Reply<'_> {
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Accounting;
-    const MINIMUM_LENGTH: usize = 5;
+    const REQUIRED_FIELDS_LENGTH: usize = 5;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
@@ -199,7 +199,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let (server_message_length, data_length) =
                 Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
 
-            let server_message_start = Self::MINIMUM_LENGTH;
+            let server_message_start = Self::REQUIRED_FIELDS_LENGTH;
             let data_start = server_message_start + server_message_length;
 
             let server_message = AsciiStr::try_from(&buffer[server_message_start..data_start])
