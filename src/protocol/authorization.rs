@@ -1,11 +1,12 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
-use crate::AsciiStr;
+use num_enum::TryFromPrimitive;
 
 use super::{
     Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
     DeserializeWithArguments, NotEnoughSpace, PacketBody, PacketType, Serialize, UserInformation,
 };
+use crate::AsciiStr;
 
 #[cfg(test)]
 mod tests;
@@ -67,7 +68,7 @@ impl Serialize for Request<'_> {
 
 /// The status of an authorization operation, as returned by the server.
 #[repr(u8)]
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, TryFromPrimitive)]
 pub enum Status {
     /// Authorization passed; server may have additional arguments for the client.
     PassAdd = 0x01,
@@ -84,22 +85,6 @@ pub enum Status {
     /// Forward authorization request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
-}
-
-impl TryFrom<u8> for Status {
-    type Error = DeserializeError;
-
-    fn try_from(value: u8) -> Result<Self, DeserializeError> {
-        match value {
-            0x01 => Ok(Status::PassAdd),
-            0x02 => Ok(Status::PassReplace),
-            0x10 => Ok(Status::Fail),
-            0x11 => Ok(Status::Error),
-            #[allow(deprecated)]
-            0x21 => Ok(Status::Follow),
-            _ => Err(DeserializeError::InvalidWireBytes),
-        }
-    }
 }
 
 /// The body of an authorization reply packet.

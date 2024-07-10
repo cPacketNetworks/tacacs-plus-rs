@@ -1,6 +1,7 @@
 //! Authentication-related protocol packets.
 
 use byteorder::{ByteOrder, NetworkEndian};
+use num_enum::TryFromPrimitive;
 
 use super::{
     AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, NotEnoughSpace,
@@ -33,7 +34,7 @@ impl Action {
 
 /// The authentication status, as returned by a TACACS+ server.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
 pub enum Status {
     /// Authentication succeeded.
     Pass = 0x01,
@@ -59,25 +60,6 @@ pub enum Status {
     /// Forward authentication request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
-}
-
-impl TryFrom<u8> for Status {
-    type Error = DeserializeError;
-
-    fn try_from(value: u8) -> Result<Self, DeserializeError> {
-        match value {
-            0x01 => Ok(Self::Pass),
-            0x02 => Ok(Self::Fail),
-            0x03 => Ok(Self::GetData),
-            0x04 => Ok(Self::GetUser),
-            0x05 => Ok(Self::GetPassword),
-            0x06 => Ok(Self::Restart),
-            0x07 => Ok(Self::Error),
-            #[allow(deprecated)]
-            0x21 => Ok(Self::Follow),
-            _ => Err(DeserializeError::InvalidWireBytes),
-        }
-    }
 }
 
 /// An authentication start packet, used to initiate an authentication session.

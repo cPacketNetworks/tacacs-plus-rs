@@ -1,6 +1,7 @@
 //! Accounting protocol packet (de)serialization.
 
 use bitflags::bitflags;
+use num_enum::TryFromPrimitive;
 
 use super::{
     Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, NotEnoughSpace,
@@ -120,7 +121,7 @@ impl Serialize for Request<'_> {
 
 /// The server's reply status in an accounting session.
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
 pub enum Status {
     /// Task logging succeeded.
     Success = 0x01,
@@ -131,20 +132,6 @@ pub enum Status {
     /// Forward accounting request to an alternative daemon.
     #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
-}
-
-impl TryFrom<u8> for Status {
-    type Error = DeserializeError;
-
-    fn try_from(value: u8) -> Result<Self, DeserializeError> {
-        match value {
-            0x01 => Ok(Self::Success),
-            0x02 => Ok(Self::Error),
-            #[allow(deprecated)]
-            0x21 => Ok(Self::Follow),
-            _ => Err(DeserializeError::InvalidWireBytes),
-        }
-    }
 }
 
 /// An accounting reply packet received from a TACACS+ server.

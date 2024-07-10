@@ -3,6 +3,7 @@
 use core::array::TryFromSliceError;
 
 use bitflags::bitflags;
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 pub mod accounting;
 pub mod authentication;
@@ -49,13 +50,23 @@ impl From<NotEnoughSpace> for DeserializeError {
     }
 }
 
+// TODO: limit to enums in crate via sealed trait or similar?
+#[doc(hidden)]
+impl<Enum: TryFromPrimitive<Primitive = u8>> From<TryFromPrimitiveError<Enum>>
+    for DeserializeError
+{
+    fn from(_value: TryFromPrimitiveError<Enum>) -> Self {
+        Self::InvalidWireBytes
+    }
+}
+
 /// The major version of the TACACS+ protocol.
 #[repr(u8)]
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MajorVersion {
     /// The only current major version specified in RFC-8907.
-    TheOnlyVersion = 0xc,
+    RFC8907 = 0xc,
 }
 
 /// The minor version of the TACACS+ protocol in use, which specifies choices for authentication methods.
@@ -65,7 +76,7 @@ pub enum MajorVersion {
 pub enum MinorVersion {
     /// Default minor version, used for ASCII authentication.
     Default = 0x0,
-    /// Minor version 1, which switches out ASCII authentication for (MS)CHAP/PAP/etc.
+    /// Minor version 1, which is used for (MS)CHAP and PAP authentication.
     V1 = 0x1,
 }
 
@@ -92,7 +103,7 @@ impl TryFrom<u8> for Version {
                 _ => Err(DeserializeError::InvalidWireBytes),
             }?;
 
-            Ok(Self(MajorVersion::TheOnlyVersion, minor_version))
+            Ok(Self(MajorVersion::RFC8907, minor_version))
         } else {
             Err(DeserializeError::InvalidWireBytes)
         }
@@ -154,7 +165,7 @@ impl TryFrom<&[u8]> for HeaderInfo {
 
 /// The type of a protocol packet.
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
 pub enum PacketType {
     /// Authentication packet.
     Authentication = 0x1,
@@ -164,19 +175,6 @@ pub enum PacketType {
 
     /// Accounting packet.
     Accounting = 0x3,
-}
-
-impl TryFrom<u8> for PacketType {
-    type Error = DeserializeError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            1 => Ok(Self::Authentication),
-            2 => Ok(Self::Authorization),
-            3 => Ok(Self::Accounting),
-            _ => Err(DeserializeError::InvalidWireBytes),
-        }
-    }
 }
 
 /// A type that can be treated as a TACACS+ protocol packet body.

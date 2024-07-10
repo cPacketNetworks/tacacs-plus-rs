@@ -95,7 +95,7 @@ fn serialize_full_request_packet() {
 
     let session_id = 298734923;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::empty(),
         session_id,
@@ -200,7 +200,7 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"fifteen letters"); // data
 
     let expected_header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 2,
         flags: PacketFlags::all(),
         session_id,

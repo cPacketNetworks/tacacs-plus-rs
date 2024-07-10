@@ -127,7 +127,7 @@ fn serialize_start_data_too_long() {
 fn serialize_full_start_packet() {
     let session_id = 123457;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::SingleConnection,
         session_id,
@@ -195,7 +195,7 @@ fn serialize_full_start_packet() {
 #[test]
 fn serialize_full_start_packet_version_mismatch() {
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 3,
         flags: PacketFlags::Unencrypted,
         session_id: 9128374,
@@ -342,7 +342,7 @@ fn deserialize_reply_full_packet() {
     raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
     let expected_header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::V1),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 4,
         flags: PacketFlags::Unencrypted,
         session_id,
@@ -476,7 +476,7 @@ fn serialize_continue_only_data_field() {
 fn serialize_continue_full_packet() {
     let session_id = 856473784;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
+        version: Version::of(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 49,
         flags: PacketFlags::SingleConnection,
         session_id,
