@@ -1,8 +1,7 @@
 use super::*;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
-    PrivilegeLevel, UserInformation, Version,
+    AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -97,13 +96,12 @@ fn serialize_full_request_packet() {
 
     let session_id = 298734923;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::empty(),
         session_id,
     };
 
-    let packet = Packet::new(header, body).expect("packet construction should have succeeded");
+    let packet = Packet::new(header, body);
 
     let mut buffer = [0xff; 100];
     let packet_size = packet
@@ -114,10 +112,10 @@ fn serialize_full_request_packet() {
 
     // HEADER
     expected.extend_from_slice(&[
-        (0xc << 4) | 0x1, // version
-        0x3,              // accounting packet
-        1,                // sequence number
-        0,                // no flags set
+        (0xc << 4), // version
+        0x3,        // accounting packet
+        1,          // sequence number
+        0,          // no flags set
     ]);
     expected.extend_from_slice(session_id.to_be_bytes().as_slice());
     expected.extend_from_slice(62_u32.to_be_bytes().as_slice()); // body length
@@ -202,7 +200,6 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"fifteen letters"); // data
 
     let expected_header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 2,
         flags: PacketFlags::all(),
         session_id,
@@ -214,8 +211,7 @@ fn deserialize_full_reply_packet() {
         data: b"fifteen letters",
     };
 
-    let expected_packet = Packet::new(expected_header, expected_body)
-        .expect("packet construction should have succeeded");
+    let expected_packet = Packet::new(expected_header, expected_body);
 
     assert_eq!(raw_packet.as_slice().try_into(), Ok(expected_packet));
 }

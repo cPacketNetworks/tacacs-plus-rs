@@ -4,6 +4,7 @@ use core::array::TryFromSliceError;
 use core::fmt;
 
 use bitflags::bitflags;
+use byteorder::{ByteOrder, NetworkEndian};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 pub mod accounting;
@@ -14,7 +15,6 @@ mod arguments;
 pub use arguments::{Argument, Arguments};
 
 mod fields;
-use byteorder::{ByteOrder, NetworkEndian};
 pub use fields::*;
 
 /// An error type indicating that there is not enough space to complete an operation.
@@ -119,9 +119,14 @@ pub enum MinorVersion {
 pub struct Version(MajorVersion, MinorVersion);
 
 impl Version {
-    /// Creates a full version from a major and minor version.
-    pub fn of(major: MajorVersion, minor: MinorVersion) -> Self {
-        Self(major, minor)
+    /// Gets the major TACACS+ version.
+    pub fn major(&self) -> MajorVersion {
+        self.0
+    }
+
+    /// Gets the minor TACACS+ version.
+    pub fn minor(&self) -> MinorVersion {
+        self.1
     }
 }
 
@@ -130,7 +135,7 @@ impl TryFrom<u8> for Version {
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // only major version is 0xc currently
-        if value >> 4 == 0xc {
+        if value >> 4 == MajorVersion::RFC8907 as u8 {
             let minor_version = match value & 0xf {
                 0 => Ok(MinorVersion::Default),
                 1 => Ok(MinorVersion::V1),
@@ -167,9 +172,6 @@ bitflags! {
 /// Information included in a TACACS+ packet header.
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub struct HeaderInfo {
-    /// The packet's protocol version.
-    pub version: Version,
-
     /// The sequence number of the packet. This should be odd for client packets, and even for server packets.
     pub sequence_number: u8,
 
@@ -184,13 +186,10 @@ impl TryFrom<&[u8]> for HeaderInfo {
     type Error = DeserializeError;
 
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
-        let version: Version = buffer[0].try_into()?;
-
         let header = Self {
-            version,
             sequence_number: buffer[2],
             flags: PacketFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
-            session_id: u32::from_be_bytes(buffer[4..8].try_into()?),
+            session_id: NetworkEndian::read_u32(&buffer[4..8]),
         };
 
         Ok(header)
@@ -235,33 +234,29 @@ pub trait Serialize {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace>;
 }
 
-/// Something that includes arguments that can be deserialized from a binary arguments.
-pub trait DeserializeWithArguments<'raw> {
-    /// Attempts to deserialize an object from its binary format, storing its arguments in the provided slice.
-    fn deserialize_from_buffer(
-        buffer: &'raw [u8],
-        argument_space: &'raw mut [Argument<'raw>],
-    ) -> Result<Self, DeserializeError>
-    where
-        Self: Sized;
-}
-
 /// A full TACACS+ protocol packet.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Packet<B: PacketBody> {
     header: HeaderInfo,
     body: B,
+    version: Version,
 }
 
 impl<B: PacketBody> Packet<B> {
     /// Size of a TACACS+ packet header, in bytes.
     pub const HEADER_SIZE_BYTES: usize = 12;
 
-    /// Assembles a header and body into a packet, barring minor version incompatibility.
-    pub fn new(header: HeaderInfo, body: B) -> Option<Self> {
-        match body.required_minor_version() {
-            Some(required_version) if header.version.1 != required_version => None,
-            _ => Some(Self { header, body }),
+    /// Assembles a header and body into a full packet.
+    pub fn new(header: HeaderInfo, body: B) -> Self {
+        let minor_version = body
+            .required_minor_version()
+            .unwrap_or(MinorVersion::Default);
+        let version = Version(MajorVersion::RFC8907, minor_version);
+
+        Self {
+            header,
+            body,
+            version,
         }
     }
 
@@ -274,6 +269,11 @@ impl<B: PacketBody> Packet<B> {
     pub fn body(&self) -> &B {
         &self.body
     }
+
+    /// Returns the protocol version of this packet.
+    pub fn version(&self) -> Version {
+        self.version
+    }
 }
 
 impl<B: PacketBody + Serialize> Serialize for Packet<B> {
@@ -284,7 +284,7 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // fill in header information
-            buffer[0] = self.header.version.into();
+            buffer[0] = self.version.into();
             buffer[1] = B::TYPE as u8;
             buffer[2] = self.header.sequence_number;
             buffer[3] = self.header.flags.bits();
@@ -314,11 +314,12 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
             let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
 
             if PacketType::try_from(buffer[1])? == B::TYPE {
-                let body_length = u32::from_be_bytes(buffer[8..12].try_into()?) as usize;
+                let body_length = NetworkEndian::read_u32(&buffer[8..12]) as usize;
 
+                // TODO: figure out this check, it feels a bit fishy
                 if body_length <= buffer[12..].len() {
                     let body = buffer[12..12 + body_length].try_into()?;
-                    Self::new(header, body).ok_or(DeserializeError::VersionMismatch)
+                    Ok(Self::new(header, body))
                 } else {
                     Err(DeserializeError::UnexpectedEnd)
                 }

@@ -1,8 +1,8 @@
 use super::*;
 use crate::protocol::{
     Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
-    PrivilegeLevel, Serialize, UserInformation, Version,
+    AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, Serialize,
+    UserInformation,
 };
 use crate::AsciiStr;
 
@@ -118,7 +118,6 @@ fn serialize_request_one_argument() {
 fn serialize_full_request_packet() {
     let session_id: u32 = 578263403;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 1,
         flags: PacketFlags::Unencrypted,
         session_id,
@@ -149,7 +148,7 @@ fn serialize_full_request_packet() {
         arguments: Arguments::new(&arguments),
     };
 
-    let packet = Packet::new(header, body).expect("packet construction should have succeeded");
+    let packet = Packet::new(header, body);
 
     let mut buffer = [0x43; 70];
     let serialized_length = packet
@@ -307,7 +306,6 @@ fn deserialize_full_reply_packet() {
         Argument::new(AsciiStr::assert("service"), AsciiStr::assert("nah"), true).unwrap();
 
     let expected_header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 4,
         flags: PacketFlags::Unencrypted | PacketFlags::SingleConnection,
         session_id: 92837492,

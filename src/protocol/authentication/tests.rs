@@ -1,7 +1,7 @@
 use super::*;
 use crate::protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, MajorVersion,
-    MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
+    AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, Packet,
+    PacketFlags, PrivilegeLevel, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -127,7 +127,6 @@ fn serialize_start_data_too_long() {
 fn serialize_full_start_packet() {
     let session_id = 123457;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::SingleConnection,
         session_id,
@@ -150,7 +149,7 @@ fn serialize_full_start_packet() {
     )
     .expect("start construction should have succeeded");
 
-    let packet = Packet::new(header, body).expect("packet construction should have succeeded");
+    let packet = Packet::new(header, body);
 
     let mut buffer = [42; 50];
     packet
@@ -190,34 +189,6 @@ fn serialize_full_start_packet() {
     expected.push(b'E');
 
     assert_eq!(&buffer[..43], expected.as_slice());
-}
-
-#[test]
-fn serialize_full_start_packet_version_mismatch() {
-    let header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
-        sequence_number: 3,
-        flags: PacketFlags::Unencrypted,
-        session_id: 9128374,
-    };
-
-    let body = Start::new(
-        Action::Login,
-        AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(2).unwrap(),
-            // ascii requires v0/default, but we set v1 above so this fails
-            authentication_type: AuthenticationType::Ascii,
-            service: AuthenticationService::Login,
-        },
-        UserInformation::new("bad", AsciiStr::assert("49"), AsciiStr::assert("::1")).unwrap(),
-        None,
-    )
-    .expect("packet construction should have succeeded");
-
-    assert!(
-        Packet::new(header, body).is_none(),
-        "packet construction should have failed"
-    );
 }
 
 #[test]
@@ -342,7 +313,6 @@ fn deserialize_reply_full_packet() {
     raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
     let expected_header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 4,
         flags: PacketFlags::Unencrypted,
         session_id,
@@ -355,8 +325,7 @@ fn deserialize_reply_full_packet() {
         no_echo: false,
     };
 
-    let expected_packet = Packet::new(expected_header, expected_body)
-        .expect("packet construction should have succeeded");
+    let expected_packet = Packet::new(expected_header, expected_body);
 
     assert_eq!(raw_packet.as_slice().try_into(), Ok(expected_packet));
 }
@@ -476,7 +445,6 @@ fn serialize_continue_only_data_field() {
 fn serialize_continue_full_packet() {
     let session_id = 856473784;
     let header = HeaderInfo {
-        version: Version::of(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 49,
         flags: PacketFlags::SingleConnection,
         session_id,
@@ -489,7 +457,7 @@ fn serialize_continue_full_packet() {
     )
     .expect("continue construction should have worked");
 
-    let packet = Packet::new(header, body).expect("packet construction should have worked");
+    let packet = Packet::new(header, body);
 
     let mut buffer = [0x64; 50];
     let serialized_length = packet
