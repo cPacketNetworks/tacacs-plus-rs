@@ -1,6 +1,7 @@
 //! TACACS+ protocol packet <-> binary format conversions.
 
 use core::array::TryFromSliceError;
+use core::fmt;
 
 use bitflags::bitflags;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
@@ -16,13 +17,15 @@ mod fields;
 use byteorder::{ByteOrder, NetworkEndian};
 pub use fields::*;
 
-// Error trait is only available on std (on stable; stabilized in nightly 1.81) so this has to be std-gated
-#[cfg(feature = "std")]
-mod error_impls;
-
 /// An error type indicating that there is not enough space to complete an operation.
 #[derive(Debug)]
 pub struct NotEnoughSpace(());
+
+impl fmt::Display for NotEnoughSpace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Not enough space in buffer")
+    }
+}
 
 /// An error that occurred during deserialization of a full/partial packet.
 #[non_exhaustive]
@@ -63,6 +66,32 @@ impl<Enum: TryFromPrimitive<Primitive = u8>> From<TryFromPrimitiveError<Enum>>
     fn from(_value: TryFromPrimitiveError<Enum>) -> Self {
         Self::InvalidWireBytes
     }
+}
+
+impl fmt::Display for DeserializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::InvalidWireBytes => "Invalid byte representation of object",
+            Self::UnexpectedEnd => "Unexpected end of buffer when deserializing object",
+            Self::NotEnoughSpace => "Not enough space in provided buffer",
+            Self::VersionMismatch => {
+                "Mismatch in protocol version & authentication protocol specified"
+            }
+        };
+
+        write!(f, "{}", message)
+    }
+}
+
+// Error trait is only available on std (on stable; stabilized in nightly 1.81) so this has to be std-gated
+#[cfg(feature = "std")]
+mod error_impls {
+    use std::error::Error;
+
+    use super::{DeserializeError, NotEnoughSpace};
+
+    impl Error for DeserializeError {}
+    impl Error for NotEnoughSpace {}
 }
 
 /// The major version of the TACACS+ protocol.
