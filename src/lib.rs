@@ -1,6 +1,6 @@
 //! # tacacs-plus
 //!
-//! Rust implementation of the TACACS+ ([RFC8907](https://www.rfc-editor.org/rfc/rfc8907)) and TACACS+ over TLS 1.3 ([IETF draft](https://datatracker.ietf.org/doc/draft-ietf-opsawg-tacacs-tls13/)) protocols.
+//! Rust implementation of the TACACS+ ([RFC8907](https://www.rfc-editor.org/rfc/rfc8907)) protocol.
 
 #![no_std]
 #![cfg_attr(feature = "docsrs", feature(doc_auto_cfg))]
