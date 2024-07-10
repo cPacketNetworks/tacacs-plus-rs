@@ -252,8 +252,8 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             Ok(Reply {
                 status,
-                server_message: AsciiStr::try_from_bytes(&buffer[body_begin..data_begin])
-                    .ok_or(DeserializeError::InvalidWireBytes)?,
+                server_message: AsciiStr::try_from(&buffer[body_begin..data_begin])
+                    .map_err(|_| DeserializeError::InvalidWireBytes)?,
                 data: &buffer[data_begin..data_begin + data_length],
                 no_echo,
             })

@@ -1,10 +1,10 @@
 use super::*;
-use crate::ascii::assert_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationMethod, AuthenticationService, AuthenticationType,
     HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags, PrivilegeLevel, Serialize,
     UserInformation, Version,
 };
+use crate::AsciiStr;
 
 use tinyvec::array_vec;
 
@@ -16,9 +16,12 @@ fn serialize_request_no_arguments() {
         service: AuthenticationService::Enable,
     };
 
-    let user_information =
-        UserInformation::new("testuser", assert_ascii("tcp49"), assert_ascii("127.0.0.1"))
-            .expect("client information should have been valid");
+    let user_information = UserInformation::new(
+        "testuser",
+        AsciiStr::assert("tcp49"),
+        AsciiStr::assert("127.0.0.1"),
+    )
+    .expect("client information should have been valid");
 
     let mut empty_arguments = [];
 
@@ -64,14 +67,14 @@ fn serialize_request_one_argument() {
 
     let user_information = UserInformation::new(
         "testuser",
-        assert_ascii("ttyAMA0"),
-        assert_ascii("127.1.2.2"),
+        AsciiStr::assert("ttyAMA0"),
+        AsciiStr::assert("127.1.2.2"),
     )
     .expect("client information should have been valid");
 
     let mut argument_array = [Argument::new(
-        assert_ascii("service"),
-        assert_ascii("serialization-test"),
+        AsciiStr::assert("service"),
+        AsciiStr::assert("serialization-test"),
         true,
     )
     .expect("argument should be valid")];
@@ -125,8 +128,12 @@ fn serialize_full_request_packet() {
         session_id,
     };
 
-    let mut arguments =
-        [Argument::new(assert_ascii("service"), assert_ascii("fulltest"), true).unwrap()];
+    let mut arguments = [Argument::new(
+        AsciiStr::assert("service"),
+        AsciiStr::assert("fulltest"),
+        true,
+    )
+    .unwrap()];
 
     let body = Request {
         method: AuthenticationMethod::Kerberos5,
@@ -137,8 +144,8 @@ fn serialize_full_request_packet() {
         },
         user_information: UserInformation::new(
             "requestor",
-            assert_ascii("tcp23"),
-            assert_ascii("127.254.1.2"),
+            AsciiStr::assert("tcp23"),
+            AsciiStr::assert("127.254.1.2"),
         )
         .unwrap(),
         arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
@@ -208,13 +215,18 @@ fn deserialize_reply_two_arguments() {
     raw_bytes.extend_from_slice(b"person*world!");
 
     let mut expected_arguments = [
-        Argument::new(assert_ascii("service"), assert_ascii("greet"), true).unwrap(),
-        Argument::new(assert_ascii("person"), assert_ascii("world!"), false).unwrap(),
+        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("greet"), true).unwrap(),
+        Argument::new(
+            AsciiStr::assert("person"),
+            AsciiStr::assert("world!"),
+            false,
+        )
+        .unwrap(),
     ];
 
     let expected = Reply {
         status: Status::PassAdd,
-        server_message: assert_ascii("hello"),
+        server_message: AsciiStr::assert("hello"),
         data: b"world",
         arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice())
             .expect("argument construction shouldn't have failed"),
@@ -259,7 +271,7 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"service=nah");
 
     let mut expected_arguments =
-        [Argument::new(assert_ascii("service"), assert_ascii("nah"), true).unwrap()];
+        [Argument::new(AsciiStr::assert("service"), AsciiStr::assert("nah"), true).unwrap()];
 
     let expected_header = HeaderInfo {
         version: Version::of(MajorVersion::TheOnlyVersion, MinorVersion::Default),
@@ -270,7 +282,7 @@ fn deserialize_full_reply_packet() {
 
     let expected_body = Reply {
         status: Status::Fail,
-        server_message: assert_ascii("something went wrong :("),
+        server_message: AsciiStr::assert("something went wrong :("),
         data: b"\x88\x88\x88\x88",
         arguments: Arguments::try_from_full_slice(expected_arguments.as_mut_slice()).unwrap(),
     };

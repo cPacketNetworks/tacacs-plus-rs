@@ -1,13 +1,17 @@
 use super::*;
-use crate::ascii::assert_ascii;
+use crate::AsciiStr;
 
 #[test]
 fn arguments_two_required() {
     let mut argument_array = [
-        Argument::new(assert_ascii("service"), assert_ascii("test"), true)
+        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("test"), true)
             .expect("argument should be valid"),
-        Argument::new(assert_ascii("random-argument"), assert_ascii(""), true)
-            .expect("argument should be valid"),
+        Argument::new(
+            AsciiStr::assert("random-argument"),
+            AsciiStr::assert(""),
+            true,
+        )
+        .expect("argument should be valid"),
     ];
 
     let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
@@ -30,8 +34,8 @@ fn arguments_two_required() {
 #[test]
 fn arguments_one_optional() {
     let mut arguments_array = [Argument::new(
-        assert_ascii("optional-arg"),
-        assert_ascii("unimportant"),
+        AsciiStr::assert("optional-arg"),
+        AsciiStr::assert("unimportant"),
         false,
     )
     .expect("argument should be valid")];

@@ -215,9 +215,8 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let server_message_start = Self::MINIMUM_LENGTH;
             let data_start = server_message_start + server_message_length;
 
-            let server_message =
-                AsciiStr::try_from_bytes(&buffer[server_message_start..data_start])
-                    .ok_or(DeserializeError::InvalidWireBytes)?;
+            let server_message = AsciiStr::try_from(&buffer[server_message_start..data_start])
+                .map_err(|_| DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..data_start + data_length];
 
             Ok(Self {

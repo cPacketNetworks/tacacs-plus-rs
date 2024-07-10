@@ -1,20 +1,21 @@
 use super::*;
-use crate::ascii::assert_ascii;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
     PrivilegeLevel, UserInformation, Version,
 };
+use crate::AsciiStr;
 
 use tinyvec::array_vec;
 
 #[test]
 fn serialize_request_body_with_argument() {
-    let mut argument_array =
-        [
-            Argument::new(assert_ascii("service"), assert_ascii("tacacs-test"), true)
-                .expect("argument should be valid"),
-        ];
+    let mut argument_array = [Argument::new(
+        AsciiStr::assert("service"),
+        AsciiStr::assert("tacacs-test"),
+        true,
+    )
+    .expect("argument should be valid")];
 
     let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
         .expect("argument array should be valid");
@@ -29,8 +30,8 @@ fn serialize_request_body_with_argument() {
         },
         user_information: UserInformation::new(
             "guest",
-            assert_ascii("tty0"),
-            assert_ascii("127.10.0.100"),
+            AsciiStr::assert("tty0"),
+            AsciiStr::assert("127.10.0.100"),
         )
         .unwrap(),
         arguments,
@@ -66,8 +67,13 @@ fn serialize_request_body_with_argument() {
 #[test]
 fn serialize_full_request_packet() {
     let mut arguments = [
-        Argument::new(assert_ascii("task_id"), assert_ascii("1234"), true).unwrap(),
-        Argument::new(assert_ascii("service"), assert_ascii("fullpacket"), true).unwrap(),
+        Argument::new(AsciiStr::assert("task_id"), AsciiStr::assert("1234"), true).unwrap(),
+        Argument::new(
+            AsciiStr::assert("service"),
+            AsciiStr::assert("fullpacket"),
+            true,
+        )
+        .unwrap(),
     ];
 
     let body = Request {
@@ -80,8 +86,8 @@ fn serialize_full_request_packet() {
         },
         user_information: UserInformation::new(
             "secret",
-            assert_ascii("tty6"),
-            assert_ascii("10.10.10.10"),
+            AsciiStr::assert("tty6"),
+            AsciiStr::assert("10.10.10.10"),
         )
         .unwrap(),
         arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
@@ -160,7 +166,7 @@ fn deserialize_reply_all_fields() {
     assert_eq!(
         Ok(Reply {
             status: Status::Error,
-            server_message: AsciiStr::try_from_bytes(server_message.as_slice()).unwrap(),
+            server_message: AsciiStr::try_from(server_message.as_slice()).unwrap(),
             data: &[0xa4, 0x42]
         }),
         body_raw.as_slice().try_into()
@@ -202,7 +208,7 @@ fn deserialize_full_reply_packet() {
 
     let expected_body = Reply {
         status: Status::Error,
-        server_message: assert_ascii("hello"),
+        server_message: AsciiStr::assert("hello"),
         data: b"fifteen letters",
     };
 

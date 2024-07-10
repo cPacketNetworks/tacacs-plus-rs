@@ -198,8 +198,8 @@ impl<'raw> DeserializeWithArguments<'raw> for Reply<'raw> {
             let data_start = body_start + server_message_length;
             let arguments_start = data_start + data_length;
 
-            let server_message = AsciiStr::try_from_bytes(&buffer[body_start..data_start])
-                .ok_or(DeserializeError::InvalidWireBytes)?;
+            let server_message = AsciiStr::try_from(&buffer[body_start..data_start])
+                .map_err(|_| DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..arguments_start];
 
             let argument_lengths = &buffer[6..6 + argument_count];

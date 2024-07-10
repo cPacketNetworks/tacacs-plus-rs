@@ -1,9 +1,9 @@
 use super::*;
-use crate::ascii::assert_ascii;
 use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, MajorVersion,
     MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
 };
+use crate::AsciiStr;
 
 use tinyvec::array_vec;
 
@@ -16,8 +16,12 @@ fn serialize_start_no_data() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        UserInformation::new("authtest", assert_ascii("serial"), assert_ascii("serial"))
-            .expect("user information should be valid"),
+        UserInformation::new(
+            "authtest",
+            AsciiStr::assert("serial"),
+            AsciiStr::assert("serial"),
+        )
+        .expect("user information should be valid"),
         None,
     )
     .expect("start construction should have succeeded");
@@ -56,8 +60,12 @@ fn serialize_start_with_data() {
             authentication_type: AuthenticationType::MsChap,
             service: AuthenticationService::X25,
         },
-        UserInformation::new("authtest2", assert_ascii("49"), assert_ascii("10.0.2.24"))
-            .expect("user information should be valid"),
+        UserInformation::new(
+            "authtest2",
+            AsciiStr::assert("49"),
+            AsciiStr::assert("10.0.2.24"),
+        )
+        .expect("user information should be valid"),
         Some("some test data with ✨ unicode ✨".as_bytes()),
     )
     .expect("start construction should have succeeded");
@@ -102,8 +110,8 @@ fn serialize_start_data_too_long() {
         },
         UserInformation::new(
             "invalid",
-            assert_ascii("theport"),
-            assert_ascii("somewhere"),
+            AsciiStr::assert("theport"),
+            AsciiStr::assert("somewhere"),
         )
         .expect("user information should be valid"),
         Some(&long_data),
@@ -132,7 +140,12 @@ fn serialize_full_start_packet() {
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
-        UserInformation::new("startup", assert_ascii("49"), assert_ascii("192.168.23.10")).unwrap(),
+        UserInformation::new(
+            "startup",
+            AsciiStr::assert("49"),
+            AsciiStr::assert("192.168.23.10"),
+        )
+        .unwrap(),
         Some(b"E"),
     )
     .expect("start construction should have succeeded");
@@ -196,7 +209,7 @@ fn serialize_full_start_packet_version_mismatch() {
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Login,
         },
-        UserInformation::new("bad", assert_ascii("49"), assert_ascii("::1")).unwrap(),
+        UserInformation::new("bad", AsciiStr::assert("49"), AsciiStr::assert("::1")).unwrap(),
         None,
     )
     .expect("packet construction should have succeeded");
@@ -231,7 +244,7 @@ fn deserialize_reply_pass_both_data_fields() {
         Reply::try_from(packet_data.as_slice()),
         Ok(Reply {
             status: Status::Pass,
-            server_message: assert_ascii("login successful"),
+            server_message: AsciiStr::assert("login successful"),
             data: b"\x12\x77\xfa\xcc",
             no_echo: false
         })
@@ -337,7 +350,7 @@ fn deserialize_reply_full_packet() {
 
     let expected_body = Reply {
         status: Status::Restart,
-        server_message: assert_ascii("try again"),
+        server_message: AsciiStr::assert("try again"),
         data: &[1, 1, 2, 3, 5, 8, 13],
         no_echo: false,
     };
