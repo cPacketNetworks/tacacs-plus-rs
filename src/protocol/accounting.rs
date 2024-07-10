@@ -73,6 +73,8 @@ pub struct Request<'packet> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Accounting;
+
+    // 4 extra bytes come from user information lengths (user, port, remote address) & argument count
     const REQUIRED_FIELDS_LENGTH: usize =
         Flags::WIRE_SIZE + AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
@@ -138,6 +140,11 @@ pub enum Status {
     Follow = 0x21,
 }
 
+impl Status {
+    /// The number of bytes an accounting reply status occupies on the wire.
+    pub const WIRE_SIZE: usize = 1;
+}
+
 /// An accounting reply packet received from a TACACS+ server.
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'packet> {
@@ -187,7 +194,9 @@ impl Reply<'_> {
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Accounting;
-    const REQUIRED_FIELDS_LENGTH: usize = 5;
+
+    // 4 extra bytes are 2 bytes each for lengths of server message/data
+    const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 4;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {

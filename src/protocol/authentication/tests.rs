@@ -217,7 +217,7 @@ fn deserialize_reply_pass_both_data_fields() {
             status: Status::Pass,
             server_message: AsciiStr::assert("login successful"),
             data: b"\x12\x77\xfa\xcc",
-            no_echo: false
+            flags: ReplyFlags::empty()
         })
     );
 }
@@ -322,7 +322,7 @@ fn deserialize_reply_full_packet() {
         status: Status::Restart,
         server_message: AsciiStr::assert("try again"),
         data: &[1, 1, 2, 3, 5, 8, 13],
-        no_echo: false,
+        flags: ReplyFlags::empty(),
     };
 
     let expected_packet = Packet::new(expected_header, expected_body);
@@ -367,8 +367,8 @@ fn deserialize_reply_type_mismatch() {
 
 #[test]
 fn serialize_continue_no_data() {
-    let continue_body =
-        Continue::new(None, None, false).expect("continue construction should have succeeded");
+    let continue_body = Continue::new(None, None, ContinueFlags::empty())
+        .expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 5];
     continue_body
@@ -392,7 +392,7 @@ fn serialize_continue_both_valid_data_fields() {
     let data = b"\x12\x34\x45\x78";
     let data_length = data.len();
 
-    let continue_body = Continue::new(Some(user_message), Some(data), true)
+    let continue_body = Continue::new(Some(user_message), Some(data), ContinueFlags::ABORT)
         .expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 30];
@@ -420,7 +420,7 @@ fn serialize_continue_only_data_field() {
     let data = b"textand\x2abinary\x11";
     let data_length = data.len();
 
-    let continue_body = Continue::new(None, Some(data), false)
+    let continue_body = Continue::new(None, Some(data), ContinueFlags::empty())
         .expect("continue construction should have succeeded");
 
     let mut buffer = [0xff; 40];
@@ -453,7 +453,7 @@ fn serialize_continue_full_packet() {
     let body = Continue::new(
         Some(b"this is a message"),
         Some(&[64, 43, 2, 255, 2]),
-        false,
+        ContinueFlags::empty(),
     )
     .expect("continue construction should have worked");
 

@@ -179,8 +179,8 @@ pub struct UserInformation<'info> {
 }
 
 impl<'info> UserInformation<'info> {
-    // three lengths in header
-    const HEADER_INFORMATION_SIZE: usize = 3;
+    /// Number of bytes occupied by `UserInformation` "header" information (i.e., field lengths).
+    pub const HEADER_INFORMATION_SIZE: usize = 3; // 3 single-byte field lengths
 
     /// Returns the number of bytes this information bundle will occupy on the wire.
     pub fn wire_size(&self) -> usize {

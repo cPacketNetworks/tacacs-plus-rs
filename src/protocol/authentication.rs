@@ -1,5 +1,6 @@
 //! Authentication-related protocol packets.
 
+use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
 use num_enum::TryFromPrimitive;
 
@@ -62,6 +63,11 @@ pub enum Status {
     Follow = 0x21,
 }
 
+impl Status {
+    /// Number of bytes an authentication reply status occupies on the wire.
+    pub const WIRE_SIZE: usize = 1;
+}
+
 /// An authentication start packet, used to initiate an authentication session.
 pub struct Start<'packet> {
     action: Action,
@@ -98,7 +104,12 @@ impl<'packet> Start<'packet> {
 
 impl PacketBody for Start<'_> {
     const TYPE: PacketType = PacketType::Authentication;
-    const REQUIRED_FIELDS_LENGTH: usize = Action::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
+
+    // extra byte for data length
+    const REQUIRED_FIELDS_LENGTH: usize = Action::WIRE_SIZE
+        + AuthenticationContext::WIRE_SIZE
+        + UserInformation::HEADER_INFORMATION_SIZE
+        + 1;
 
     fn required_minor_version(&self) -> Option<MinorVersion> {
         // NOTE: a check in Start::new() guarantees that the authentication type will not be NotSet
@@ -153,13 +164,29 @@ impl Serialize for Start<'_> {
     }
 }
 
+/// Flags received in an authentication reply packet.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ReplyFlags(u8);
+
+impl ReplyFlags {
+    /// Number of bytes reply flags occupy on the wire.
+    pub const WIRE_SIZE: usize = 1;
+}
+
+bitflags! {
+    impl ReplyFlags: u8 {
+        /// Indicates the client MUST NOT display user input.
+        const NO_ECHO = 0b00000001;
+    }
+}
+
 /// An authentication reply packet received from a server.
 #[derive(Debug, PartialEq)]
 pub struct Reply<'packet> {
     status: Status,
     server_message: AsciiStr<'packet>,
     data: &'packet [u8],
-    no_echo: bool,
+    flags: ReplyFlags,
 }
 
 impl Reply<'_> {
@@ -202,13 +229,15 @@ impl Reply<'_> {
 
     /// Whether the no echo flag was set by the server in this reply.
     pub fn no_echo(&self) -> bool {
-        self.no_echo
+        self.flags.contains(ReplyFlags::NO_ECHO)
     }
 }
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Authentication;
-    const REQUIRED_FIELDS_LENGTH: usize = 6;
+
+    // extra 2 bytes each for lengths of server message & data
+    const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + ReplyFlags::WIRE_SIZE + 4;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
@@ -220,11 +249,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
         if buffer_length >= claimed_length {
             let status: Status = buffer[0].try_into()?;
-            let no_echo = match buffer[1] {
-                0 => Ok(false),
-                1 => Ok(true),
-                _ => Err(DeserializeError::InvalidWireBytes),
-            }?;
+            // TODO: dedicated bad flags variant?
+            let flags =
+                ReplyFlags::from_bits(buffer[1]).ok_or(DeserializeError::InvalidWireBytes)?;
 
             let (server_message_length, data_length) =
                 Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
@@ -237,7 +264,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 server_message: AsciiStr::try_from(&buffer[body_begin..data_begin])
                     .map_err(|_| DeserializeError::InvalidWireBytes)?,
                 data: &buffer[data_begin..data_begin + data_length],
-                no_echo,
+                flags,
             })
         } else {
             Err(DeserializeError::UnexpectedEnd)
@@ -245,11 +272,22 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     }
 }
 
+/// Flags to send as part of an authentication continue packet.
+#[derive(Debug)]
+pub struct ContinueFlags(u8);
+
+bitflags! {
+    impl ContinueFlags: u8 {
+        /// Indicates the client is prematurely aborting the authentication session.
+        const ABORT = 0b00000001;
+    }
+}
+
 /// A continue packet potentially sent as part of an authentication session.
 pub struct Continue<'packet> {
     user_message: Option<&'packet [u8]>,
     data: Option<&'packet [u8]>,
-    abort: bool,
+    flags: ContinueFlags,
 }
 
 impl<'packet> Continue<'packet> {
@@ -257,7 +295,7 @@ impl<'packet> Continue<'packet> {
     pub fn new(
         user_message: Option<&'packet [u8]>,
         data: Option<&'packet [u8]>,
-        abort: bool,
+        flags: ContinueFlags,
     ) -> Option<Self> {
         if user_message.map_or(true, |message| u16::try_from(message.len()).is_ok())
             && data.map_or(true, |data_slice| u16::try_from(data_slice.len()).is_ok())
@@ -265,7 +303,7 @@ impl<'packet> Continue<'packet> {
             Some(Continue {
                 user_message,
                 data,
-                abort,
+                flags,
             })
         } else {
             None
@@ -288,7 +326,7 @@ impl Serialize for Continue<'_> {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
-            buffer[4] = u8::from(self.abort);
+            buffer[4] = self.flags.bits();
 
             let mut user_message_len = 0;
             if let Some(message) = self.user_message {

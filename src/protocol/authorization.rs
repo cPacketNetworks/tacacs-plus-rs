@@ -29,6 +29,8 @@ pub struct Request<'packet> {
 
 impl PacketBody for Request<'_> {
     const TYPE: PacketType = PacketType::Authorization;
+
+    // 4 extra bytes come from user information lengths (user, port, remote address) and argument count
     const REQUIRED_FIELDS_LENGTH: usize =
         AuthenticationMethod::WIRE_SIZE + AuthenticationContext::WIRE_SIZE + 4;
 }
@@ -247,6 +249,8 @@ impl<'packet> Reply<'packet> {
 
 impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Authorization;
+
+    // 1 byte for status, 1 byte for argument count, 2 bytes each for lengths of server message/data
     const REQUIRED_FIELDS_LENGTH: usize = 6;
 }
 
