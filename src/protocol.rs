@@ -231,9 +231,9 @@ impl<B: PacketBody> Packet<B> {
         }
     }
 
-    /// Returns (a copy of) the header information of this packet.
-    pub fn header(&self) -> HeaderInfo {
-        self.header
+    /// Returns the header information of this packet.
+    pub fn header(&self) -> &HeaderInfo {
+        &self.header
     }
 
     /// Getter for the body of a packet.
