@@ -92,6 +92,11 @@ pub enum Status {
     Follow = 0x21,
 }
 
+impl Status {
+    /// The wire size of an authorization reply status in bytes.
+    pub const WIRE_SIZE: usize = 1;
+}
+
 /// Some information about the arguments in the binary representation of a reply packet.
 #[derive(Debug)]
 struct ArgumentsInfo<'raw> {
@@ -251,7 +256,7 @@ impl PacketBody for Reply<'_> {
     const TYPE: PacketType = PacketType::Authorization;
 
     // 1 byte for status, 1 byte for argument count, 2 bytes each for lengths of server message/data
-    const REQUIRED_FIELDS_LENGTH: usize = 6;
+    const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 1 + 4;
 }
 
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
