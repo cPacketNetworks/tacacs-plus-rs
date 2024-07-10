@@ -8,6 +8,7 @@ edition = "2021"
 [features]
 default = ["std"]
 std = ["dep:futures", "byteorder/std"]
+docsrs = []
 
 [dependencies]
 bitflags = { version = "2.4.2" }
