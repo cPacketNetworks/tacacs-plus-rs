@@ -11,7 +11,7 @@ use tinyvec::array_vec;
 #[test]
 fn serialize_request_no_arguments() {
     let authentication_context = AuthenticationContext {
-        privilege_level: PrivilegeLevel::of(1).unwrap(),
+        privilege_level: PrivilegeLevel::new(1).unwrap(),
         authentication_type: AuthenticationType::Ascii,
         service: AuthenticationService::Enable,
     };
@@ -57,7 +57,7 @@ fn serialize_request_no_arguments() {
 #[test]
 fn serialize_request_one_argument() {
     let authentication_context = AuthenticationContext {
-        privilege_level: PrivilegeLevel::of(15).expect("15 should be a valid privilege level"),
+        privilege_level: PrivilegeLevel::new(15).expect("15 should be a valid privilege level"),
         authentication_type: AuthenticationType::MsChapV2,
         service: AuthenticationService::FwProxy,
     };
@@ -135,7 +135,7 @@ fn serialize_full_request_packet() {
     let body = Request {
         method: AuthenticationMethod::Kerberos5,
         authentication_context: AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(14).unwrap(),
+            privilege_level: PrivilegeLevel::new(14).unwrap(),
             authentication_type: AuthenticationType::NotSet,
             service: AuthenticationService::Enable,
         },

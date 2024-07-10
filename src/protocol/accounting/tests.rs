@@ -22,7 +22,7 @@ fn serialize_request_body_with_argument() {
         flags: Flags::StartRecord,
         authentication_method: AuthenticationMethod::Guest,
         authentication: AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(0).unwrap(),
+            privilege_level: PrivilegeLevel::new(0).unwrap(),
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Login,
         },
@@ -81,7 +81,7 @@ fn serialize_full_request_packet() {
         flags: Flags::WatchdogNoUpdate,
         authentication_method: AuthenticationMethod::NotSet,
         authentication: AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(10).unwrap(),
+            privilege_level: PrivilegeLevel::new(10).unwrap(),
             authentication_type: AuthenticationType::NotSet,
             service: AuthenticationService::Pt,
         },

@@ -12,7 +12,7 @@ fn serialize_start_no_data() {
     let start_body = Start::new(
         Action::Login,
         AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(3).expect("privilege level 3 should be valid"),
+            privilege_level: PrivilegeLevel::new(3).expect("privilege level 3 should be valid"),
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },
@@ -56,7 +56,7 @@ fn serialize_start_with_data() {
     let start_body = Start::new(
         Action::ChangePassword,
         AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(4).expect("privilege level 4 should be valid"),
+            privilege_level: PrivilegeLevel::new(4).expect("privilege level 4 should be valid"),
             authentication_type: AuthenticationType::MsChap,
             service: AuthenticationService::X25,
         },
@@ -104,7 +104,7 @@ fn serialize_start_data_too_long() {
     let start_body = Start::new(
         Action::Login,
         AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(5).expect("privilege level 5 should be valid"),
+            privilege_level: PrivilegeLevel::new(5).expect("privilege level 5 should be valid"),
             authentication_type: AuthenticationType::Ascii,
             service: AuthenticationService::Nasi,
         },
@@ -135,7 +135,7 @@ fn serialize_full_start_packet() {
     let body = Start::new(
         Action::Login,
         AuthenticationContext {
-            privilege_level: PrivilegeLevel::of(0).unwrap(),
+            privilege_level: PrivilegeLevel::new(0).unwrap(),
             authentication_type: AuthenticationType::Pap,
             service: AuthenticationService::Ppp,
         },

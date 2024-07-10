@@ -17,7 +17,7 @@ pub enum AuthenticationMethod {
     /// Fixed password associated with access line
     Line = 0x03,
 
-    /// Granting new privileges (a la `su(1)`)
+    /// Granting new privileges (similar to `su(1)`)
     Enable = 0x04,
 
     /// Client-local user database
@@ -45,6 +45,7 @@ impl AuthenticationMethod {
 }
 
 /// A privilege level for authentication. Limited to the range 0-15, inclusive.
+#[repr(transparent)]
 pub struct PrivilegeLevel(u8);
 
 impl PrivilegeLevel {
@@ -54,13 +55,13 @@ impl PrivilegeLevel {
     /// ```
     /// use tacacs_plus::protocol::PrivilegeLevel;
     ///
-    /// let valid_level = PrivilegeLevel::of(3);
+    /// let valid_level = PrivilegeLevel::new(3);
     /// assert!(valid_level.is_some());
     ///
-    /// let too_big = PrivilegeLevel::of(42);
+    /// let too_big = PrivilegeLevel::new(42);
     /// assert!(too_big.is_none());
     /// ```
-    pub fn of(level: u8) -> Option<Self> {
+    pub fn new(level: u8) -> Option<Self> {
         if level <= 15 {
             Some(Self(level))
         } else {
@@ -111,7 +112,7 @@ impl AuthenticationType {
     }
 }
 
-/// A TACACS+ authentication service. Most of these values are only kept for backwards compatibility, so that's something to keep in mind.
+/// A TACACS+ authentication service. Most of these values are only kept for backwards compatibility.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
 pub enum AuthenticationService {
@@ -121,7 +122,7 @@ pub enum AuthenticationService {
     /// Regular login to a client device.
     Login = 0x01,
 
-    /// Request for a change in privileges, a la `su(1)`.
+    /// Request for a change in privileges, similar to the functionality of `su(1)`.
     Enable = 0x02,
 
     /// Point-to-Point Protocol
