@@ -4,8 +4,8 @@ use byteorder::{ByteOrder, NetworkEndian};
 use num_enum::TryFromPrimitive;
 
 use super::{
-    Argument, AuthenticationContext, AuthenticationMethod, DeserializeError, NotEnoughSpace,
-    PacketBody, PacketType, Serialize, UserInformation,
+    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
+    NotEnoughSpace, PacketBody, PacketType, Serialize, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -23,9 +23,8 @@ pub struct Request<'packet> {
     /// Information about the user connected to the TACACS+ client.
     pub user_information: UserInformation<'packet>,
 
-    // TODO: make just a reference
     /// Additional arguments to provide as part of an authorization request.
-    pub arguments: super::Arguments<'packet>,
+    pub arguments: Option<Arguments<'packet>>,
 }
 
 impl PacketBody for Request<'_> {
@@ -39,7 +38,7 @@ impl Serialize for Request<'_> {
         AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
-            + self.arguments.wire_size()
+            + self.arguments.as_ref().map_or(0, Arguments::wire_size)
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
@@ -50,17 +49,18 @@ impl Serialize for Request<'_> {
             self.user_information
                 .serialize_header_information(&mut buffer[4..7]);
 
-            self.arguments.serialize_header(&mut buffer[7..])?;
-
-            let body_start: usize =
-                Self::REQUIRED_FIELDS_LENGTH + self.arguments.argument_count() as usize;
+            let body_start: usize = Self::REQUIRED_FIELDS_LENGTH
+                + self.arguments.as_ref().map_or(0, Arguments::argument_count);
 
             let user_information_len = self
                 .user_information
                 .serialize_body_information(&mut buffer[body_start..]);
 
-            self.arguments
-                .serialize_body(&mut buffer[body_start + user_information_len..])?;
+            if let Some(arguments) = &self.arguments {
+                arguments.serialize_count_and_lengths(&mut buffer[7..]);
+                arguments
+                    .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
+            }
 
             Ok(self.wire_size())
         } else {
@@ -211,11 +211,12 @@ impl<'packet> Reply<'packet> {
             let raw_argument = &values[argument_start..argument_start + length as usize];
             argument_start += length as usize;
 
-            // valid -> fully ASCII & contains a delimiter
+            // valid -> fully ASCII & contains a delimiter, but doesn't start with one
             // (length is guaranteed to be okay since it's converted directly from a u8)
             // TODO: make this method on Argument instead?
             raw_argument.is_ascii()
                 && (raw_argument.contains(&b'=') || raw_argument.contains(&b'*'))
+                && !(raw_argument[0] == b'=' || raw_argument[0] == b'*')
         })
     }
 

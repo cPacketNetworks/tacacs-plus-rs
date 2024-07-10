@@ -23,14 +23,11 @@ fn serialize_request_no_arguments() {
     )
     .expect("client information should have been valid");
 
-    let mut empty_arguments = [];
-
     let request = Request {
         method: AuthenticationMethod::Enable,
         authentication_context,
         user_information,
-        arguments: Arguments::try_from_full_slice(empty_arguments.as_mut_slice())
-            .expect("empty argument list should be valid"),
+        arguments: None,
     };
 
     let mut buffer = [0u8; 40];
@@ -72,21 +69,20 @@ fn serialize_request_one_argument() {
     )
     .expect("client information should have been valid");
 
-    let mut argument_array = [Argument::new(
+    let argument_array = [Argument::new(
         AsciiStr::assert("service"),
         AsciiStr::assert("serialization-test"),
         true,
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
-        .expect("single argument array should be valid");
+    let arguments = Arguments::new(&argument_array).expect("single argument array should be valid");
 
     let request = Request {
         method: AuthenticationMethod::TacacsPlus,
         authentication_context,
         user_information,
-        arguments,
+        arguments: Some(arguments),
     };
 
     let mut buffer = [0u8; 60];
@@ -128,12 +124,14 @@ fn serialize_full_request_packet() {
         session_id,
     };
 
-    let mut arguments = [Argument::new(
+    let arguments_list = [Argument::new(
         AsciiStr::assert("service"),
         AsciiStr::assert("fulltest"),
         true,
     )
     .unwrap()];
+    let arguments =
+        Arguments::new(&arguments_list).expect("argument list should be of proper length");
 
     let body = Request {
         method: AuthenticationMethod::Kerberos5,
@@ -148,7 +146,7 @@ fn serialize_full_request_packet() {
             AsciiStr::assert("127.254.1.2"),
         )
         .unwrap(),
-        arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
+        arguments: Arguments::new(&arguments),
     };
 
     let packet = Packet::new(header, body).expect("packet construction should have succeeded");

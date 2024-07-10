@@ -1,6 +1,5 @@
-use tinyvec::SliceVec;
+use core::iter::zip;
 
-use super::{DeserializeError, NotEnoughSpace};
 use crate::AsciiStr;
 
 #[cfg(test)]
@@ -13,8 +12,6 @@ pub struct Argument<'data> {
     value: AsciiStr<'data>,
     required: bool,
 }
-
-// TODO!!! do away with argument; just expose as methods on an authorization::Reply and a Packet<authorization::Reply>
 
 impl<'data> Argument<'data> {
     /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).
@@ -36,9 +33,10 @@ impl<'data> Argument<'data> {
     }
 
     /// The encoded length of an argument, including the name/value/delimiter but not the byte holding its length earlier on in a packet.
-    fn encoded_length(&self) -> usize {
+    fn encoded_length(&self) -> u8 {
+        // NOTE: this should never panic due to length checks in new()
         // length includes delimiter
-        self.name.len() + 1 + self.value.len()
+        (self.name.len() + 1 + self.value.len()).try_into().unwrap()
     }
 
     /// Serializes an argument's name-value encoding, as done in the body of a packet.
@@ -79,110 +77,93 @@ impl<'data> Argument<'data> {
     }
 }
 
-/// A set of arguments, with some validation of length requirements and such.
-#[derive(PartialEq, Eq, Debug)]
-pub struct Arguments<'storage>(SliceVec<'storage, Argument<'storage>>);
+/// A set of arguments known to be of valid length for use in a TACACS+ packet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Arguments<'args>(&'args [Argument<'args>]);
 
-impl<'storage> Arguments<'storage> {
-    /// Attempts to convert a full mutable Argument slice to an Arguments object.
-    /// Succeeds if the length of the provided slice is less than `u8::MAX`.
-    pub fn try_from_full_slice(storage: &'storage mut [Argument<'storage>]) -> Option<Self> {
-        Self::try_from_slice_len(storage, storage.len())
-    }
-
-    /// Attempts to construct an Arguments object from a mutable Argument slice with some amount of existing parameters.
-    /// The backing storage should be of length of at most `u8::MAX`, the maximum number of arguments supported in the TACACS+ protocol due to how they are represented into packets.
-    pub fn try_from_slice_len(
-        storage: &'storage mut [Argument<'storage>],
-        length: usize,
-    ) -> Option<Self> {
-        if u8::try_from(storage.len()).is_ok() {
-            SliceVec::try_from_slice_len(storage, length).map(Self)
+impl<'args> Arguments<'args> {
+    /// Constructs a new `Arguments`, returning `Some` if the provided slice has less than `u8::MAX` and None otherwise.
+    pub fn new<T: AsRef<[Argument<'args>]>>(arguments: &'args T) -> Option<Self> {
+        if u8::try_from(arguments.as_ref().len()).is_ok() {
+            Some(Self(arguments.as_ref()))
         } else {
             None
         }
     }
 
-    /// The total size in bytes that the current set of arguments would occupy on the wire, including encoded argument values and their lengths.
-    pub fn wire_size(&self) -> usize {
-        // minimum length is 1 octet (argument count)
-        self.0.iter().fold(1, |total, argument| {
-            // 1 extra octet for storing encoded length
-            total + 1 + argument.encoded_length()
-        })
+    /// Returns the number of arguments an `Arguments` object contains.
+    pub fn argument_count(&self) -> usize {
+        self.0.len()
     }
 
-    /// The current number of arguments, expressed as a u8.
-    pub fn argument_count(&self) -> u8 {
-        self.0.len() as u8
+    /// Returns the size of this set of arguments on the wire, including encoded values as well as lengths & the argument count.
+    pub(super) fn wire_size(&self) -> usize {
+        let argument_count = self.0.len();
+        let argument_values_len: usize = self
+            .0
+            .iter()
+            .map(|argument| argument.encoded_length() as usize)
+            .sum();
+
+        // number of arguments itself takes up extra byte when serializing
+        1 + argument_count + argument_values_len
     }
 
-    /// Serializes the argument count and respective lengths, as stored in the "header" of a packet body.
-    pub(super) fn serialize_header(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
+    /// Serializes the argument count & lengths of the stored arguments into a buffer.
+    pub(super) fn serialize_count_and_lengths(&self, buffer: &mut [u8]) -> usize {
         let argument_count = self.argument_count();
 
-        // just check for header space; body check happens in serialize_body()
-        if buffer.len() > argument_count as usize {
-            buffer[0] = argument_count;
+        // strict greater than to allow room for encoded argument count itself
+        if buffer.len() > argument_count {
+            // NOTE: checks in construction should prevent this unwrap from panicking
+            buffer[0] = argument_count.try_into().unwrap();
 
-            let mut length_index = 1;
-            for argument in self.0.iter() {
-                // length is guaranteed to fit in a u8 based on checks in try_from_slice_len()
-                buffer[length_index] = argument.encoded_length() as u8;
-                length_index += 1;
+            // fill in argument lengths after argument count
+            for (position, argument) in zip(&mut buffer[1..1 + argument_count], self.0) {
+                *position = argument.encoded_length();
             }
 
-            Ok(())
+            // total bytes written: number of arguments + one extra byte for argument count itself
+            1 + argument_count
         } else {
-            Err(NotEnoughSpace(()))
+            0
         }
     }
 
-    /// Serializes the name-value encodings of the stored arguments to a buffer.
-    pub(super) fn serialize_body(&self, buffer: &mut [u8]) -> Result<(), NotEnoughSpace> {
-        let full_encoded_length = self.0.iter().map(Argument::encoded_length).sum();
+    /// Serializes the stored arguments in their proper encoding to a buffer.
+    pub(super) fn serialize_encoded_values(&self, buffer: &mut [u8]) -> usize {
+        let full_encoded_length = self
+            .0
+            .iter()
+            .map(|argument| argument.encoded_length() as usize)
+            .sum();
 
         if buffer.len() >= full_encoded_length {
             let mut argument_start = 0;
+            let mut total_written = 0;
 
             for argument in self.0.iter() {
-                let argument_length = argument.encoded_length();
-                argument.serialize_name_value(&mut buffer[argument_start..]);
-                argument_start += argument_length;
+                let argument_length = argument.encoded_length() as usize;
+                let next_argument_start = argument_start + argument_length;
+                argument.serialize_name_value(&mut buffer[argument_start..next_argument_start]);
+
+                // update loop state
+                argument_start = next_argument_start;
+
+                // this is technically redundant with the initial full_encoded_length calculation above
+                // but better to be safe than sorry right?
+                total_written += argument_length;
             }
-            Ok(())
+
+            total_written
         } else {
-            Err(NotEnoughSpace(()))
+            0
         }
     }
+}
 
-    /// Deserializes arguments from their name-value-length encodings on the wire.
-    pub(super) fn deserialize(
-        lengths: &[u8],
-        values: &'storage [u8],
-        storage: &'storage mut [Argument<'storage>],
-    ) -> Result<Self, DeserializeError> {
-        if storage.len() >= lengths.len() {
-            let mut arguments =
-                Self::try_from_slice_len(storage, 0).ok_or(DeserializeError::NotEnoughSpace)?;
-
-            let mut argument_start = 0;
-            for &length in lengths {
-                let next_argument_start = argument_start + length as usize;
-
-                let raw_argument = &values[argument_start..next_argument_start];
-                let parsed_argument = Argument::deserialize(raw_argument)
-                    .ok_or(DeserializeError::InvalidWireBytes)?;
-
-                // length is checked above so we can do the unchecked push safely
-                arguments.0.push(parsed_argument);
-
-                argument_start = next_argument_start;
-            }
-
-            Ok(arguments)
-        } else {
-            Err(DeserializeError::NotEnoughSpace)
-        }
+impl<'args> AsRef<[Argument<'args>]> for Arguments<'args> {
+    fn as_ref(&self) -> &[Argument<'args>] {
+        self.0
     }
 }

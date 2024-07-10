@@ -10,15 +10,14 @@ use tinyvec::array_vec;
 
 #[test]
 fn serialize_request_body_with_argument() {
-    let mut argument_array = [Argument::new(
+    let argument_array = [Argument::new(
         AsciiStr::assert("service"),
         AsciiStr::assert("tacacs-test"),
         true,
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
-        .expect("argument array should be valid");
+    let arguments = Arguments::new(&argument_array).expect("argument array should be valid");
 
     let request = Request {
         flags: Flags::StartRecord,
@@ -34,7 +33,7 @@ fn serialize_request_body_with_argument() {
             AsciiStr::assert("127.10.0.100"),
         )
         .unwrap(),
-        arguments,
+        arguments: Some(arguments),
     };
 
     let mut buffer = [0u8; 50];
@@ -66,7 +65,7 @@ fn serialize_request_body_with_argument() {
 
 #[test]
 fn serialize_full_request_packet() {
-    let mut arguments = [
+    let arguments_array = [
         Argument::new(AsciiStr::assert("task_id"), AsciiStr::assert("1234"), true).unwrap(),
         Argument::new(
             AsciiStr::assert("service"),
@@ -75,6 +74,9 @@ fn serialize_full_request_packet() {
         )
         .unwrap(),
     ];
+
+    let arguments = Arguments::new(&arguments_array)
+        .expect("Arguments construction shouldn't fail; length is short enough");
 
     let body = Request {
         flags: Flags::WatchdogNoUpdate,
@@ -90,7 +92,7 @@ fn serialize_full_request_packet() {
             AsciiStr::assert("10.10.10.10"),
         )
         .unwrap(),
-        arguments: Arguments::try_from_full_slice(arguments.as_mut_slice()).unwrap(),
+        arguments: Some(arguments),
     };
 
     let session_id = 298734923;

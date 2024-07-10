@@ -3,7 +3,7 @@ use crate::AsciiStr;
 
 #[test]
 fn arguments_two_required() {
-    let mut argument_array = [
+    let argument_array = [
         Argument::new(AsciiStr::assert("service"), AsciiStr::assert("test"), true)
             .expect("argument should be valid"),
         Argument::new(
@@ -14,43 +14,38 @@ fn arguments_two_required() {
         .expect("argument should be valid"),
     ];
 
-    let arguments = Arguments::try_from_full_slice(argument_array.as_mut_slice())
+    let arguments = Arguments::new(&argument_array)
         .expect("argument array -> Arguments conversion should have worked");
 
     let mut buffer = [0u8; 40];
 
     // ensure header information is serialized correctly
-    arguments
-        .serialize_header(&mut buffer)
-        .expect("header serialization should succeed");
-    assert_eq!(buffer[..3], [2, 12, 16]);
+    let header_serialized_len = arguments.serialize_count_and_lengths(&mut buffer);
+    assert_eq!(buffer[..header_serialized_len], [2, 12, 16]);
 
-    arguments
-        .serialize_body(&mut buffer)
-        .expect("body serialization should succeed");
-    assert_eq!(&buffer[..28], b"service=testrandom-argument=");
+    let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
+    assert_eq!(
+        &buffer[..body_serialized_len],
+        b"service=testrandom-argument="
+    );
 }
 
 #[test]
 fn arguments_one_optional() {
-    let mut arguments_array = [Argument::new(
+    let arguments_array = [Argument::new(
         AsciiStr::assert("optional-arg"),
         AsciiStr::assert("unimportant"),
         false,
     )
     .expect("argument should be valid")];
 
-    let arguments = Arguments::try_from_full_slice(arguments_array.as_mut_slice())
-        .expect("argument construction should have succeeded");
+    let arguments =
+        Arguments::new(&arguments_array).expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];
-    arguments
-        .serialize_header(&mut buffer)
-        .expect("header serialization should succeed");
-    assert_eq!(buffer[..2], [1, 24]);
+    let header_serialized_len = arguments.serialize_count_and_lengths(&mut buffer);
+    assert_eq!(buffer[..header_serialized_len], [1, 24]);
 
-    arguments
-        .serialize_body(&mut buffer)
-        .expect("body serialization should succeed");
-    assert_eq!(&buffer[..24], b"optional-arg*unimportant");
+    let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
+    assert_eq!(&buffer[..body_serialized_len], b"optional-arg*unimportant");
 }

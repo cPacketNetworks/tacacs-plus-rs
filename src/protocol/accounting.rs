@@ -68,7 +68,7 @@ pub struct Request<'packet> {
     pub user_information: UserInformation<'packet>,
 
     /// Arguments to provide additional information to the server.
-    pub arguments: Arguments<'packet>,
+    pub arguments: Option<Arguments<'packet>>,
 }
 
 impl PacketBody for Request<'_> {
@@ -83,7 +83,7 @@ impl Serialize for Request<'_> {
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
-            + self.arguments.wire_size()
+            + self.arguments.as_ref().map_or(0, Arguments::wire_size)
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
@@ -98,20 +98,24 @@ impl Serialize for Request<'_> {
                 .serialize_header_information(&mut buffer[2..5]);
             self.user_information
                 .serialize_header_information(&mut buffer[5..8]);
-            self.arguments.serialize_header(&mut buffer[8..])?;
 
-            let argument_count = self.arguments.argument_count();
+            let argument_count = self.arguments.as_ref().map_or(0, Arguments::argument_count);
 
             // extra 1 is added to avoid overwriting the last argument length
-            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count as usize;
+            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
 
             // actual request content
             let user_information_len = self
                 .user_information
                 .serialize_body_information(&mut buffer[body_start..]);
-            self.arguments
-                .serialize_body(&mut buffer[body_start + user_information_len..])?;
 
+            if let Some(arguments) = self.arguments.as_ref() {
+                arguments.serialize_count_and_lengths(&mut buffer[8..]);
+                arguments
+                    .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
+            }
+
+            // TODO: calculate wire_size along the way and assert equality?
             Ok(wire_size)
         } else {
             Err(NotEnoughSpace(()))
