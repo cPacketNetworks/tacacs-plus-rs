@@ -213,6 +213,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
         let claimed_body_length =
             Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
 
+        // NOTE: the length returned by claimed_length() if non-None is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
         if buffer.len() >= claimed_body_length {
             let status: Status = buffer[4].try_into()?;
 
