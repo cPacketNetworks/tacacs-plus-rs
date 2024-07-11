@@ -56,19 +56,38 @@ impl Flags {
 /// An accounting request packet, used to start, stop, or provide progress on a running job.
 pub struct Request<'packet> {
     /// Flags to indicate what kind of accounting record this packet includes.
-    pub flags: Flags,
+    flags: Flags,
 
     /// Method used to authenticate to TACACS+ client.
-    pub authentication_method: AuthenticationMethod,
+    authentication_method: AuthenticationMethod,
 
     /// Other information about authentication to TACACS+ client.
-    pub authentication: AuthenticationContext,
+    authentication: AuthenticationContext,
 
     /// Information about the user connected to the client.
-    pub user_information: UserInformation<'packet>,
+    user_information: UserInformation<'packet>,
 
     /// Arguments to provide additional information to the server.
-    pub arguments: Option<Arguments<'packet>>,
+    arguments: Arguments<'packet>,
+}
+
+impl<'packet> Request<'packet> {
+    /// Assembles a new accounting request packet body.
+    pub fn new(
+        flags: Flags,
+        authentication_method: AuthenticationMethod,
+        authentication: AuthenticationContext,
+        user_information: UserInformation<'packet>,
+        arguments: Arguments<'packet>,
+    ) -> Self {
+        Self {
+            flags,
+            authentication_method,
+            authentication,
+            user_information,
+            arguments,
+        }
+    }
 }
 
 impl PacketBody for Request<'_> {
@@ -85,7 +104,7 @@ impl Serialize for Request<'_> {
             + AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
-            + self.arguments.as_ref().map_or(0, Arguments::wire_size)
+            + self.arguments.wire_size()
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
@@ -101,9 +120,9 @@ impl Serialize for Request<'_> {
             self.user_information
                 .serialize_header_information(&mut buffer[5..8]);
 
-            let argument_count = self.arguments.as_ref().map_or(0, Arguments::argument_count);
+            let argument_count = self.arguments.argument_count();
 
-            // extra 1 is added to avoid overwriting the last argument length
+            // body starts after the required fields & the argument lengths (1 byte per argument)
             let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
 
             // actual request content
@@ -111,14 +130,20 @@ impl Serialize for Request<'_> {
                 .user_information
                 .serialize_body_information(&mut buffer[body_start..]);
 
-            if let Some(arguments) = self.arguments.as_ref() {
-                arguments.serialize_count_and_lengths(&mut buffer[8..]);
-                arguments
-                    .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
-            }
+            let arguments_serialized_len =
+                // argument lengths start at index 8
+                self.arguments.serialize_count_and_lengths(&mut buffer[8..])
+                    // argument values go after the user information values in the body
+                    + self
+                        .arguments
+                        .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
 
-            // TODO: calculate wire_size along the way and assert equality?
-            Ok(wire_size)
+            // NOTE: as with authorization, 1 is subtracted from REQUIRED_FIELDS_LENGTH as the argument count would be double counted otherwise
+            Ok(
+                (Self::REQUIRED_FIELDS_LENGTH - 1)
+                    + user_information_len
+                    + arguments_serialized_len,
+            )
         } else {
             Err(SerializeError::NotEnoughSpace)
         }

@@ -27,7 +27,7 @@ fn serialize_request_no_arguments() {
         method: AuthenticationMethod::Enable,
         authentication_context,
         user_information,
-        arguments: None,
+        arguments: Arguments::new(&[]).unwrap(),
     };
 
     let mut buffer = [0u8; 40];
@@ -82,7 +82,7 @@ fn serialize_request_one_argument() {
         method: AuthenticationMethod::TacacsPlus,
         authentication_context,
         user_information,
-        arguments: Some(arguments),
+        arguments,
     };
 
     let mut buffer = [0u8; 60];
@@ -145,7 +145,7 @@ fn serialize_full_request_packet() {
             FieldText::assert("127.254.1.2"),
         )
         .unwrap(),
-        arguments: Arguments::new(&arguments),
+        arguments: Arguments::new(&arguments).unwrap(),
     };
 
     let packet = Packet::new(header, body);

@@ -205,6 +205,7 @@ impl<'args> Arguments<'args> {
     }
 
     /// Serializes the argument count & lengths of the stored arguments into a buffer.
+    #[must_use]
     pub(super) fn serialize_count_and_lengths(&self, buffer: &mut [u8]) -> usize {
         let argument_count = self.argument_count();
 
@@ -226,6 +227,7 @@ impl<'args> Arguments<'args> {
     }
 
     /// Serializes the stored arguments in their proper encoding to a buffer.
+    #[must_use]
     pub(super) fn serialize_encoded_values(&self, buffer: &mut [u8]) -> usize {
         let full_encoded_length = self
             .0

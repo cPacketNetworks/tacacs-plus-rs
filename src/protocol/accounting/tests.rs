@@ -32,7 +32,7 @@ fn serialize_request_body_with_argument() {
             FieldText::assert("127.10.0.100"),
         )
         .unwrap(),
-        arguments: Some(arguments),
+        arguments,
     };
 
     let mut buffer = [0u8; 50];
@@ -96,7 +96,7 @@ fn serialize_full_request_packet() {
             FieldText::assert("10.10.10.10"),
         )
         .unwrap(),
-        arguments: Some(arguments),
+        arguments,
     };
 
     let session_id = 298734923;

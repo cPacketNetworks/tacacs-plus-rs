@@ -15,16 +15,33 @@ mod tests;
 /// An authorization request packet body, including arguments.
 pub struct Request<'packet> {
     /// Method used to authenticate to TACACS+ client.
-    pub method: AuthenticationMethod,
+    method: AuthenticationMethod,
 
     /// Other client authentication information.
-    pub authentication_context: AuthenticationContext,
+    authentication_context: AuthenticationContext,
 
     /// Information about the user connected to the TACACS+ client.
-    pub user_information: UserInformation<'packet>,
+    user_information: UserInformation<'packet>,
 
     /// Additional arguments to provide as part of an authorization request.
-    pub arguments: Option<Arguments<'packet>>,
+    arguments: Arguments<'packet>,
+}
+
+impl<'packet> Request<'packet> {
+    /// Assembles an authorization request packet from its fields.
+    pub fn new(
+        method: AuthenticationMethod,
+        authentication_context: AuthenticationContext,
+        user_information: UserInformation<'packet>,
+        arguments: Arguments<'packet>,
+    ) -> Self {
+        Self {
+            method,
+            authentication_context,
+            user_information,
+            arguments,
+        }
+    }
 }
 
 impl PacketBody for Request<'_> {
@@ -40,7 +57,7 @@ impl Serialize for Request<'_> {
         AuthenticationMethod::WIRE_SIZE
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
-            + self.arguments.as_ref().map_or(0, Arguments::wire_size)
+            + self.arguments.wire_size()
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
@@ -51,20 +68,23 @@ impl Serialize for Request<'_> {
             self.user_information
                 .serialize_header_information(&mut buffer[4..7]);
 
-            let body_start: usize = Self::REQUIRED_FIELDS_LENGTH
-                + self.arguments.as_ref().map_or(0, Arguments::argument_count);
+            // the user information fields start after all of the required fields and also the argument lengths, the latter of which take up 1 byte each
+            let user_info_start: usize =
+                Self::REQUIRED_FIELDS_LENGTH + self.arguments.argument_count();
 
             let user_information_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[body_start..]);
+                .serialize_body_information(&mut buffer[user_info_start..]);
 
-            if let Some(arguments) = &self.arguments {
-                arguments.serialize_count_and_lengths(&mut buffer[7..]);
-                arguments
-                    .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
-            }
+            // argument lengths start at index 7, just after the argument count
+            let arguments_wire_len = self.arguments.serialize_count_and_lengths(&mut buffer[7..])
+                // argument values go after all of the user information
+                + self
+                    .arguments
+                    .serialize_encoded_values(&mut buffer[user_info_start + user_information_len..]);
 
-            Ok(self.wire_size())
+            // NOTE: 1 is subtracted from REQUIRED_FIELDS_LENGTH since otherwise the argument count field is double counted (from Arguments::wire_size())
+            Ok((Self::REQUIRED_FIELDS_LENGTH - 1) + user_information_len + arguments_wire_len)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
@@ -145,15 +165,12 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
             let raw_argument = &self.arguments_info.arguments_buffer
                 [self.next_offset..self.next_offset + next_length];
 
-            // NOTE: this should always return Ok, since the validity of arguments is checked in Reply's TryFrom impl
-            // the `.ok().unwrap()` is technically redundant, but I want to make sure the iterator doesn't start prematurely returning None silently
-            let deserialized = Argument::deserialize(raw_argument).ok().unwrap();
-
             // update iterator state
             self.next_argument_number += 1;
             self.next_offset += next_length;
 
-            Some(deserialized)
+            // NOTE: this should always be Some, since the validity of arguments is checked in Reply's TryFrom impl
+            Argument::deserialize(raw_argument).ok()
         } else {
             None
         }
@@ -167,6 +184,7 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
     }
 }
 
+// Gives ArgumentsIterator a .len() method
 impl ExactSizeIterator for ArgumentsIterator<'_> {}
 
 impl<'packet> Reply<'packet> {
