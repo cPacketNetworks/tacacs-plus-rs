@@ -282,7 +282,7 @@ fn deserialize_reply_bad_flags() {
 
     assert_eq!(
         Reply::try_from(packet_data.as_slice()),
-        Err(DeserializeError::InvalidWireBytes)
+        Err(DeserializeError::InvalidBodyFlags(2))
     );
 }
 

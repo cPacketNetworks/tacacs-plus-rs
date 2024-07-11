@@ -146,25 +146,33 @@ impl Serialize for Start<'_> {
             self.user_information
                 .serialize_header_information(&mut buffer[4..7]);
 
+            // information written before this occupies 8 bytes
+            let mut total_bytes_written = 8;
+
+            // user information values start at index 8
             let user_information_len = self
                 .user_information
                 .serialize_body_information(&mut buffer[8..]);
+            total_bytes_written += user_information_len;
 
+            // data starts after the end of the user information values
+            let data_start = 8 + user_information_len;
             if let Some(data) = self.data {
                 let data_len = data.len();
 
-                // length is verified in with_data(), so this should be safe
-                buffer[7] = data_len as u8;
+                // length is verified to fit in a u8 in new(), so this shouldn't panic
+                buffer[7] = data_len.try_into().unwrap();
 
                 // copy over packet data
-                buffer[8 + user_information_len..8 + user_information_len + data_len]
-                    .copy_from_slice(data);
+                buffer[data_start..data_start + data_len].copy_from_slice(data);
+
+                total_bytes_written += data_len;
             } else {
                 // set data_len field to 0; no data has to be copied to the data section of the packet
                 buffer[7] = 0;
             }
 
-            Ok(self.wire_size())
+            Ok(total_bytes_written)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
@@ -256,9 +264,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
         if buffer_length >= claimed_length {
             let status: Status = buffer[0].try_into()?;
-            // TODO: dedicated bad flags variant?
-            let flags =
-                ReplyFlags::from_bits(buffer[1]).ok_or(DeserializeError::InvalidWireBytes)?;
+            let flag_byte = buffer[1];
+            let flags = ReplyFlags::from_bits(flag_byte)
+                .ok_or(DeserializeError::InvalidBodyFlags(flag_byte))?;
 
             let (server_message_length, data_length) =
                 Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
@@ -269,7 +277,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             Ok(Reply {
                 status,
                 server_message: FieldText::try_from(&buffer[body_begin..data_begin])
-                    .map_err(|_| DeserializeError::InvalidWireBytes)?,
+                    .map_err(|_| DeserializeError::TextNotAscii)?,
                 data: &buffer[data_begin..data_begin + data_length],
                 flags,
             })
@@ -320,6 +328,8 @@ impl<'packet> Continue<'packet> {
 
 impl PacketBody for Continue<'_> {
     const TYPE: PacketType = PacketType::Authentication;
+
+    // 2 bytes each for user message & data length; 1 byte for flags
     const REQUIRED_FIELDS_LENGTH: usize = 5;
 }
 
@@ -353,7 +363,7 @@ impl Serialize for Continue<'_> {
             // set data length
             NetworkEndian::write_u16(&mut buffer[2..4], data_len as u16);
 
-            Ok(self.wire_size())
+            Ok(Self::REQUIRED_FIELDS_LENGTH + user_message_len + data_len)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }

@@ -47,6 +47,9 @@ pub enum DeserializeError {
     /// Invalid header flag byte.
     InvalidHeaderFlags(u8),
 
+    /// Invalid body flag byte.
+    InvalidBodyFlags(u8),
+
     /// Invalid version number.
     InvalidVersion(u8),
 
@@ -61,6 +64,9 @@ pub enum DeserializeError {
         /// The actual packet type that was parsed.
         actual: PacketType,
     },
+
+    /// Text field was not ASCII when it should have been.
+    TextNotAscii,
 
     /// Invalid byte representation of an object.
     InvalidWireBytes,
@@ -78,6 +84,7 @@ impl fmt::Display for DeserializeError {
             Self::InvalidStatus(num) => write!(f, "invalid status byte in raw packet: {num:#x}"),
             Self::InvalidPacketType(num) => write!(f, "invalid packet type byte: {num:#x}"),
             Self::InvalidHeaderFlags(num) => write!(f, "invalid header flags: {num:#x}"),
+            Self::InvalidBodyFlags(num) => write!(f, "invalid body flags: {num:#x}"),
             Self::InvalidVersion(num) => write!(
                 f,
                 "invalid version number: major {:#x}, minor {:#x}",
@@ -85,6 +92,7 @@ impl fmt::Display for DeserializeError {
                 num & 0xf
             ),
             Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
+            Self::TextNotAscii => write!(f, "text field was not valid ASCII"),
             Self::PacketTypeMismatch { expected, actual } => write!(
                 f,
                 "packet type mismatch: expected {expected:?} but got {actual:?}"
