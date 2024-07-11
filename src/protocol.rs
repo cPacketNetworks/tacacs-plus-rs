@@ -1,6 +1,5 @@
 //! TACACS+ protocol packet <-> binary format conversions.
 
-use core::array::TryFromSliceError;
 use core::fmt;
 
 use bitflags::bitflags;
@@ -17,13 +16,21 @@ pub use arguments::{Argument, Arguments};
 mod fields;
 pub use fields::*;
 
-/// An error type indicating that there is not enough space to complete an operation.
-#[derive(Debug)]
-pub struct NotEnoughSpace(());
+/// An error that occurred when serializing a packet or any of its components into their binary format.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, Eq)]
+pub enum SerializeError {
+    /// The provided buffer did not have enough space to serialize the object.
+    NotEnoughSpace,
+}
 
-impl fmt::Display for NotEnoughSpace {
+impl fmt::Display for SerializeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Not enough space in buffer")
+        let message = match self {
+            Self::NotEnoughSpace => "not enough space in buffer",
+        };
+
+        write!(f, "{}", message)
     }
 }
 
@@ -31,6 +38,27 @@ impl fmt::Display for NotEnoughSpace {
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeserializeError {
+    /// Invalid binary status representation in response.
+    InvalidStatus(u8),
+
+    /// Invalid packet type number on the wire.
+    InvalidPacketType(u8),
+
+    /// Invalid header flag byte.
+    InvalidHeaderFlags(u8),
+
+    /// Invalid version number.
+    InvalidVersion(u8),
+
+    /// Mismatch between expected/received packet types.
+    PacketTypeMismatch {
+        /// The expected packet type.
+        expected: PacketType,
+
+        /// The actual packet type that was parsed.
+        actual: PacketType,
+    },
+
     /// Invalid byte representation of an object.
     InvalidWireBytes,
 
@@ -39,47 +67,28 @@ pub enum DeserializeError {
 
     /// There wasn't enough space in a target buffer.
     NotEnoughSpace,
-
-    /// Mismatch between expected/actual protocol versions, if relevant.
-    VersionMismatch,
-}
-
-// Used in &[u8] -> &[u8; N] -> uNN conversions in reply deserialization
-impl From<TryFromSliceError> for DeserializeError {
-    fn from(_value: TryFromSliceError) -> Self {
-        // slice conversion error means there was a length mismatch, which probably means we were expecting more data
-        Self::UnexpectedEnd
-    }
-}
-
-impl From<NotEnoughSpace> for DeserializeError {
-    fn from(_value: NotEnoughSpace) -> Self {
-        Self::NotEnoughSpace
-    }
-}
-
-// TODO: limit to enums in crate via sealed trait or similar?
-#[doc(hidden)]
-impl<Enum: TryFromPrimitive<Primitive = u8>> From<TryFromPrimitiveError<Enum>>
-    for DeserializeError
-{
-    fn from(_value: TryFromPrimitiveError<Enum>) -> Self {
-        Self::InvalidWireBytes
-    }
 }
 
 impl fmt::Display for DeserializeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
-            Self::InvalidWireBytes => "Invalid byte representation of object",
-            Self::UnexpectedEnd => "Unexpected end of buffer when deserializing object",
-            Self::NotEnoughSpace => "Not enough space in provided buffer",
-            Self::VersionMismatch => {
-                "Mismatch in protocol version & authentication protocol specified"
-            }
-        };
-
-        write!(f, "{}", message)
+        match self {
+            Self::InvalidStatus(num) => write!(f, "invalid status byte in raw packet: {num:#x}"),
+            Self::InvalidPacketType(num) => write!(f, "invalid packet type byte: {num:#x}"),
+            Self::InvalidHeaderFlags(num) => write!(f, "invalid header flags: {num:#x}"),
+            Self::InvalidVersion(num) => write!(
+                f,
+                "invalid version number: major {:#x}, minor {:#x}",
+                num >> 4,
+                num & 0xf
+            ),
+            Self::PacketTypeMismatch { expected, actual } => write!(
+                f,
+                "packet type mismatch: expected {expected:?} but got {actual:?}"
+            ),
+            Self::InvalidWireBytes => write!(f, "invalid byte representation of object"),
+            Self::UnexpectedEnd => write!(f, "unexpected end of buffer when deserializing object"),
+            Self::NotEnoughSpace => write!(f, "not enough space in provided buffer"),
+        }
     }
 }
 
@@ -88,10 +97,31 @@ impl fmt::Display for DeserializeError {
 mod error_impls {
     use std::error::Error;
 
-    use super::{DeserializeError, NotEnoughSpace};
+    use super::{DeserializeError, SerializeError};
 
     impl Error for DeserializeError {}
-    impl Error for NotEnoughSpace {}
+    impl Error for SerializeError {}
+}
+
+// suggestion from Rust API guidelines: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
+// seals the PacketBody trait
+mod sealed_trait {
+    use super::{accounting, authentication, authorization};
+
+    pub trait Sealed {}
+
+    // authentication packet types
+    impl Sealed for authentication::Start<'_> {}
+    impl Sealed for authentication::Continue<'_> {}
+    impl Sealed for authentication::Reply<'_> {}
+
+    // authorization packet bodies
+    impl Sealed for authorization::Request<'_> {}
+    impl Sealed for authorization::Reply<'_> {}
+
+    // accounting packet bodies
+    impl Sealed for accounting::Request<'_> {}
+    impl Sealed for accounting::Reply<'_> {}
 }
 
 /// The major version of the TACACS+ protocol.
@@ -139,12 +169,12 @@ impl TryFrom<u8> for Version {
             let minor_version = match value & 0xf {
                 0 => Ok(MinorVersion::Default),
                 1 => Ok(MinorVersion::V1),
-                _ => Err(DeserializeError::InvalidWireBytes),
+                _ => Err(DeserializeError::InvalidVersion(value)),
             }?;
 
             Ok(Self(MajorVersion::RFC8907, minor_version))
         } else {
-            Err(DeserializeError::InvalidWireBytes)
+            Err(DeserializeError::InvalidVersion(value))
         }
     }
 }
@@ -159,13 +189,18 @@ impl From<Version> for u8 {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PacketFlags(u8);
 
+impl PacketFlags {
+    /// Size of universal packet flags on the wire.
+    const WIRE_SIZE: usize = 1;
+}
+
 bitflags! {
     impl PacketFlags: u8 {
         /// Indicates the body of the packet is unobfuscated.
-        const Unencrypted      = 0b00000001;
+        const UNENCRYPTED       = 0b00000001;
 
         /// Signals to the server that the client would like to reuse a TCP connection across multiple sessions.
-        const SingleConnection = 0b00000100;
+        const SINGLE_CONNECTION = 0b00000100;
     }
 }
 
@@ -182,13 +217,39 @@ pub struct HeaderInfo {
     pub session_id: u32,
 }
 
+impl HeaderInfo {
+    /// Size of a full TACACS+ packet header.
+    const HEADER_SIZE_BYTES: usize = 12;
+
+    /// Number of bytes written with a partial header serialization.
+    ///
+    /// Includes one for the sequence number, 1 for the packet flags, and 4 for the session id.
+    const PARTIAL_SERIALIZE_NUM_BYTES: usize = 1 + PacketFlags::WIRE_SIZE + 4;
+
+    /// Serializes the information stored in a `HeaderInfo` struct, which isn't the complete header (missing body length/packet type), hence the `_partial` suffix.
+    fn serialize_partial(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
+        // NOTE: the full header size is compared against, despite the partial information only occupying 8 bytes of space (technically 7, but the type byte is skipped)
+        // it doesn't make sense to partially serialize a buffer if it doesn't have space for a full header, hence the check against the full length
+        if buffer.len() >= Self::HEADER_SIZE_BYTES {
+            buffer[2] = self.sequence_number;
+            buffer[3] = self.flags.bits();
+            NetworkEndian::write_u32(&mut buffer[4..8], self.session_id);
+
+            Ok(Self::PARTIAL_SERIALIZE_NUM_BYTES)
+        } else {
+            Err(SerializeError::NotEnoughSpace)
+        }
+    }
+}
+
 impl TryFrom<&[u8]> for HeaderInfo {
     type Error = DeserializeError;
 
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
         let header = Self {
             sequence_number: buffer[2],
-            flags: PacketFlags::from_bits(buffer[3]).ok_or(DeserializeError::InvalidWireBytes)?,
+            flags: PacketFlags::from_bits(buffer[3])
+                .ok_or(DeserializeError::InvalidHeaderFlags(buffer[3]))?,
             session_id: NetworkEndian::read_u32(&buffer[4..8]),
         };
 
@@ -210,8 +271,18 @@ pub enum PacketType {
     Accounting = 0x3,
 }
 
+impl From<TryFromPrimitiveError<PacketType>> for DeserializeError {
+    fn from(value: TryFromPrimitiveError<PacketType>) -> Self {
+        Self::InvalidPacketType(value.number)
+    }
+}
+
 /// A type that can be treated as a TACACS+ protocol packet body.
-pub trait PacketBody {
+///
+/// This trait is sealed per the [Rust API guidelines], so it cannot be implemented by external types.
+///
+/// [Rust API guidelines]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
+pub trait PacketBody: sealed_trait::Sealed {
     /// Type of the packet (one of authentication, authorization, or accounting).
     const TYPE: PacketType;
 
@@ -231,7 +302,7 @@ pub trait Serialize {
     fn wire_size(&self) -> usize;
 
     /// Serializes data into a buffer, returning the resulting length on success or `NotEnoughSpace` on error.
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace>;
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
 
 /// A full TACACS+ protocol packet.
@@ -281,25 +352,27 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
         Self::HEADER_SIZE_BYTES + self.body.wire_size()
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
             // fill in header information
+            let mut header_bytes = self.header.serialize_partial(buffer)?;
+
             buffer[0] = self.version.into();
             buffer[1] = B::TYPE as u8;
-            buffer[2] = self.header.sequence_number;
-            buffer[3] = self.header.flags.bits();
-
-            NetworkEndian::write_u32(&mut buffer[4..8], self.header.session_id);
+            header_bytes += 2;
 
             let body_length = self
                 .body
                 .serialize_into_buffer(&mut buffer[Self::HEADER_SIZE_BYTES..])?;
 
-            NetworkEndian::write_u32(&mut buffer[8..12], body_length as u32);
+            // body length constitutes the last 4 bytes of the 12-byte header
+            // filled in last to avoid making incorrect assumptions about the length of the body
+            NetworkEndian::write_u32(&mut buffer[8..12], body_length.try_into().unwrap());
+            header_bytes += 4;
 
-            Ok(Self::HEADER_SIZE_BYTES + body_length)
+            Ok(header_bytes + body_length)
         } else {
-            Err(NotEnoughSpace(()))
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }
@@ -313,7 +386,8 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
         if buffer.len() > Self::HEADER_SIZE_BYTES {
             let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
 
-            if PacketType::try_from(buffer[1])? == B::TYPE {
+            let actual_packet_type = PacketType::try_from(buffer[1])?;
+            if actual_packet_type == B::TYPE {
                 let body_length = NetworkEndian::read_u32(&buffer[8..12]) as usize;
 
                 // TODO: figure out this check, it feels a bit fishy
@@ -324,7 +398,10 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
                     Err(DeserializeError::UnexpectedEnd)
                 }
             } else {
-                Err(DeserializeError::InvalidWireBytes)
+                Err(DeserializeError::PacketTypeMismatch {
+                    expected: B::TYPE,
+                    actual: actual_packet_type,
+                })
             }
         } else {
             Err(DeserializeError::UnexpectedEnd)

@@ -1,11 +1,11 @@
 //! Accounting protocol packet (de)serialization.
 
 use bitflags::bitflags;
-use num_enum::TryFromPrimitive;
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
-    Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, NotEnoughSpace,
-    PacketBody, PacketType, Serialize, UserInformation,
+    Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, PacketBody,
+    PacketType, Serialize, SerializeError, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -15,9 +15,9 @@ mod tests;
 bitflags! {
     /// Raw bitflags for accounting request packet.
     struct RawFlags: u8 {
-        const Start    = 0b00000010;
-        const Stop     = 0b00000100;
-        const Watchdog = 0b00001000;
+        const START    = 0b00000010;
+        const STOP     = 0b00000100;
+        const WATCHDOG = 0b00001000;
     }
 }
 
@@ -40,10 +40,10 @@ pub enum Flags {
 impl From<Flags> for RawFlags {
     fn from(value: Flags) -> Self {
         match value {
-            Flags::StartRecord => RawFlags::Start,
-            Flags::StopRecord => RawFlags::Stop,
-            Flags::WatchdogNoUpdate => RawFlags::Watchdog,
-            Flags::WatchdogUpdate => RawFlags::Watchdog | RawFlags::Start,
+            Flags::StartRecord => RawFlags::START,
+            Flags::StopRecord => RawFlags::STOP,
+            Flags::WatchdogNoUpdate => RawFlags::WATCHDOG,
+            Flags::WatchdogUpdate => RawFlags::WATCHDOG | RawFlags::START,
         }
     }
 }
@@ -88,7 +88,7 @@ impl Serialize for Request<'_> {
             + self.arguments.as_ref().map_or(0, Arguments::wire_size)
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         let wire_size = self.wire_size();
 
         if buffer.len() >= wire_size {
@@ -120,7 +120,7 @@ impl Serialize for Request<'_> {
             // TODO: calculate wire_size along the way and assert equality?
             Ok(wire_size)
         } else {
-            Err(NotEnoughSpace(()))
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }
@@ -143,6 +143,13 @@ pub enum Status {
 impl Status {
     /// The number of bytes an accounting reply status occupies on the wire.
     pub const WIRE_SIZE: usize = 1;
+}
+
+#[doc(hidden)]
+impl From<TryFromPrimitiveError<Status>> for DeserializeError {
+    fn from(value: TryFromPrimitiveError<Status>) -> Self {
+        Self::InvalidStatus(value.number)
+    }
 }
 
 /// An accounting reply packet received from a TACACS+ server.

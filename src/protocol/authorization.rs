@@ -1,11 +1,11 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
 use byteorder::{ByteOrder, NetworkEndian};
-use num_enum::TryFromPrimitive;
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
-    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
-    NotEnoughSpace, PacketBody, PacketType, Serialize, UserInformation,
+    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, PacketBody,
+    PacketType, Serialize, SerializeError, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -43,7 +43,7 @@ impl Serialize for Request<'_> {
             + self.arguments.as_ref().map_or(0, Arguments::wire_size)
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.method as u8;
             self.authentication_context
@@ -66,7 +66,7 @@ impl Serialize for Request<'_> {
 
             Ok(self.wire_size())
         } else {
-            Err(NotEnoughSpace(()))
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }
@@ -95,6 +95,13 @@ pub enum Status {
 impl Status {
     /// The wire size of an authorization reply status in bytes.
     pub const WIRE_SIZE: usize = 1;
+}
+
+#[doc(hidden)]
+impl From<TryFromPrimitiveError<Status>> for DeserializeError {
+    fn from(value: TryFromPrimitiveError<Status>) -> Self {
+        Self::InvalidStatus(value.number)
+    }
 }
 
 /// Some information about the arguments in the binary representation of a reply packet.

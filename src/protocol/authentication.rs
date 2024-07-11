@@ -2,11 +2,11 @@
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
-use num_enum::TryFromPrimitive;
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
-    AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, NotEnoughSpace,
-    PacketBody, PacketType, Serialize, UserInformation,
+    AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, PacketBody,
+    PacketType, Serialize, SerializeError, UserInformation,
 };
 use crate::AsciiStr;
 
@@ -66,6 +66,13 @@ pub enum Status {
 impl Status {
     /// Number of bytes an authentication reply status occupies on the wire.
     pub const WIRE_SIZE: usize = 1;
+}
+
+#[doc(hidden)]
+impl From<TryFromPrimitiveError<Status>> for DeserializeError {
+    fn from(value: TryFromPrimitiveError<Status>) -> Self {
+        Self::InvalidStatus(value.number)
+    }
 }
 
 /// An authentication start packet, used to initiate an authentication session.
@@ -129,7 +136,7 @@ impl Serialize for Start<'_> {
             + self.data.map_or(0, <[u8]>::len)
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
 
@@ -159,7 +166,7 @@ impl Serialize for Start<'_> {
 
             Ok(self.wire_size())
         } else {
-            Err(NotEnoughSpace(()))
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }
@@ -323,7 +330,7 @@ impl Serialize for Continue<'_> {
             + self.data.map_or(0, <[u8]>::len)
     }
 
-    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, NotEnoughSpace> {
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
             // set abort flag if needed
             buffer[4] = self.flags.bits();
@@ -348,7 +355,7 @@ impl Serialize for Continue<'_> {
 
             Ok(self.wire_size())
         } else {
-            Err(NotEnoughSpace(()))
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }

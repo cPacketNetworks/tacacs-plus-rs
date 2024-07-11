@@ -119,7 +119,7 @@ fn serialize_full_request_packet() {
     let session_id: u32 = 578263403;
     let header = HeaderInfo {
         sequence_number: 1,
-        flags: PacketFlags::Unencrypted,
+        flags: PacketFlags::UNENCRYPTED,
         session_id,
     };
 
@@ -307,7 +307,7 @@ fn deserialize_full_reply_packet() {
 
     let expected_header = HeaderInfo {
         sequence_number: 4,
-        flags: PacketFlags::Unencrypted | PacketFlags::SingleConnection,
+        flags: PacketFlags::UNENCRYPTED | PacketFlags::SINGLE_CONNECTION,
         session_id: 92837492,
     };
 

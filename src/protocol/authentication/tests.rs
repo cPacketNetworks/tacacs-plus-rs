@@ -128,7 +128,7 @@ fn serialize_full_start_packet() {
     let session_id = 123457;
     let header = HeaderInfo {
         sequence_number: 1,
-        flags: PacketFlags::SingleConnection,
+        flags: PacketFlags::SINGLE_CONNECTION,
         session_id,
     };
 
@@ -266,7 +266,7 @@ fn deserialize_reply_bad_status() {
 
     assert_eq!(
         Reply::try_from(packet_data.as_slice()),
-        Err(DeserializeError::InvalidWireBytes)
+        Err(DeserializeError::InvalidStatus(42))
     );
 }
 
@@ -314,7 +314,7 @@ fn deserialize_reply_full_packet() {
 
     let expected_header = HeaderInfo {
         sequence_number: 4,
-        flags: PacketFlags::Unencrypted,
+        flags: PacketFlags::UNENCRYPTED,
         session_id,
     };
 
@@ -335,7 +335,7 @@ fn deserialize_reply_type_mismatch() {
     let raw_packet = [
         // HEADER
         0xc << 4, // version
-        2,        // authorization packet!
+        2,        // authorization packet! (incorrect)
         2,        // sequence number
         0,        // no flags set
         // session id
@@ -361,7 +361,10 @@ fn deserialize_reply_type_mismatch() {
 
     assert_eq!(
         Packet::<Reply>::try_from(raw_packet.as_slice()),
-        Err(DeserializeError::InvalidWireBytes)
+        Err(DeserializeError::PacketTypeMismatch {
+            expected: PacketType::Authentication,
+            actual: PacketType::Authorization
+        })
     );
 }
 
@@ -446,7 +449,7 @@ fn serialize_continue_full_packet() {
     let session_id = 856473784;
     let header = HeaderInfo {
         sequence_number: 49,
-        flags: PacketFlags::SingleConnection,
+        flags: PacketFlags::SINGLE_CONNECTION,
         session_id,
     };
 
