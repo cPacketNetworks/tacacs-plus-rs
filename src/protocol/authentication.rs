@@ -8,7 +8,7 @@ use super::{
     AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, PacketBody,
     PacketType, Serialize, SerializeError, UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 #[cfg(test)]
 mod tests;
@@ -191,7 +191,7 @@ bitflags! {
 #[derive(Debug, PartialEq)]
 pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'packet>,
+    server_message: FieldText<'packet>,
     data: &'packet [u8],
     flags: ReplyFlags,
 }
@@ -225,7 +225,7 @@ impl Reply<'_> {
     }
 
     /// Message received from the server, potentially to display to the user.
-    pub fn server_message(&self) -> AsciiStr<'_> {
+    pub fn server_message(&self) -> FieldText<'_> {
         self.server_message
     }
 
@@ -268,7 +268,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             Ok(Reply {
                 status,
-                server_message: AsciiStr::try_from(&buffer[body_begin..data_begin])
+                server_message: FieldText::try_from(&buffer[body_begin..data_begin])
                     .map_err(|_| DeserializeError::InvalidWireBytes)?,
                 data: &buffer[data_begin..data_begin + data_length],
                 flags,

@@ -3,15 +3,15 @@ use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 use tinyvec::array_vec;
 
 #[test]
 fn serialize_request_body_with_argument() {
     let argument_array = [Argument::new(
-        AsciiStr::assert("service"),
-        AsciiStr::assert("tacacs-test"),
+        FieldText::assert("service"),
+        FieldText::assert("tacacs-test"),
         true,
     )
     .expect("argument should be valid")];
@@ -28,8 +28,8 @@ fn serialize_request_body_with_argument() {
         },
         user_information: UserInformation::new(
             "guest",
-            AsciiStr::assert("tty0"),
-            AsciiStr::assert("127.10.0.100"),
+            FieldText::assert("tty0"),
+            FieldText::assert("127.10.0.100"),
         )
         .unwrap(),
         arguments: Some(arguments),
@@ -65,10 +65,15 @@ fn serialize_request_body_with_argument() {
 #[test]
 fn serialize_full_request_packet() {
     let arguments_array = [
-        Argument::new(AsciiStr::assert("task_id"), AsciiStr::assert("1234"), true).unwrap(),
         Argument::new(
-            AsciiStr::assert("service"),
-            AsciiStr::assert("fullpacket"),
+            FieldText::assert("task_id"),
+            FieldText::assert("1234"),
+            true,
+        )
+        .unwrap(),
+        Argument::new(
+            FieldText::assert("service"),
+            FieldText::assert("fullpacket"),
             true,
         )
         .unwrap(),
@@ -87,8 +92,8 @@ fn serialize_full_request_packet() {
         },
         user_information: UserInformation::new(
             "secret",
-            AsciiStr::assert("tty6"),
-            AsciiStr::assert("10.10.10.10"),
+            FieldText::assert("tty6"),
+            FieldText::assert("10.10.10.10"),
         )
         .unwrap(),
         arguments: Some(arguments),
@@ -166,7 +171,7 @@ fn deserialize_reply_all_fields() {
     assert_eq!(
         Ok(Reply {
             status: Status::Error,
-            server_message: AsciiStr::try_from(server_message.as_slice()).unwrap(),
+            server_message: FieldText::try_from(server_message.as_slice()).unwrap(),
             data: &[0xa4, 0x42]
         }),
         body_raw.as_slice().try_into()
@@ -207,7 +212,7 @@ fn deserialize_full_reply_packet() {
 
     let expected_body = Reply {
         status: Status::Error,
-        server_message: AsciiStr::assert("hello"),
+        server_message: FieldText::assert("hello"),
         data: b"fifteen letters",
     };
 

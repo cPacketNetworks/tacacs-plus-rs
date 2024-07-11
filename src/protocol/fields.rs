@@ -1,5 +1,5 @@
 use crate::protocol::MinorVersion;
-use crate::AsciiStr;
+use crate::FieldText;
 
 /// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
@@ -174,8 +174,8 @@ impl AuthenticationContext {
 #[derive(Debug)]
 pub struct UserInformation<'info> {
     user: &'info str,
-    port: AsciiStr<'info>,
-    remote_address: AsciiStr<'info>,
+    port: FieldText<'info>,
+    remote_address: FieldText<'info>,
 }
 
 impl<'info> UserInformation<'info> {
@@ -196,8 +196,8 @@ impl<'info> UserInformation<'info> {
     /// All three fields must also be at most 255 characters long (i.e., `u8::MAX`).
     pub fn new(
         user: &'info str,
-        port: AsciiStr<'info>,
-        remote_address: AsciiStr<'info>,
+        port: FieldText<'info>,
+        remote_address: FieldText<'info>,
     ) -> Option<Self> {
         if user.len() <= u8::MAX as usize
             && port.len() <= u8::MAX as usize

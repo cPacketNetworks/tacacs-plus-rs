@@ -3,7 +3,7 @@ use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, Packet,
     PacketFlags, PrivilegeLevel, UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 use tinyvec::array_vec;
 
@@ -18,8 +18,8 @@ fn serialize_start_no_data() {
         },
         UserInformation::new(
             "authtest",
-            AsciiStr::assert("serial"),
-            AsciiStr::assert("serial"),
+            FieldText::assert("serial"),
+            FieldText::assert("serial"),
         )
         .expect("user information should be valid"),
         None,
@@ -62,8 +62,8 @@ fn serialize_start_with_data() {
         },
         UserInformation::new(
             "authtest2",
-            AsciiStr::assert("49"),
-            AsciiStr::assert("10.0.2.24"),
+            FieldText::assert("49"),
+            FieldText::assert("10.0.2.24"),
         )
         .expect("user information should be valid"),
         Some("some test data with ✨ unicode ✨".as_bytes()),
@@ -110,8 +110,8 @@ fn serialize_start_data_too_long() {
         },
         UserInformation::new(
             "invalid",
-            AsciiStr::assert("theport"),
-            AsciiStr::assert("somewhere"),
+            FieldText::assert("theport"),
+            FieldText::assert("somewhere"),
         )
         .expect("user information should be valid"),
         Some(&long_data),
@@ -141,8 +141,8 @@ fn serialize_full_start_packet() {
         },
         UserInformation::new(
             "startup",
-            AsciiStr::assert("49"),
-            AsciiStr::assert("192.168.23.10"),
+            FieldText::assert("49"),
+            FieldText::assert("192.168.23.10"),
         )
         .unwrap(),
         Some(b"E"),
@@ -215,7 +215,7 @@ fn deserialize_reply_pass_both_data_fields() {
         Reply::try_from(packet_data.as_slice()),
         Ok(Reply {
             status: Status::Pass,
-            server_message: AsciiStr::assert("login successful"),
+            server_message: FieldText::assert("login successful"),
             data: b"\x12\x77\xfa\xcc",
             flags: ReplyFlags::empty()
         })
@@ -320,7 +320,7 @@ fn deserialize_reply_full_packet() {
 
     let expected_body = Reply {
         status: Status::Restart,
-        server_message: AsciiStr::assert("try again"),
+        server_message: FieldText::assert("try again"),
         data: &[1, 1, 2, 3, 5, 8, 13],
         flags: ReplyFlags::empty(),
     };

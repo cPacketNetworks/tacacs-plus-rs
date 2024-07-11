@@ -4,7 +4,7 @@ use crate::protocol::{
     AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, Serialize,
     UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 use tinyvec::array_vec;
 
@@ -18,8 +18,8 @@ fn serialize_request_no_arguments() {
 
     let user_information = UserInformation::new(
         "testuser",
-        AsciiStr::assert("tcp49"),
-        AsciiStr::assert("127.0.0.1"),
+        FieldText::assert("tcp49"),
+        FieldText::assert("127.0.0.1"),
     )
     .expect("client information should have been valid");
 
@@ -64,14 +64,14 @@ fn serialize_request_one_argument() {
 
     let user_information = UserInformation::new(
         "testuser",
-        AsciiStr::assert("ttyAMA0"),
-        AsciiStr::assert("127.1.2.2"),
+        FieldText::assert("ttyAMA0"),
+        FieldText::assert("127.1.2.2"),
     )
     .expect("client information should have been valid");
 
     let argument_array = [Argument::new(
-        AsciiStr::assert("service"),
-        AsciiStr::assert("serialization-test"),
+        FieldText::assert("service"),
+        FieldText::assert("serialization-test"),
         true,
     )
     .expect("argument should be valid")];
@@ -124,8 +124,8 @@ fn serialize_full_request_packet() {
     };
 
     let arguments_list = [Argument::new(
-        AsciiStr::assert("service"),
-        AsciiStr::assert("fulltest"),
+        FieldText::assert("service"),
+        FieldText::assert("fulltest"),
         true,
     )
     .unwrap()];
@@ -141,8 +141,8 @@ fn serialize_full_request_packet() {
         },
         user_information: UserInformation::new(
             "requestor",
-            AsciiStr::assert("tcp23"),
-            AsciiStr::assert("127.254.1.2"),
+            FieldText::assert("tcp23"),
+            FieldText::assert("127.254.1.2"),
         )
         .unwrap(),
         arguments: Arguments::new(&arguments),
@@ -212,7 +212,7 @@ fn deserialize_reply_no_arguments() {
 
     // field checks
     assert_eq!(parsed.status, Status::PassAdd);
-    assert_eq!(parsed.server_message, AsciiStr::assert("this is a reply"));
+    assert_eq!(parsed.server_message, FieldText::assert("this is a reply"));
     assert_eq!(parsed.data, &[123, 91, 3, 4, 21, 168]);
 
     // ensure iterator has no elements & reports a length of 0
@@ -241,10 +241,15 @@ fn deserialize_reply_two_arguments() {
     raw_bytes.extend_from_slice(b"person*world!");
 
     let expected_arguments = [
-        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("greet"), true).unwrap(),
         Argument::new(
-            AsciiStr::assert("person"),
-            AsciiStr::assert("world!"),
+            FieldText::assert("service"),
+            FieldText::assert("greet"),
+            true,
+        )
+        .unwrap(),
+        Argument::new(
+            FieldText::assert("person"),
+            FieldText::assert("world!"),
             false,
         )
         .unwrap(),
@@ -257,7 +262,7 @@ fn deserialize_reply_two_arguments() {
 
     // check specific fields, as iterator's can't really implement PartialEq
     assert_eq!(parsed.status, Status::PassAdd);
-    assert_eq!(parsed.server_message, AsciiStr::assert("hello"));
+    assert_eq!(parsed.server_message, FieldText::assert("hello"));
     assert_eq!(parsed.data, b"world");
 
     // ensure argument iteration works properly
@@ -303,7 +308,7 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"service=nah");
 
     let expected_argument =
-        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("nah"), true).unwrap();
+        Argument::new(FieldText::assert("service"), FieldText::assert("nah"), true).unwrap();
 
     let expected_header = HeaderInfo {
         sequence_number: 4,
@@ -322,7 +327,7 @@ fn deserialize_full_reply_packet() {
     assert_eq!(parsed.body.status, Status::Fail);
     assert_eq!(
         parsed.body.server_message,
-        AsciiStr::assert("something went wrong :(")
+        FieldText::assert("something went wrong :(")
     );
     assert_eq!(parsed.body.data, b"\x88\x88\x88\x88");
 

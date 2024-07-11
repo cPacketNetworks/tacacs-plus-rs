@@ -2,7 +2,8 @@
 
 use core::fmt;
 
-/// A wrapper for `&str` that is checked to be valid ASCII.
+/// A wrapper for `&str` that is checked to be printable ASCII, which is
+/// defined as not containing control characters in [RFC8907 section 3.7].
 ///
 /// This type implements `TryFrom<&str>` and `TryFrom<&[u8]>`; in both cases,
 /// an invalid argument will be returned as an `Err` variant.
@@ -12,31 +13,36 @@ use core::fmt;
 /// Conversions from `&str`:
 ///
 /// ```
-/// use tacacs_plus::AsciiStr;
+/// use tacacs_plus::FieldText;
 ///
 /// let valid_ascii = "a string";
-/// assert!(AsciiStr::try_from(valid_ascii).is_ok());
+/// assert!(FieldText::try_from(valid_ascii).is_ok());
 ///
 /// let beyond_ascii = "💀";
-/// assert!(AsciiStr::try_from(beyond_ascii).is_err());
+/// assert!(FieldText::try_from(beyond_ascii).is_err());
 /// ```
 ///
 /// Conversions from `&[u8]`:
 ///
 /// ```
-/// use tacacs_plus::AsciiStr;
+/// use tacacs_plus::FieldText;
 ///
-/// let valid_ascii = b"all ASCII characters with a\ttab";
-/// assert!(AsciiStr::try_from(valid_ascii.as_slice()).is_ok());
+/// let valid_slice = b"this is (almost) a string";
+/// assert!(FieldText::try_from(valid_slice.as_slice()).is_ok());
+///
+/// let not_printable = b"all ASCII characters with - oh no! - a\ttab";
+/// assert!(FieldText::try_from(not_printable.as_slice()).is_err());
 ///
 /// let invalid_utf8 = [0x80]; // where'd the rest of the codepoint go?
-/// assert!(AsciiStr::try_from(invalid_utf8.as_slice()).is_err());
+/// assert!(FieldText::try_from(invalid_utf8.as_slice()).is_err());
 /// ```
+///
+/// [RFC8907 section 3.7]: https://www.rfc-editor.org/rfc/rfc8907.html#section-3.7
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub struct AsciiStr<'string>(&'string str);
+pub struct FieldText<'string>(&'string str);
 
-impl<'string> AsciiStr<'string> {
+impl<'string> FieldText<'string> {
     /// Gets the length of the underlying `&str`.
     pub fn len(&self) -> usize {
         self.0.len()
@@ -57,28 +63,33 @@ impl<'string> AsciiStr<'string> {
         self.0.contains(characters)
     }
 
-    /// Asserts a string is ASCII, converting it to an [`AsciiStr`] or panicking if it is not actually ASCII.
+    fn is_printable_ascii(string: &str) -> bool {
+        // all characters must be ASCII printable (i.e., not control characers)
+        string.is_ascii() && string.chars().all(|c| !c.is_ascii_control())
+    }
+
+    /// Asserts a string is ASCII, converting it to an [`FieldText`] or panicking if it is not actually ASCII.
     #[cfg(test)]
-    pub(crate) const fn assert(string: &str) -> AsciiStr<'_> {
-        if string.is_ascii() {
-            AsciiStr(string)
+    pub(crate) fn assert(string: &str) -> FieldText<'_> {
+        if Self::is_printable_ascii(string) {
+            FieldText(string)
         } else {
             panic!("non-ASCII string passed to force_ascii");
         }
     }
 }
 
-impl AsRef<str> for AsciiStr<'_> {
+impl AsRef<str> for FieldText<'_> {
     fn as_ref(&self) -> &str {
         self.0
     }
 }
 
-impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
+impl<'string> TryFrom<&'string str> for FieldText<'string> {
     type Error = &'string str;
 
     fn try_from(value: &'string str) -> Result<Self, Self::Error> {
-        if value.is_ascii() {
+        if Self::is_printable_ascii(value) {
             Ok(Self(value))
         } else {
             Err(value)
@@ -86,27 +97,27 @@ impl<'string> TryFrom<&'string str> for AsciiStr<'string> {
     }
 }
 
-impl<'bytes> TryFrom<&'bytes [u8]> for AsciiStr<'bytes> {
+impl<'bytes> TryFrom<&'bytes [u8]> for FieldText<'bytes> {
     type Error = &'bytes [u8];
 
     fn try_from(value: &'bytes [u8]) -> Result<Self, Self::Error> {
-        if value.is_ascii() {
-            let value_str = core::str::from_utf8(value).unwrap();
-            Ok(Self(value_str))
+        if let Ok(value_str) = core::str::from_utf8(value) {
+            // defer to TryFrom<&str> impl for ASCII check consistency
+            value_str.try_into().map_err(str::as_bytes)
         } else {
             Err(value)
         }
     }
 }
 
-// boilerplate impl, mostly for tests and also lets us #[derive(Debug)] for packet component structs
-impl fmt::Debug for AsciiStr<'_> {
+// boilerplate impls, mostly for tests and also lets us #[derive(Debug)] for packet component structs
+impl fmt::Debug for FieldText<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl fmt::Display for AsciiStr<'_> {
+impl fmt::Display for FieldText<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

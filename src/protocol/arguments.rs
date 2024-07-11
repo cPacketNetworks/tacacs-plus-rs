@@ -1,6 +1,9 @@
+use core::fmt;
 use core::iter::zip;
 
-use crate::AsciiStr;
+use crate::FieldText;
+
+use super::DeserializeError;
 
 #[cfg(test)]
 mod tests;
@@ -8,27 +11,81 @@ mod tests;
 /// An argument in the TACACS+ protocol, which exists for extensibility.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct Argument<'data> {
-    name: AsciiStr<'data>,
-    value: AsciiStr<'data>,
+    name: FieldText<'data>,
+    value: FieldText<'data>,
     required: bool,
 }
 
+/// Error to determine
+#[derive(Debug, PartialEq, Eq)]
+pub enum InvalidArgument {
+    /// Argument had empty name.
+    EmptyName,
+
+    /// Argument name contained a delimiter (= or *).
+    NameContainsDelimiter,
+
+    /// Argument encoding did not contain a delimiter.
+    NoDelimiter,
+
+    /// Argument was too long to be encodeable.
+    TooLong,
+
+    /// Argument wasn't valid ASCII.
+    NotAscii,
+}
+
+impl fmt::Display for InvalidArgument {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyName => write!(f, "arguments cannot have empty names"),
+            Self::NameContainsDelimiter => write!(
+                f,
+                "names cannot contain value delimiter characters (= or *)"
+            ),
+            Self::NoDelimiter => write!(f, "encoded argument value had no delimiter"),
+            Self::TooLong => write!(f, "the total length of an argument (name + length + delimiter) must not exceed u8::MAX, for encoding reasons"),
+            Self::NotAscii => write!(f, "encoded argument value was not valid ASCII")
+        }
+    }
+}
+
+impl From<InvalidArgument> for DeserializeError {
+    fn from(value: InvalidArgument) -> Self {
+        Self::InvalidArgument(value)
+    }
+}
+
 impl<'data> Argument<'data> {
+    /// The delimiter used for a required argument.
+    pub const REQUIRED_DELIMITER: char = '=';
+
+    /// The delimiter used for an optional argument.
+    pub const OPTIONAL_DELIMITER: char = '*';
+
     /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).
-    pub fn new(name: AsciiStr<'data>, value: AsciiStr<'data>, required: bool) -> Option<Self> {
-        // "An argument name MUST NOT contain either of the separators." [RFC 8907]
-        // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8
-        if !name.is_empty()
-            && !name.contains_any(&['=', '*'])
-            && name.len() + value.len() < u8::MAX as usize
-        {
-            Some(Argument {
+    pub fn new(
+        name: FieldText<'data>,
+        value: FieldText<'data>,
+        required: bool,
+    ) -> Result<Self, InvalidArgument> {
+        // NOTE: since both name/value are AsciiStrs, we don't have to check if they are ascii as in `check_encoding`
+
+        if name.is_empty() {
+            // name must be nonempty (?)
+            Err(InvalidArgument::EmptyName)
+        } else if name.contains_any(&[Self::REQUIRED_DELIMITER, Self::OPTIONAL_DELIMITER]) {
+            // "An argument name MUST NOT contain either of the separators." [RFC 8907]
+            Err(InvalidArgument::NameContainsDelimiter)
+        } else if name.len() + value.len() >= u8::MAX as usize {
+            // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8 to be encodeable
+            Err(InvalidArgument::TooLong)
+        } else {
+            Ok(Argument {
                 name,
                 value,
                 required,
             })
-        } else {
-            None
         }
     }
 
@@ -40,36 +97,74 @@ impl<'data> Argument<'data> {
     }
 
     /// Serializes an argument's name-value encoding, as done in the body of a packet.
-    fn serialize_name_value(&self, buffer: &mut [u8]) {
+    fn serialize(&self, buffer: &mut [u8]) {
         let name_len = self.name.len();
         buffer[..name_len].copy_from_slice(self.name.as_bytes());
 
-        buffer[name_len] = if self.required { b'=' } else { b'*' };
+        buffer[name_len] = if self.required {
+            Self::REQUIRED_DELIMITER
+        } else {
+            Self::OPTIONAL_DELIMITER
+        } as u8;
 
+        // value goes just after delimiter
         let value_len = self.value.len();
         buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
     }
 
+    /// Checks whether a given byte slice is a valid argument encoding.
+    ///
+    /// See [RFC8907 section 6.1] for more information on argument encodings.
+    ///
+    /// [RFC8907 section 6.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
+    pub(super) fn check_encoding(raw_argument: &[u8]) -> Result<(), InvalidArgument> {
+        if u8::try_from(raw_argument.len()).is_err() {
+            // length has to fit in a u8 to be encodeable
+            Err(InvalidArgument::TooLong)
+        } else if !(raw_argument.is_ascii() && raw_argument.iter().all(|c| !c.is_ascii_control())) {
+            // arguments must be ASCII (and more specifically not ASCII control characters)
+            Err(InvalidArgument::NotAscii)
+        } else if !(raw_argument.contains(&(Self::REQUIRED_DELIMITER as u8))
+            || raw_argument.contains(&(Self::OPTIONAL_DELIMITER as u8)))
+        {
+            // argument must contain a delimiter...
+            Err(InvalidArgument::NoDelimiter)
+        } else if raw_argument[0] == Self::REQUIRED_DELIMITER as u8
+            || raw_argument[0] == Self::OPTIONAL_DELIMITER as u8
+        {
+            // ...but not start with one, since argument names must be nonempty (?)
+            Err(InvalidArgument::EmptyName)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Attempts to deserialize a packet from its name-value encoding on the wire.
-    pub(super) fn deserialize(buffer: &'data [u8]) -> Option<Self> {
-        // note: these are guaranteed to be unequal
+    pub(super) fn deserialize(buffer: &'data [u8]) -> Result<Self, InvalidArgument> {
+        // ensure encoding is valid before attempting to deserialize
+        Self::check_encoding(buffer)?;
+
+        // note: these are guaranteed to be unequal, since a single index cannot contain two characters at once
         let equals_index = buffer.iter().position(|c| *c == b'=');
         let star_index = buffer.iter().position(|c| *c == b'*');
 
         // determine first delimiter that appears, which is the actual delimiter as names MUST NOT (RFC 8907) contain either delimiter character
+        // NOTE: the unwrap should never panic since the presence of a delimiter is checked
         let delimiter_index = match (equals_index, star_index) {
             (None, star) => star,
             (equals, None) => equals,
-            (Some(equals), Some(star)) => Some(core::cmp::min(equals, star)),
-        }?;
+            (Some(equals), Some(star)) => Some(equals.min(star)),
+        }
+        .unwrap();
 
         // at this point, delimiter_index was non-None and must contain one of {*, =}
-        let required = buffer[delimiter_index] == b'=';
+        let required = buffer[delimiter_index] == Self::REQUIRED_DELIMITER as u8;
 
-        let name = AsciiStr::try_from(&buffer[..delimiter_index]).ok()?;
-        let value = AsciiStr::try_from(&buffer[delimiter_index + 1..]).ok()?;
+        // NOTE: buffer is checked to be full ASCII above, so these unwraps should never panic
+        let name = FieldText::try_from(&buffer[..delimiter_index]).unwrap();
+        let value = FieldText::try_from(&buffer[delimiter_index + 1..]).unwrap();
 
-        Some(Self {
+        Ok(Self {
             name,
             value,
             required,
@@ -145,7 +240,7 @@ impl<'args> Arguments<'args> {
             for argument in self.0.iter() {
                 let argument_length = argument.encoded_length() as usize;
                 let next_argument_start = argument_start + argument_length;
-                argument.serialize_name_value(&mut buffer[argument_start..next_argument_start]);
+                argument.serialize(&mut buffer[argument_start..next_argument_start]);
 
                 // update loop state
                 argument_start = next_argument_start;

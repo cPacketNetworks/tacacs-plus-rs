@@ -4,10 +4,10 @@ use byteorder::{ByteOrder, NetworkEndian};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
-    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, PacketBody,
-    PacketType, Serialize, SerializeError, UserInformation,
+    Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
+    InvalidArgument, PacketBody, PacketType, Serialize, SerializeError, UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 #[cfg(test)]
 mod tests;
@@ -116,7 +116,7 @@ struct ArgumentsInfo<'raw> {
 #[derive(Debug)]
 pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'packet>,
+    server_message: FieldText<'packet>,
     data: &'packet [u8],
     arguments_info: ArgumentsInfo<'packet>,
 }
@@ -145,19 +145,15 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
             let raw_argument = &self.arguments_info.arguments_buffer
                 [self.next_offset..self.next_offset + next_length];
 
-            // NOTE: this should always return Some, since the validity of arguments is checked in Reply's TryFrom impl
-            // we might want to remove the assert eventually, but I have it there for testing purposes at least
-            let deserialized = Argument::deserialize(raw_argument);
-            assert!(
-                deserialized.is_some(),
-                "invalid argument in ArgumentsIterator, despite checks on construction"
-            );
+            // NOTE: this should always return Ok, since the validity of arguments is checked in Reply's TryFrom impl
+            // the `.ok().unwrap()` is technically redundant, but I want to make sure the iterator doesn't start prematurely returning None silently
+            let deserialized = Argument::deserialize(raw_argument).ok().unwrap();
 
             // update iterator state
             self.next_argument_number += 1;
             self.next_offset += next_length;
 
-            deserialized
+            Some(deserialized)
         } else {
             None
         }
@@ -218,19 +214,14 @@ impl<'packet> Reply<'packet> {
     }
 
     /// Ensures a list of argument lengths and their raw values represent a valid set of arguments.
-    fn arguments_valid(lengths: &[u8], values: &[u8]) -> bool {
+    fn ensure_arguments_valid(lengths: &[u8], values: &[u8]) -> Result<(), InvalidArgument> {
         let mut argument_start = 0;
 
-        lengths.iter().all(|&length| {
+        lengths.iter().try_fold((), |_, &length| {
             let raw_argument = &values[argument_start..argument_start + length as usize];
             argument_start += length as usize;
 
-            // valid -> fully ASCII & contains a delimiter, but doesn't start with one
-            // (length is guaranteed to be okay since it's converted directly from a u8)
-            // TODO: make this method on Argument instead?
-            raw_argument.is_ascii()
-                && (raw_argument.contains(&b'=') || raw_argument.contains(&b'*'))
-                && !(raw_argument[0] == b'=' || raw_argument[0] == b'*')
+            Argument::check_encoding(raw_argument)
         })
     }
 
@@ -240,7 +231,7 @@ impl<'packet> Reply<'packet> {
     }
 
     /// The message received from the server.
-    pub fn server_mesage(&self) -> AsciiStr<'_> {
+    pub fn server_mesage(&self) -> FieldText<'_> {
         self.server_message
     }
 
@@ -285,7 +276,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let data_start = body_start + server_message_length;
             let arguments_start = data_start + data_length;
 
-            let server_message = AsciiStr::try_from(&buffer[body_start..data_start])
+            let server_message = FieldText::try_from(&buffer[body_start..data_start])
                 .map_err(|_| DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..arguments_start];
 
@@ -293,22 +284,20 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let argument_lengths = &buffer[Self::ARGUMENT_LENGTHS_START..body_start];
             let argument_values = &buffer[arguments_start..total_length];
 
-            if Self::arguments_valid(argument_lengths, argument_values) {
-                let arguments_info = ArgumentsInfo {
-                    argument_count,
-                    argument_lengths,
-                    arguments_buffer: argument_values,
-                };
+            Self::ensure_arguments_valid(argument_lengths, argument_values)?;
 
-                Ok(Self {
-                    status,
-                    server_message,
-                    data,
-                    arguments_info,
-                })
-            } else {
-                Err(DeserializeError::InvalidWireBytes)
-            }
+            let arguments_info = ArgumentsInfo {
+                argument_count,
+                argument_lengths,
+                arguments_buffer: argument_values,
+            };
+
+            Ok(Self {
+                status,
+                server_message,
+                data,
+                arguments_info,
+            })
         } else {
             Err(DeserializeError::UnexpectedEnd)
         }

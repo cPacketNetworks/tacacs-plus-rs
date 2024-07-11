@@ -11,5 +11,5 @@ extern crate std;
 
 pub mod protocol;
 
-mod ascii;
-pub use ascii::AsciiStr;
+mod text;
+pub use text::FieldText;

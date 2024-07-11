@@ -1,14 +1,18 @@
 use super::*;
-use crate::AsciiStr;
+use crate::FieldText;
 
 #[test]
 fn arguments_two_required() {
     let argument_array = [
-        Argument::new(AsciiStr::assert("service"), AsciiStr::assert("test"), true)
-            .expect("argument should be valid"),
         Argument::new(
-            AsciiStr::assert("random-argument"),
-            AsciiStr::assert(""),
+            FieldText::assert("service"),
+            FieldText::assert("test"),
+            true,
+        )
+        .expect("argument should be valid"),
+        Argument::new(
+            FieldText::assert("random-argument"),
+            FieldText::assert(""),
             true,
         )
         .expect("argument should be valid"),
@@ -33,8 +37,8 @@ fn arguments_two_required() {
 #[test]
 fn arguments_one_optional() {
     let arguments_array = [Argument::new(
-        AsciiStr::assert("optional-arg"),
-        AsciiStr::assert("unimportant"),
+        FieldText::assert("optional-arg"),
+        FieldText::assert("unimportant"),
         false,
     )
     .expect("argument should be valid")];
@@ -48,4 +52,98 @@ fn arguments_one_optional() {
 
     let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
     assert_eq!(&buffer[..body_serialized_len], b"optional-arg*unimportant");
+}
+
+#[test]
+fn construct_and_serialize_valid_optional_argument() {
+    let argument = Argument::new(
+        FieldText::assert("valid name with other symbols: !@#$%^&()"),
+        FieldText::assert("ASCII-value (with space)"),
+        false,
+    )
+    .expect("argument should be valid");
+    let argument_len = argument.encoded_length() as usize;
+
+    let mut buffer = [0xffu8; 70];
+    argument.serialize(&mut buffer);
+
+    assert_eq!(
+        &buffer[..argument_len],
+        b"valid name with other symbols: !@#$%^&()*ASCII-value (with space)"
+    );
+}
+
+#[test]
+fn argument_name_contains_equals_delimiter() {
+    assert_eq!(
+        Argument::new(
+            FieldText::assert("= <-- shouldn't be there"),
+            FieldText::assert("value doesn't matter"),
+            true,
+        ),
+        Err(InvalidArgument::NameContainsDelimiter)
+    );
+}
+
+#[test]
+fn argument_name_contains_star_delimiter() {
+    assert_eq!(
+        Argument::new(
+            FieldText::assert("what even is this: *"),
+            FieldText::assert("no one will see this"),
+            false,
+        ),
+        Err(InvalidArgument::NameContainsDelimiter)
+    );
+}
+
+#[test]
+fn argument_total_length_too_big() {
+    let long_value = [b'?'; 256];
+
+    assert_eq!(
+        Argument::new(
+            FieldText::assert("that's some name you've got"),
+            long_value.as_slice().try_into().unwrap(),
+            true
+        ),
+        Err(InvalidArgument::TooLong)
+    );
+}
+
+#[test]
+fn deserialize_empty_string() {
+    assert_eq!(
+        Argument::deserialize(b""),
+        Err(InvalidArgument::NoDelimiter)
+    );
+}
+
+#[test]
+fn deserialize_just_delimiter() {
+    assert_eq!(Argument::deserialize(b"="), Err(InvalidArgument::EmptyName));
+}
+
+#[test]
+fn deserialize_both_delims_equals_first() {
+    assert_eq!(
+        Argument::deserialize(b"name=1*2"),
+        Ok(Argument {
+            name: FieldText::assert("name"),
+            value: FieldText::assert("1*2"),
+            required: true
+        })
+    );
+}
+
+#[test]
+fn deserialize_both_delims_star_first() {
+    assert_eq!(
+        Argument::deserialize(b"optional*and=stuff"),
+        Ok(Argument {
+            name: FieldText::assert("optional"),
+            value: FieldText::assert("and=stuff"),
+            required: false
+        })
+    );
 }

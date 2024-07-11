@@ -7,7 +7,7 @@ use super::{
     Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, PacketBody,
     PacketType, Serialize, SerializeError, UserInformation,
 };
-use crate::AsciiStr;
+use crate::FieldText;
 
 #[cfg(test)]
 mod tests;
@@ -156,7 +156,7 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 #[derive(PartialEq, Eq, Debug)]
 pub struct Reply<'packet> {
     status: Status,
-    server_message: AsciiStr<'packet>,
+    server_message: FieldText<'packet>,
     data: &'packet [u8],
 }
 
@@ -189,7 +189,7 @@ impl Reply<'_> {
     }
 
     /// The message received from the server, potentially to display to a user.
-    pub fn server_message(&self) -> AsciiStr<'_> {
+    pub fn server_message(&self) -> FieldText<'_> {
         self.server_message
     }
 
@@ -222,7 +222,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let server_message_start = Self::REQUIRED_FIELDS_LENGTH;
             let data_start = server_message_start + server_message_length;
 
-            let server_message = AsciiStr::try_from(&buffer[server_message_start..data_start])
+            let server_message = FieldText::try_from(&buffer[server_message_start..data_start])
                 .map_err(|_| DeserializeError::InvalidWireBytes)?;
             let data = &buffer[data_start..data_start + data_length];
 

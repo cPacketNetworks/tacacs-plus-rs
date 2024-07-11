@@ -11,7 +11,7 @@ pub mod authentication;
 pub mod authorization;
 
 mod arguments;
-pub use arguments::{Argument, Arguments};
+pub use arguments::{Argument, Arguments, InvalidArgument};
 
 mod fields;
 pub use fields::*;
@@ -50,6 +50,9 @@ pub enum DeserializeError {
     /// Invalid version number.
     InvalidVersion(u8),
 
+    /// Invalid arguments when deserializing
+    InvalidArgument(InvalidArgument),
+
     /// Mismatch between expected/received packet types.
     PacketTypeMismatch {
         /// The expected packet type.
@@ -81,6 +84,7 @@ impl fmt::Display for DeserializeError {
                 num >> 4,
                 num & 0xf
             ),
+            Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
             Self::PacketTypeMismatch { expected, actual } => write!(
                 f,
                 "packet type mismatch: expected {expected:?} but got {actual:?}"
@@ -97,10 +101,11 @@ impl fmt::Display for DeserializeError {
 mod error_impls {
     use std::error::Error;
 
-    use super::{DeserializeError, SerializeError};
+    use super::{DeserializeError, InvalidArgument, SerializeError};
 
     impl Error for DeserializeError {}
     impl Error for SerializeError {}
+    impl Error for InvalidArgument {}
 }
 
 // suggestion from Rust API guidelines: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
