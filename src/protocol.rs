@@ -202,11 +202,6 @@ impl From<Version> for u8 {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PacketFlags(u8);
 
-impl PacketFlags {
-    /// Size of universal packet flags on the wire.
-    const WIRE_SIZE: usize = 1;
-}
-
 bitflags! {
     impl PacketFlags: u8 {
         /// Indicates the body of the packet is unobfuscated.
@@ -234,21 +229,24 @@ impl HeaderInfo {
     /// Size of a full TACACS+ packet header.
     const HEADER_SIZE_BYTES: usize = 12;
 
-    /// Number of bytes written with a partial header serialization.
-    ///
-    /// Includes one for the sequence number, 1 for the packet flags, and 4 for the session id.
-    const PARTIAL_SERIALIZE_NUM_BYTES: usize = 1 + PacketFlags::WIRE_SIZE + 4;
-
     /// Serializes the information stored in a `HeaderInfo` struct, which isn't the complete header (missing body length/packet type), hence the `_partial` suffix.
-    fn serialize_partial(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
-        // NOTE: the full header size is compared against, despite the partial information only occupying 8 bytes of space (technically 7, but the type byte is skipped)
-        // it doesn't make sense to partially serialize a buffer if it doesn't have space for a full header, hence the check against the full length
+    fn serialize(
+        &self,
+        buffer: &mut [u8],
+        version: Version,
+        packet_type: PacketType,
+        body_length: u32,
+    ) -> Result<usize, SerializeError> {
+        // ensure buffer is large enough to store header
         if buffer.len() >= Self::HEADER_SIZE_BYTES {
+            buffer[0] = version.into();
+            buffer[1] = packet_type as u8;
             buffer[2] = self.sequence_number;
             buffer[3] = self.flags.bits();
             NetworkEndian::write_u32(&mut buffer[4..8], self.session_id);
+            NetworkEndian::write_u32(&mut buffer[8..12], body_length);
 
-            Ok(Self::PARTIAL_SERIALIZE_NUM_BYTES)
+            Ok(Self::HEADER_SIZE_BYTES)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
@@ -327,8 +325,8 @@ pub struct Packet<B: PacketBody> {
 }
 
 impl<B: PacketBody> Packet<B> {
-    /// Size of a TACACS+ packet header, in bytes.
-    pub const HEADER_SIZE_BYTES: usize = 12;
+    /// Location of the start of the packet body, after the header.
+    const BODY_START: usize = 12;
 
     /// Assembles a header and body into a full packet.
     pub fn new(header: HeaderInfo, body: B) -> Self {
@@ -362,27 +360,26 @@ impl<B: PacketBody> Packet<B> {
 
 impl<B: PacketBody + Serialize> Serialize for Packet<B> {
     fn wire_size(&self) -> usize {
-        Self::HEADER_SIZE_BYTES + self.body.wire_size()
+        HeaderInfo::HEADER_SIZE_BYTES + self.body.wire_size()
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
-            // fill in header information
-            let mut header_bytes = self.header.serialize_partial(buffer)?;
-
-            buffer[0] = self.version.into();
-            buffer[1] = B::TYPE as u8;
-            header_bytes += 2;
-
+            // serialize body first to get its length, which is stored in the header
             let body_length = self
                 .body
-                .serialize_into_buffer(&mut buffer[Self::HEADER_SIZE_BYTES..])?;
+                .serialize_into_buffer(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])?;
 
-            // body length constitutes the last 4 bytes of the 12-byte header
-            // filled in last to avoid making incorrect assumptions about the length of the body
-            NetworkEndian::write_u32(&mut buffer[8..12], body_length.try_into().unwrap());
-            header_bytes += 4;
+            // fill in header information
+            let header_bytes = self.header.serialize(
+                buffer,
+                self.version,
+                B::TYPE,
+                // TODO: length associated type -> u32 for packet bodies? to avoid .try_into().unwrap()
+                body_length.try_into().unwrap(),
+            )?;
 
+            // return total lengthwritten
             Ok(header_bytes + body_length)
         } else {
             Err(SerializeError::NotEnoughSpace)
@@ -396,16 +393,18 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        if buffer.len() > Self::HEADER_SIZE_BYTES {
-            let header: HeaderInfo = buffer[..Self::HEADER_SIZE_BYTES].try_into()?;
+        if buffer.len() > HeaderInfo::HEADER_SIZE_BYTES {
+            let header: HeaderInfo = buffer[..HeaderInfo::HEADER_SIZE_BYTES].try_into()?;
 
             let actual_packet_type = PacketType::try_from(buffer[1])?;
             if actual_packet_type == B::TYPE {
+                // body length is stored at the end of the 12-byte header
                 let body_length = NetworkEndian::read_u32(&buffer[8..12]) as usize;
 
-                // TODO: figure out this check, it feels a bit fishy
-                if body_length <= buffer[12..].len() {
-                    let body = buffer[12..12 + body_length].try_into()?;
+                // ensure buffer actually contains whole body
+                if buffer[Self::BODY_START..].len() >= body_length {
+                    let body =
+                        buffer[Self::BODY_START..Self::BODY_START + body_length].try_into()?;
                     Ok(Self::new(header, body))
                 } else {
                     Err(DeserializeError::UnexpectedEnd)
