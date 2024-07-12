@@ -186,6 +186,7 @@ pub struct Reply<'packet> {
 }
 
 impl Reply<'_> {
+    // TODO: merge claimed_length & extract_field lengths into single function, like that one other packet type
     /// Determines how long a raw reply packet claims to be, if applicable, based on various lengths stored in the body "header."
     pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
         if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {

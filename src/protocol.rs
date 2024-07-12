@@ -4,6 +4,7 @@ use core::fmt;
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
+use getset::Getters;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 pub mod accounting;
@@ -317,10 +318,15 @@ pub trait Serialize {
 }
 
 /// A full TACACS+ protocol packet.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Getters, PartialEq, Eq, Debug)]
 pub struct Packet<B: PacketBody> {
+    #[getset(get)]
     header: HeaderInfo,
+
+    #[getset(get)]
     body: B,
+
+    #[getset(get)]
     version: Version,
 }
 
@@ -340,21 +346,6 @@ impl<B: PacketBody> Packet<B> {
             body,
             version,
         }
-    }
-
-    /// Returns the header information of this packet.
-    pub fn header(&self) -> &HeaderInfo {
-        &self.header
-    }
-
-    /// Getter for the body of a packet.
-    pub fn body(&self) -> &B {
-        &self.body
-    }
-
-    /// Returns the protocol version of this packet.
-    pub fn version(&self) -> Version {
-        self.version
     }
 }
 

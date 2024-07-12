@@ -1,6 +1,7 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
 use byteorder::{ByteOrder, NetworkEndian};
+use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
@@ -133,11 +134,18 @@ struct ArgumentsInfo<'raw> {
 }
 
 /// The body of an authorization reply packet.
-#[derive(Debug)]
+#[derive(Getters, CopyGetters, Debug)]
 pub struct Reply<'packet> {
+    #[getset(get)]
     status: Status,
+
+    #[getset(get_copy)]
     server_message: FieldText<'packet>,
+
+    #[getset(get_copy)]
     data: &'packet [u8],
+
+    // this field not publicly exposed on purpose
     arguments_info: ArgumentsInfo<'packet>,
 }
 
@@ -241,21 +249,6 @@ impl<'packet> Reply<'packet> {
 
             Argument::check_encoding(raw_argument)
         })
-    }
-
-    /// The result status of the request.
-    pub fn status(&self) -> Status {
-        self.status
-    }
-
-    /// The message received from the server.
-    pub fn server_mesage(&self) -> FieldText<'_> {
-        self.server_message
-    }
-
-    /// The domain-specific data received from the server.
-    pub fn data(&self) -> &[u8] {
-        self.data
     }
 
     /// Returns an iterator over the arguments included in this reply packet.
