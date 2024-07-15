@@ -26,16 +26,26 @@ pub enum SerializeError {
 
     /// The length of a field exceeded the maximum value encodeable on the wire.
     LengthOverflow,
+
+    /// Mismatch between expected/actual number of bytes written.
+    LengthMismatch {
+        /// The expected number of bytes to have been written.
+        expected: usize,
+        /// That actual number of bytes written during serialization.
+        actual: usize,
+    },
 }
 
 impl fmt::Display for SerializeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
-            Self::NotEnoughSpace => "not enough space in buffer",
-            Self::LengthOverflow => "field length overflowed",
-        };
-
-        write!(f, "{}", message)
+        match self {
+            Self::NotEnoughSpace => write!(f, "not enough space in buffer"),
+            Self::LengthOverflow => write!(f, "field length overflowed"),
+            Self::LengthMismatch { expected, actual } => write!(
+                f,
+                "mismatch in number of bytes written: expected {expected}, actual {actual}"
+            ),
+        }
     }
 }
 

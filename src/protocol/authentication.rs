@@ -176,7 +176,14 @@ impl Serialize for Start<'_> {
                 buffer[7] = 0;
             }
 
-            Ok(total_bytes_written)
+            if total_bytes_written == wire_size {
+                Ok(total_bytes_written)
+            } else {
+                Err(SerializeError::LengthMismatch {
+                    expected: wire_size,
+                    actual: total_bytes_written,
+                })
+            }
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
@@ -340,7 +347,9 @@ impl Serialize for Continue<'_> {
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
-        if buffer.len() >= self.wire_size() {
+        let wire_size = self.wire_size();
+
+        if buffer.len() >= wire_size {
             // write field lengths into beginning of body
             let user_message_len = self.user_message.map_or(0, <[u8]>::len).try_into()?;
             NetworkEndian::write_u16(&mut buffer[..2], user_message_len);
@@ -363,7 +372,18 @@ impl Serialize for Continue<'_> {
                 buffer[data_offset..data_offset + data_len as usize].copy_from_slice(data);
             }
 
-            Ok(Self::REQUIRED_FIELDS_LENGTH + user_message_len as usize + data_len as usize)
+            // total number of bytes written includes required "header" fields & two variable length fields
+            let actual_written_len =
+                Self::REQUIRED_FIELDS_LENGTH + user_message_len as usize + data_len as usize;
+
+            if actual_written_len == wire_size {
+                Ok(actual_written_len)
+            } else {
+                Err(SerializeError::LengthMismatch {
+                    expected: wire_size,
+                    actual: actual_written_len,
+                })
+            }
         } else {
             Err(SerializeError::NotEnoughSpace)
         }

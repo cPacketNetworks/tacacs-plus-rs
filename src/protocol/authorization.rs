@@ -90,7 +90,17 @@ impl Serialize for Request<'_> {
                     .serialize_encoded_values(&mut buffer[user_info_start + user_info_written_len..wire_size])?;
 
             // NOTE: 1 is subtracted from REQUIRED_FIELDS_LENGTH since otherwise the argument count field is double counted (from Arguments::wire_size())
-            Ok((Self::REQUIRED_FIELDS_LENGTH - 1) + user_info_written_len + arguments_wire_len)
+            let actual_written_len =
+                (Self::REQUIRED_FIELDS_LENGTH - 1) + user_info_written_len + arguments_wire_len;
+
+            if actual_written_len == wire_size {
+                Ok(actual_written_len)
+            } else {
+                Err(SerializeError::LengthMismatch {
+                    expected: wire_size,
+                    actual: actual_written_len,
+                })
+            }
         } else {
             Err(SerializeError::NotEnoughSpace)
         }

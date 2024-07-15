@@ -142,11 +142,19 @@ impl Serialize for Request<'_> {
                         .serialize_encoded_values(&mut buffer[body_start + user_information_len..wire_size])?;
 
             // NOTE: as with authorization, 1 is subtracted from REQUIRED_FIELDS_LENGTH as the argument count would be double counted otherwise
-            Ok(
-                (Self::REQUIRED_FIELDS_LENGTH - 1)
-                    + user_information_len
-                    + arguments_serialized_len,
-            )
+            let actual_written_len = (Self::REQUIRED_FIELDS_LENGTH - 1)
+                + user_information_len
+                + arguments_serialized_len;
+
+            // ensure expected/actual sizes match
+            if actual_written_len == wire_size {
+                Ok(actual_written_len)
+            } else {
+                Err(SerializeError::LengthMismatch {
+                    expected: wire_size,
+                    actual: actual_written_len,
+                })
+            }
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
