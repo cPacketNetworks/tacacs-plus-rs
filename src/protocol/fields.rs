@@ -201,9 +201,9 @@ impl<'info> UserInformation<'info> {
         port: FieldText<'info>,
         remote_address: FieldText<'info>,
     ) -> Option<Self> {
-        if user.len() <= u8::MAX as usize
-            && port.len() <= u8::MAX as usize
-            && remote_address.len() <= u8::MAX as usize
+        if u8::try_from(user.len()).is_ok()
+            && u8::try_from(port.len()).is_ok()
+            && u8::try_from(remote_address.len()).is_ok()
         {
             Some(Self {
                 user,

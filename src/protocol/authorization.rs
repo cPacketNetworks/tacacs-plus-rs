@@ -62,30 +62,43 @@ impl Serialize for Request<'_> {
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
-        if buffer.len() >= self.wire_size() {
+        let wire_size = self.wire_size();
+
+        if buffer.len() >= wire_size {
             buffer[0] = self.method as u8;
             self.authentication_context
                 .serialize_header_information(&mut buffer[1..4]);
             self.user_information
                 .serialize_header_information(&mut buffer[4..7])?;
 
-            // the user information fields start after all of the required fields and also the argument lengths, the latter of which take up 1 byte each
-            let user_info_start: usize =
-                Self::REQUIRED_FIELDS_LENGTH + self.arguments.argument_count();
+            let argument_count = self.arguments.argument_count() as usize;
 
-            let user_information_len = self
-                .user_information
-                .serialize_body_information(&mut buffer[user_info_start..]);
+            // the user information fields start after all of the required fields and also the argument lengths, the latter of which take up 1 byte each
+            let user_info_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
+
+            // calculate length of body user information values to allow for precise slicing when serializing
+            let user_info_calculated_len =
+                self.user_information.wire_size() - UserInformation::HEADER_INFORMATION_SIZE;
+
+            let user_info_written_len = self.user_information.serialize_body_information(
+                &mut buffer[user_info_start..user_info_start + user_info_calculated_len],
+            );
+
+            assert_eq!(
+                user_info_calculated_len, user_info_written_len,
+                "mismatch between calculated/written user information lengths"
+            );
 
             // argument lengths start at index 7, just after the argument count
-            let arguments_wire_len = self.arguments.serialize_count_and_lengths(&mut buffer[7..])?
-                // argument values go after all of the user information
+            // extra 1 added to allow room for argument count itself
+            let arguments_wire_len = self.arguments.serialize_count_and_lengths(&mut buffer[7..7 + argument_count + 1])?
+                // argument values go after all of the user information, and until the end of the packet
                 + self
                     .arguments
-                    .serialize_encoded_values(&mut buffer[user_info_start + user_information_len..])?;
+                    .serialize_encoded_values(&mut buffer[user_info_start + user_info_written_len..wire_size])?;
 
             // NOTE: 1 is subtracted from REQUIRED_FIELDS_LENGTH since otherwise the argument count field is double counted (from Arguments::wire_size())
-            Ok((Self::REQUIRED_FIELDS_LENGTH - 1) + user_information_len + arguments_wire_len)
+            Ok((Self::REQUIRED_FIELDS_LENGTH - 1) + user_info_written_len + arguments_wire_len)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }

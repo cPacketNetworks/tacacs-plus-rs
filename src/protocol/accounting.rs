@@ -124,7 +124,7 @@ impl Serialize for Request<'_> {
             let argument_count = self.arguments.argument_count();
 
             // body starts after the required fields & the argument lengths (1 byte per argument)
-            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
+            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count as usize;
 
             // actual request content
             let user_information_len = self

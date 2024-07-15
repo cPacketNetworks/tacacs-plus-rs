@@ -171,8 +171,9 @@ impl<'args> Arguments<'args> {
     }
 
     /// Returns the number of arguments an `Arguments` object contains.
-    pub fn argument_count(&self) -> usize {
-        self.0.len()
+    pub fn argument_count(&self) -> u8 {
+        // SAFETY: this should not panic as the argument count is verified to fit in a u8 in the constructor
+        self.0.len().try_into().unwrap()
     }
 
     /// Returns the size of this set of arguments on the wire, including encoded values as well as lengths & the argument count.
@@ -196,20 +197,19 @@ impl<'args> Arguments<'args> {
         let argument_count = self.argument_count();
 
         // strict greater than to allow room for encoded argument count itself
-        if buffer.len() > argument_count {
+        if buffer.len() > argument_count as usize {
             // NOTE: checks in construction should prevent this unwrap from panicking
-            buffer[0] = argument_count.try_into()?;
+            buffer[0] = argument_count;
 
             // fill in argument lengths after argument count
-            for (position, argument) in zip(&mut buffer[1..1 + argument_count], self.0) {
+            for (position, argument) in zip(&mut buffer[1..1 + argument_count as usize], self.0) {
                 *position = argument.encoded_length();
             }
 
             // total bytes written: number of arguments + one extra byte for argument count itself
-            Ok(1 + argument_count)
+            Ok(1 + argument_count as usize)
         } else {
-            // no bytes are written if the buffer isn't large enough to hold all of the argument lengths & the argument count
-            Ok(0)
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 
