@@ -131,6 +131,7 @@ mod error_impls {
     impl Error for DeserializeError {}
     impl Error for SerializeError {}
     impl Error for InvalidArgument {}
+    impl Error for super::authentication::BadStart {}
 }
 
 // suggestion from Rust API guidelines: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
