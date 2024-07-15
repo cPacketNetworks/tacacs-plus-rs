@@ -77,16 +77,13 @@ pub enum DeserializeError {
     },
 
     /// Text field was not ASCII when it should have been.
-    TextNotAscii,
+    BadText,
 
     /// Invalid byte representation of an object.
     InvalidWireBytes,
 
     /// Object representation was cut off in some way.
     UnexpectedEnd,
-
-    /// There wasn't enough space in a target buffer.
-    NotEnoughSpace,
 }
 
 impl fmt::Display for DeserializeError {
@@ -103,14 +100,13 @@ impl fmt::Display for DeserializeError {
                 num & 0xf
             ),
             Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
-            Self::TextNotAscii => write!(f, "text field was not valid ASCII"),
+            Self::BadText => write!(f, "text field was not printable ASCII"),
             Self::PacketTypeMismatch { expected, actual } => write!(
                 f,
                 "packet type mismatch: expected {expected:?} but got {actual:?}"
             ),
             Self::InvalidWireBytes => write!(f, "invalid byte representation of object"),
             Self::UnexpectedEnd => write!(f, "unexpected end of buffer when deserializing object"),
-            Self::NotEnoughSpace => write!(f, "not enough space in provided buffer"),
         }
     }
 }

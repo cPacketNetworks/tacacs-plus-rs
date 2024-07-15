@@ -203,12 +203,12 @@ impl<'packet> Reply<'packet> {
     const ARGUMENT_LENGTHS_START: usize = 6;
 
     /// Determines the length of a reply packet encoded into the provided buffer, if possible.
-    pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
+    pub fn claimed_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
         Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
     }
 
     /// Extracts the server message and data lengths from a raw reply packet, if possible.
-    fn extract_field_lengths(buffer: &[u8]) -> Option<ReplyFieldLengths> {
+    fn extract_field_lengths(buffer: &[u8]) -> Result<ReplyFieldLengths, DeserializeError> {
         // data length is the last field in the required part of the header, so we need a full (minimal) header
         if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
             let argument_count = buffer[1] as usize;
@@ -230,16 +230,16 @@ impl<'packet> Reply<'packet> {
                     + data_length
                     + encoded_arguments_length;
 
-                Some(ReplyFieldLengths {
+                Ok(ReplyFieldLengths {
                     data_length,
                     server_message_length,
                     total_length,
                 })
             } else {
-                None
+                Err(DeserializeError::UnexpectedEnd)
             }
         } else {
-            None
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 
@@ -277,12 +277,11 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        // TODO: this duplicates argument length calculations
         let ReplyFieldLengths {
             data_length,
             server_message_length,
             total_length,
-        } = Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+        } = Self::extract_field_lengths(buffer)?;
 
         if buffer.len() >= total_length {
             let status: Status = buffer[0].try_into()?;

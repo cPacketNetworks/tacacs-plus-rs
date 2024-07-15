@@ -270,7 +270,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             Ok(Reply {
                 status,
                 server_message: FieldText::try_from(&buffer[body_begin..data_begin])
-                    .map_err(|_| DeserializeError::TextNotAscii)?,
+                    .map_err(|_| DeserializeError::BadText)?,
                 data: &buffer[data_begin..data_begin + data_length],
                 flags,
             })
