@@ -106,8 +106,8 @@ impl fmt::Display for DeserializeError {
             Self::InvalidVersion(num) => write!(
                 f,
                 "invalid version number: major {:#x}, minor {:#x}",
-                num >> 4,
-                num & 0xf
+                num >> 4,     // major version is 4 upper bits of byte
+                num & 0b1111  // minor version is 4 lower bits
             ),
             Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
             Self::BadText => write!(f, "text field was not printable ASCII"),
@@ -135,7 +135,7 @@ mod error_impls {
 
 // suggestion from Rust API guidelines: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
 // seals the PacketBody trait
-mod sealed_trait {
+mod sealed {
     use super::{accounting, authentication, authorization};
 
     pub trait Sealed {}
@@ -159,7 +159,7 @@ mod sealed_trait {
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MajorVersion {
-    /// The only current major version specified in RFC-8907.
+    /// The only current major version specified in RFC8907.
     RFC8907 = 0xc,
 }
 
@@ -246,7 +246,7 @@ impl HeaderInfo {
     /// Size of a full TACACS+ packet header.
     const HEADER_SIZE_BYTES: usize = 12;
 
-    /// Serializes the information stored in a `HeaderInfo` struct, which isn't the complete header (missing body length/packet type), hence the `_partial` suffix.
+    /// Serializes the information stored in a `HeaderInfo` struct, along with the supplemented information to form a complete header.
     fn serialize(
         &self,
         buffer: &mut [u8],
@@ -260,7 +260,11 @@ impl HeaderInfo {
             buffer[1] = packet_type as u8;
             buffer[2] = self.sequence_number;
             buffer[3] = self.flags.bits();
+
+            // session id is middle 4 bytes of header
             NetworkEndian::write_u32(&mut buffer[4..8], self.session_id);
+
+            // body length goes at the end of the header (last 4 bytes)
             NetworkEndian::write_u32(&mut buffer[8..12], body_length);
 
             Ok(Self::HEADER_SIZE_BYTES)
@@ -310,7 +314,7 @@ impl From<TryFromPrimitiveError<PacketType>> for DeserializeError {
 /// This trait is sealed per the [Rust API guidelines], so it cannot be implemented by external types.
 ///
 /// [Rust API guidelines]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
-pub trait PacketBody: sealed_trait::Sealed {
+pub trait PacketBody: sealed::Sealed {
     /// Type of the packet (one of authentication, authorization, or accounting).
     const TYPE: PacketType;
 

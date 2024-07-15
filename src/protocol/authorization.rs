@@ -217,8 +217,8 @@ impl ExactSizeIterator for ArgumentsIterator<'_> {}
 impl<'packet> Reply<'packet> {
     const ARGUMENT_LENGTHS_START: usize = 6;
 
-    /// Determines the length of a reply packet encoded into the provided buffer, if possible.
-    pub fn claimed_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
+    /// Determines the length of a reply packet based on encoded lengths at the beginning of the packet body, if possible.
+    pub fn extract_total_length(buffer: &[u8]) -> Result<usize, DeserializeError> {
         Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
     }
 
