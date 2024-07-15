@@ -1,5 +1,7 @@
 //! Authentication-related protocol packets.
 
+use core::fmt;
+
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
 use getset::{CopyGetters, Getters};
@@ -16,7 +18,7 @@ mod tests;
 
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Action {
     /// Login request.
     Login = 0x01,
@@ -77,11 +79,45 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// An authentication start packet, used to initiate an authentication session.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Start<'packet> {
     action: Action,
     authentication: AuthenticationContext,
     user_information: UserInformation<'packet>,
     data: Option<&'packet [u8]>,
+}
+
+/// Error returned when attempting to construct an invalid start packet body.
+#[non_exhaustive]
+#[derive(Debug, PartialEq, Eq)]
+pub enum BadStart {
+    /// Data field was too long to encode.
+    DataTooLong,
+
+    /// Authentication type was not set, which is invalid for authentication packets.
+    AuthTypeNotSet,
+
+    /// Action & authentication type were incompatible.
+    ///
+    /// See [Table 1] of RFC8907 for valid combinations.
+    ///
+    /// [Table 1]: https://www.rfc-editor.org/rfc/rfc8907.html#name-tacacs-protocol-versioning
+    IncompatibleActionAndType,
+}
+
+impl fmt::Display for BadStart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DataTooLong => write!(f, "data field too long to encode in a single byte"),
+            Self::AuthTypeNotSet => write!(
+                f,
+                "authentication type must be set for authentication packets"
+            ),
+            Self::IncompatibleActionAndType => {
+                write!(f, "authentication action & type are incompatible")
+            }
+        }
+    }
 }
 
 impl<'packet> Start<'packet> {
@@ -91,21 +127,52 @@ impl<'packet> Start<'packet> {
         authentication: AuthenticationContext,
         user_information: UserInformation<'packet>,
         data: Option<&'packet [u8]>,
-    ) -> Option<Self> {
+    ) -> Result<Self, BadStart> {
         // TODO: ensure action/authentication type compatibility?
 
         // ensure data length is small enough to be properly encoded without truncation
-        if data.map_or(true, |slice| u8::try_from(slice.len()).is_ok())
-            && authentication.authentication_type != AuthenticationType::NotSet
-        {
-            Some(Self {
+        if data.map_or(false, |slice| u8::try_from(slice.len()).is_err()) {
+            Err(BadStart::DataTooLong)
+        } else if authentication.authentication_type == AuthenticationType::NotSet {
+            // authentication type must be set in an authentication start packet
+            Err(BadStart::AuthTypeNotSet)
+        } else if !Self::action_and_type_compatible(authentication.authentication_type, action) {
+            Err(BadStart::IncompatibleActionAndType)
+        } else {
+            Ok(Self {
                 action,
                 authentication,
                 user_information,
                 data,
             })
-        } else {
-            None
+        }
+    }
+
+    /// Predicate for whether authentication type & authentication are compatible.
+    ///
+    /// NOTE: `NotSet` should not be passed to this function, as it is not allowed in authentication packets.
+    ///
+    /// Derived from [Table 1] in RFC8907.
+    ///
+    /// [Table 1]: https://www.rfc-editor.org/rfc/rfc8907.html#name-tacacs-protocol-versioning
+    fn action_and_type_compatible(auth_type: AuthenticationType, action: Action) -> bool {
+        match (auth_type, action) {
+            // ASCII authentication can be used with login/chpass actions
+            (AuthenticationType::Ascii, Action::Login | Action::ChangePassword) => true,
+
+            // ASCII authentication can't be used with sendauth option
+            // (also marked as deprecated but we allow this internally)
+            #[allow(deprecated)]
+            (AuthenticationType::Ascii, Action::SendAuth) => false,
+
+            // change password is not valid for any other authentication types
+            (_, Action::ChangePassword) => false,
+
+            // NotSet is invalid anyways, so we don't handle it and provide a warning in the doc comment for this function
+            (AuthenticationType::NotSet, _) => unreachable!(),
+
+            // all other authentication types can be used for both sendauth/login
+            _ => true,
         }
     }
 }

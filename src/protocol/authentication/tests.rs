@@ -56,7 +56,8 @@ fn serialize_start_no_data() {
 #[test]
 fn serialize_start_with_data() {
     let start_body = Start::new(
-        Action::ChangePassword,
+        #[allow(deprecated)]
+        Action::SendAuth,
         AuthenticationContext {
             privilege_level: PrivilegeLevel::new(4).expect("privilege level 4 should be valid"),
             authentication_type: AuthenticationType::MsChap,
@@ -79,7 +80,7 @@ fn serialize_start_with_data() {
 
     let mut expected = array_vec!([u8; 80]);
     expected.extend_from_slice(&[
-        0x02, // action: change password
+        0x04, // action: sendauth
         4,    // privilege level
         0x05, // authentication type: MSCHAP
         0x07, // authentication service: X25
@@ -119,10 +120,7 @@ fn serialize_start_data_too_long() {
         Some(&long_data),
     );
 
-    assert!(
-        start_body.is_none(),
-        "data should have been too long to construct start"
-    );
+    assert_eq!(start_body, Err(BadStart::DataTooLong),);
 }
 
 #[test]

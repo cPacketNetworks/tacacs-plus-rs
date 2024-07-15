@@ -51,6 +51,7 @@ impl AuthenticationMethod {
 
 /// A privilege level for authentication. Limited to the range 0-15, inclusive.
 #[repr(transparent)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct PrivilegeLevel(u8);
 
 impl PrivilegeLevel {
@@ -119,7 +120,7 @@ impl AuthenticationType {
 
 /// A TACACS+ authentication service. Most of these values are only kept for backwards compatibility.
 #[repr(u8)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AuthenticationService {
     /// No authentication performed.
     None = 0x00,
@@ -152,6 +153,7 @@ pub enum AuthenticationService {
 }
 
 /// Some authentication information about a request, sent or received from a server.
+#[derive(Debug, PartialEq, Eq)]
 pub struct AuthenticationContext {
     /// The privilege level of the request.
     pub privilege_level: PrivilegeLevel,
@@ -176,7 +178,7 @@ impl AuthenticationContext {
 }
 
 /// Some information about the user connected to a TACACS+ client.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct UserInformation<'info> {
     user: &'info str,
     port: FieldText<'info>,
