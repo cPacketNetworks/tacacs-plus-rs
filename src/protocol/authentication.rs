@@ -138,6 +138,8 @@ impl Serialize for Start<'_> {
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
+        let wire_size = self.wire_size();
+
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
 
@@ -151,17 +153,18 @@ impl Serialize for Start<'_> {
             let mut total_bytes_written = 8;
 
             // user information values start at index 8
-            let user_information_len = self
+            // cap slice with wire size to avoid overflows, although that shouldn't happen
+            let user_info_written_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[8..]);
-            total_bytes_written += user_information_len;
+                .serialize_body_information(&mut buffer[8..wire_size]);
+            total_bytes_written += user_info_written_len;
 
             // data starts after the end of the user information values
-            let data_start = 8 + user_information_len;
+            let data_start = 8 + user_info_written_len;
             if let Some(data) = self.data {
                 let data_len = data.len();
 
-                // length is verified to fit in a u8 in new(), so this shouldn't panic
+                // length is verified to fit in a u8 in new(), but verify anyways
                 buffer[7] = data_len.try_into()?;
 
                 // copy over packet data

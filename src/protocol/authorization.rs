@@ -76,18 +76,10 @@ impl Serialize for Request<'_> {
             // the user information fields start after all of the required fields and also the argument lengths, the latter of which take up 1 byte each
             let user_info_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
 
-            // calculate length of body user information values to allow for precise slicing when serializing
-            let user_info_calculated_len =
-                self.user_information.wire_size() - UserInformation::HEADER_INFORMATION_SIZE;
-
-            let user_info_written_len = self.user_information.serialize_body_information(
-                &mut buffer[user_info_start..user_info_start + user_info_calculated_len],
-            );
-
-            assert_eq!(
-                user_info_calculated_len, user_info_written_len,
-                "mismatch between calculated/written user information lengths"
-            );
+            // cap slice with wire slice to avoid overflowing beyond end of packet body
+            let user_info_written_len = self
+                .user_information
+                .serialize_body_information(&mut buffer[user_info_start..wire_size]);
 
             // argument lengths start at index 7, just after the argument count
             // extra 1 added to allow room for argument count itself

@@ -121,23 +121,25 @@ impl Serialize for Request<'_> {
             self.user_information
                 .serialize_header_information(&mut buffer[5..8])?;
 
-            let argument_count = self.arguments.argument_count();
+            let argument_count = self.arguments.argument_count() as usize;
 
             // body starts after the required fields & the argument lengths (1 byte per argument)
-            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count as usize;
+            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
 
             // actual request content
+            // as below, slice bounds are capped to end of packet body to avoid overflowing
             let user_information_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[body_start..]);
+                .serialize_body_information(&mut buffer[body_start..wire_size]);
 
             let arguments_serialized_len =
                 // argument lengths start at index 8
-                self.arguments.serialize_count_and_lengths(&mut buffer[8..])?
+                // extra byte is included in slice for argument count itself
+                self.arguments.serialize_count_and_lengths(&mut buffer[8..8 + argument_count + 1])?
                     // argument values go after the user information values in the body
                     + self
                         .arguments
-                        .serialize_encoded_values(&mut buffer[body_start + user_information_len..])?;
+                        .serialize_encoded_values(&mut buffer[body_start + user_information_len..wire_size])?;
 
             // NOTE: as with authorization, 1 is subtracted from REQUIRED_FIELDS_LENGTH as the argument count would be double counted otherwise
             Ok(
