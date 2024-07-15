@@ -74,6 +74,9 @@ pub struct Request<'packet> {
 }
 
 impl<'packet> Request<'packet> {
+    /// Argument lengths in a request packet start at index 9, if present.
+    const ARGUMENT_LENGTHS_OFFSET: usize = 9;
+
     /// Assembles a new accounting request packet body.
     pub fn new(
         flags: Flags,
@@ -124,7 +127,7 @@ impl Serialize for Request<'_> {
             let argument_count = self.arguments.argument_count() as usize;
 
             // body starts after the required fields & the argument lengths (1 byte per argument)
-            let body_start = Self::REQUIRED_FIELDS_LENGTH + argument_count;
+            let body_start = Self::ARGUMENT_LENGTHS_OFFSET + argument_count;
 
             // actual request content
             // as below, slice bounds are capped to end of packet body to avoid overflowing
