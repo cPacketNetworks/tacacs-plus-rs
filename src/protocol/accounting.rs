@@ -1,6 +1,7 @@
 //! Accounting protocol packet (de)serialization.
 
 use bitflags::bitflags;
+use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
@@ -118,7 +119,7 @@ impl Serialize for Request<'_> {
             self.authentication
                 .serialize_header_information(&mut buffer[2..5]);
             self.user_information
-                .serialize_header_information(&mut buffer[5..8]);
+                .serialize_header_information(&mut buffer[5..8])?;
 
             let argument_count = self.arguments.argument_count();
 
@@ -178,10 +179,18 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// An accounting reply packet received from a TACACS+ server.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Getters, CopyGetters)]
 pub struct Reply<'packet> {
+    /// Gets the status of an accounting reply.
+    #[getset(get = "pub")]
     status: Status,
+
+    /// Gets the server message, which may be presented to a user connected to a client.
+    #[getset(get_copy = "pub")]
     server_message: FieldText<'packet>,
+
+    /// Gets the administrative/log data received from the server.
+    #[getset(get_copy = "pub")]
     data: &'packet [u8],
 }
 
@@ -207,21 +216,6 @@ impl Reply<'_> {
         } else {
             None
         }
-    }
-
-    /// The status received from the server.
-    pub fn status(&self) -> Status {
-        self.status
-    }
-
-    /// The message received from the server, potentially to display to a user.
-    pub fn server_message(&self) -> FieldText<'_> {
-        self.server_message
-    }
-
-    /// The domain-specific data received from the server.
-    pub fn data(&self) -> &[u8] {
-        self.data
     }
 }
 

@@ -1,6 +1,6 @@
 //! TACACS+ protocol packet <-> binary format conversions.
 
-use core::fmt;
+use core::{fmt, num::TryFromIntError};
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
@@ -23,15 +23,25 @@ pub use fields::*;
 pub enum SerializeError {
     /// The provided buffer did not have enough space to serialize the object.
     NotEnoughSpace,
+
+    /// The length of a field exceeded the maximum value encodeable on the wire.
+    LengthOverflow,
 }
 
 impl fmt::Display for SerializeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             Self::NotEnoughSpace => "not enough space in buffer",
+            Self::LengthOverflow => "field length overflowed",
         };
 
         write!(f, "{}", message)
+    }
+}
+
+impl From<TryFromIntError> for SerializeError {
+    fn from(_value: TryFromIntError) -> Self {
+        Self::LengthOverflow
     }
 }
 

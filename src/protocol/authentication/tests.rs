@@ -1,3 +1,5 @@
+#![allow(clippy::cast_possible_truncation)]
+
 use super::*;
 use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, Packet,

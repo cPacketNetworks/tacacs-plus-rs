@@ -1,6 +1,8 @@
 use crate::protocol::MinorVersion;
 use crate::FieldText;
 
+use super::SerializeError;
+
 /// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -214,10 +216,16 @@ impl<'info> UserInformation<'info> {
     }
 
     /// Places field lengths into the "header" section of a packet body.
-    pub(super) fn serialize_header_information(&self, buffer: &mut [u8]) {
-        buffer[0] = self.user.len() as u8;
-        buffer[1] = self.port.len() as u8;
-        buffer[2] = self.remote_address.len() as u8;
+    pub(super) fn serialize_header_information(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<usize, SerializeError> {
+        buffer[0] = self.user.len().try_into()?;
+        buffer[1] = self.port.len().try_into()?;
+        buffer[2] = self.remote_address.len().try_into()?;
+
+        // 3 bytes serialized as part of "header" information
+        Ok(3)
     }
 
     /// Copies client information fields into their proper locations within a packet body.

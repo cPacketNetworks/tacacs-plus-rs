@@ -67,7 +67,7 @@ impl Serialize for Request<'_> {
             self.authentication_context
                 .serialize_header_information(&mut buffer[1..4]);
             self.user_information
-                .serialize_header_information(&mut buffer[4..7]);
+                .serialize_header_information(&mut buffer[4..7])?;
 
             // the user information fields start after all of the required fields and also the argument lengths, the latter of which take up 1 byte each
             let user_info_start: usize =
@@ -136,16 +136,20 @@ struct ArgumentsInfo<'raw> {
 /// The body of an authorization reply packet.
 #[derive(Getters, CopyGetters, Debug)]
 pub struct Reply<'packet> {
-    #[getset(get)]
+    /// Gets the status returned in an authorization exchange.
+    #[getset(get = "pub")]
     status: Status,
 
-    #[getset(get_copy)]
+    /// Gets the message sent by the server, to be displayed to the user.
+    #[getset(get_copy = "pub")]
     server_message: FieldText<'packet>,
 
-    #[getset(get_copy)]
+    /// Gets the administrative/log data returned from the server.
+    #[getset(get_copy = "pub")]
     data: &'packet [u8],
 
     // this field not publicly exposed on purpose
+    // (used for iterating over arguments)
     arguments_info: ArgumentsInfo<'packet>,
 }
 

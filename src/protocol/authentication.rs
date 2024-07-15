@@ -2,6 +2,7 @@
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
+use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
@@ -144,7 +145,7 @@ impl Serialize for Start<'_> {
                 .serialize_header_information(&mut buffer[1..4]);
 
             self.user_information
-                .serialize_header_information(&mut buffer[4..7]);
+                .serialize_header_information(&mut buffer[4..7])?;
 
             // information written before this occupies 8 bytes
             let mut total_bytes_written = 8;
@@ -180,6 +181,7 @@ impl Serialize for Start<'_> {
 }
 
 /// Flags received in an authentication reply packet.
+#[repr(transparent)]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReplyFlags(u8);
 
@@ -196,11 +198,22 @@ bitflags! {
 }
 
 /// An authentication reply packet received from a server.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Getters, CopyGetters)]
 pub struct Reply<'packet> {
+    /// Gets the status of this authentication exchange, as returned from the server.
+    #[getset(get = "pub")]
     status: Status,
+
+    /// Returns the message meant to be displayed to the user.
+    #[getset(get_copy = "pub")]
     server_message: FieldText<'packet>,
+
+    /// Returns the authentication data for processing by the client.
+    #[getset(get_copy = "pub")]
     data: &'packet [u8],
+
+    /// Gets the flags returned from the server as part of this authentication exchange.
+    #[getset(get = "pub")]
     flags: ReplyFlags,
 }
 
@@ -225,26 +238,6 @@ impl Reply<'_> {
         } else {
             None
         }
-    }
-
-    /// Status of the server reply.
-    pub fn status(&self) -> Status {
-        self.status
-    }
-
-    /// Message received from the server, potentially to display to the user.
-    pub fn server_message(&self) -> FieldText<'_> {
-        self.server_message
-    }
-
-    /// Domain-specific data received from the server.
-    pub fn data(&self) -> &[u8] {
-        self.data
-    }
-
-    /// Whether the no echo flag was set by the server in this reply.
-    pub fn no_echo(&self) -> bool {
-        self.flags.contains(ReplyFlags::NO_ECHO)
     }
 }
 
@@ -352,7 +345,7 @@ impl Serialize for Continue<'_> {
             }
 
             // set user message length in packet buffer
-            NetworkEndian::write_u16(&mut buffer[..2], user_message_len as u16);
+            NetworkEndian::write_u16(&mut buffer[..2], user_message_len.try_into()?);
 
             let mut data_len = 0;
             if let Some(data) = self.data {
@@ -361,7 +354,7 @@ impl Serialize for Continue<'_> {
             }
 
             // set data length
-            NetworkEndian::write_u16(&mut buffer[2..4], data_len as u16);
+            NetworkEndian::write_u16(&mut buffer[2..4], data_len.try_into()?);
 
             Ok(Self::REQUIRED_FIELDS_LENGTH + user_message_len + data_len)
         } else {
