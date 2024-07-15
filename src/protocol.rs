@@ -372,15 +372,11 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
                 .serialize_into_buffer(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])?;
 
             // fill in header information
-            let header_bytes = self.header.serialize(
-                buffer,
-                self.version,
-                B::TYPE,
-                // TODO: length associated type -> u32 for packet bodies? to avoid .try_into().unwrap()
-                body_length.try_into().unwrap(),
-            )?;
+            let header_bytes =
+                self.header
+                    .serialize(buffer, self.version, B::TYPE, body_length.try_into()?)?;
 
-            // return total lengthwritten
+            // return total length written
             Ok(header_bytes + body_length)
         } else {
             Err(SerializeError::NotEnoughSpace)

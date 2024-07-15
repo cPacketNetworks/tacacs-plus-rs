@@ -133,7 +133,7 @@ impl Serialize for Request<'_> {
 
             let arguments_serialized_len =
                 // argument lengths start at index 8
-                self.arguments.serialize_count_and_lengths(&mut buffer[8..])
+                self.arguments.serialize_count_and_lengths(&mut buffer[8..])?
                     // argument values go after the user information values in the body
                     + self
                         .arguments

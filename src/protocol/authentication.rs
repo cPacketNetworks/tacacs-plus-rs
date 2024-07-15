@@ -162,7 +162,7 @@ impl Serialize for Start<'_> {
                 let data_len = data.len();
 
                 // length is verified to fit in a u8 in new(), so this shouldn't panic
-                buffer[7] = data_len.try_into().unwrap();
+                buffer[7] = data_len.try_into()?;
 
                 // copy over packet data
                 buffer[data_start..data_start + data_len].copy_from_slice(data);

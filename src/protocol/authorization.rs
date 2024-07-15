@@ -78,7 +78,7 @@ impl Serialize for Request<'_> {
                 .serialize_body_information(&mut buffer[user_info_start..]);
 
             // argument lengths start at index 7, just after the argument count
-            let arguments_wire_len = self.arguments.serialize_count_and_lengths(&mut buffer[7..])
+            let arguments_wire_len = self.arguments.serialize_count_and_lengths(&mut buffer[7..])?
                 // argument values go after all of the user information
                 + self
                     .arguments

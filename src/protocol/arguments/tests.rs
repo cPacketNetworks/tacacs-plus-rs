@@ -24,7 +24,9 @@ fn arguments_two_required() {
     let mut buffer = [0u8; 40];
 
     // ensure header information is serialized correctly
-    let header_serialized_len = arguments.serialize_count_and_lengths(&mut buffer);
+    let header_serialized_len = arguments
+        .serialize_count_and_lengths(&mut buffer)
+        .expect("buffer should be big enough for argument lengths");
     assert_eq!(buffer[..header_serialized_len], [2, 12, 16]);
 
     let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
@@ -47,7 +49,9 @@ fn arguments_one_optional() {
         Arguments::new(&arguments_array).expect("argument construction should have succeeded");
 
     let mut buffer = [0u8; 30];
-    let header_serialized_len = arguments.serialize_count_and_lengths(&mut buffer);
+    let header_serialized_len = arguments
+        .serialize_count_and_lengths(&mut buffer)
+        .expect("buffer should be large enough to hold argument lengths");
     assert_eq!(buffer[..header_serialized_len], [1, 24]);
 
     let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);

@@ -3,7 +3,7 @@ use core::iter::zip;
 
 use crate::FieldText;
 
-use super::DeserializeError;
+use super::{DeserializeError, SerializeError};
 
 #[cfg(test)]
 mod tests;
@@ -177,14 +177,16 @@ impl<'args> Arguments<'args> {
     }
 
     /// Serializes the argument count & lengths of the stored arguments into a buffer.
-    #[must_use]
-    pub(super) fn serialize_count_and_lengths(&self, buffer: &mut [u8]) -> usize {
+    pub(super) fn serialize_count_and_lengths(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<usize, SerializeError> {
         let argument_count = self.argument_count();
 
         // strict greater than to allow room for encoded argument count itself
         if buffer.len() > argument_count {
             // NOTE: checks in construction should prevent this unwrap from panicking
-            buffer[0] = argument_count.try_into().unwrap();
+            buffer[0] = argument_count.try_into()?;
 
             // fill in argument lengths after argument count
             for (position, argument) in zip(&mut buffer[1..1 + argument_count], self.0) {
@@ -192,9 +194,10 @@ impl<'args> Arguments<'args> {
             }
 
             // total bytes written: number of arguments + one extra byte for argument count itself
-            1 + argument_count
+            Ok(1 + argument_count)
         } else {
-            0
+            // no bytes are written if the buffer isn't large enough to hold all of the argument lengths & the argument count
+            Ok(0)
         }
     }
 
