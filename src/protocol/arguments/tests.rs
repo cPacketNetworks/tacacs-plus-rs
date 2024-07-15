@@ -29,7 +29,9 @@ fn arguments_two_required() {
         .expect("buffer should be big enough for argument lengths");
     assert_eq!(buffer[..header_serialized_len], [2, 12, 16]);
 
-    let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
+    let body_serialized_len = arguments
+        .serialize_encoded_values(&mut buffer)
+        .expect("buffer should be large enough for argument values");
     assert_eq!(
         &buffer[..body_serialized_len],
         b"service=testrandom-argument="
@@ -54,7 +56,9 @@ fn arguments_one_optional() {
         .expect("buffer should be large enough to hold argument lengths");
     assert_eq!(buffer[..header_serialized_len], [1, 24]);
 
-    let body_serialized_len = arguments.serialize_encoded_values(&mut buffer);
+    let body_serialized_len = arguments
+        .serialize_encoded_values(&mut buffer)
+        .expect("buffer should be large enough for argument values");
     assert_eq!(&buffer[..body_serialized_len], b"optional-arg*unimportant");
 }
 
@@ -69,7 +73,9 @@ fn construct_and_serialize_valid_optional_argument() {
     let argument_len = argument.encoded_length() as usize;
 
     let mut buffer = [0xffu8; 70];
-    argument.serialize(&mut buffer);
+    argument
+        .serialize(&mut buffer)
+        .expect("argument serialization should succeed");
 
     assert_eq!(
         &buffer[..argument_len],

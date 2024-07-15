@@ -82,7 +82,7 @@ impl Serialize for Request<'_> {
                 // argument values go after all of the user information
                 + self
                     .arguments
-                    .serialize_encoded_values(&mut buffer[user_info_start + user_information_len..]);
+                    .serialize_encoded_values(&mut buffer[user_info_start + user_information_len..])?;
 
             // NOTE: 1 is subtracted from REQUIRED_FIELDS_LENGTH since otherwise the argument count field is double counted (from Arguments::wire_size())
             Ok((Self::REQUIRED_FIELDS_LENGTH - 1) + user_information_len + arguments_wire_len)
@@ -128,7 +128,7 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 /// Some information about the arguments in the binary representation of a reply packet.
 #[derive(Debug)]
 struct ArgumentsInfo<'raw> {
-    argument_count: usize,
+    argument_count: u8,
     argument_lengths: &'raw [u8],
     arguments_buffer: &'raw [u8],
 }
@@ -171,7 +171,7 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
     type Item = Argument<'iter>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next_argument_number < self.arguments_info.argument_count {
+        if self.next_argument_number < self.arguments_info.argument_count as usize {
             let next_length =
                 self.arguments_info.argument_lengths[self.next_argument_number] as usize;
             let raw_argument = &self.arguments_info.arguments_buffer
@@ -190,7 +190,7 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
 
     // required for ExactSizeIterator impl
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.arguments_info.argument_count;
+        let size = self.arguments_info.argument_count as usize;
         // these are asserted to be equal in the default ExactSizeIterator::len() implementation
         (size, Some(size))
     }
@@ -286,9 +286,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
         if buffer.len() >= total_length {
             let status: Status = buffer[0].try_into()?;
-            let argument_count = buffer[1] as usize;
+            let argument_count = buffer[1];
 
-            let body_start = Self::ARGUMENT_LENGTHS_START + argument_count;
+            let body_start = Self::ARGUMENT_LENGTHS_START + argument_count as usize;
             let data_start = body_start + server_message_length;
             let arguments_start = data_start + data_length;
 

@@ -137,7 +137,7 @@ impl Serialize for Request<'_> {
                     // argument values go after the user information values in the body
                     + self
                         .arguments
-                        .serialize_encoded_values(&mut buffer[body_start + user_information_len..]);
+                        .serialize_encoded_values(&mut buffer[body_start + user_information_len..])?;
 
             // NOTE: as with authorization, 1 is subtracted from REQUIRED_FIELDS_LENGTH as the argument count would be double counted otherwise
             Ok(

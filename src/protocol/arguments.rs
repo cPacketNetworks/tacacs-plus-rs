@@ -31,8 +31,10 @@ pub enum InvalidArgument {
     /// Argument was too long to be encodeable.
     TooLong,
 
-    /// Argument wasn't valid ASCII.
-    NotAscii,
+    /// Argument wasn't valid printable ASCII, as specified in [RFC8907 section 3.7].
+    ///
+    /// [RFC8907 section 3.7]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
+    BadText,
 }
 
 impl fmt::Display for InvalidArgument {
@@ -45,7 +47,7 @@ impl fmt::Display for InvalidArgument {
             ),
             Self::NoDelimiter => write!(f, "encoded argument value had no delimiter"),
             Self::TooLong => write!(f, "the total length of an argument (name + length + delimiter) must not exceed u8::MAX, for encoding reasons"),
-            Self::NotAscii => write!(f, "encoded argument value was not valid ASCII")
+            Self::BadText => write!(f, "encoded argument value was not valid ASCII")
         }
     }
 }
@@ -101,19 +103,31 @@ impl<'data> Argument<'data> {
     }
 
     /// Serializes an argument's name-value encoding, as done in the body of a packet.
-    fn serialize(&self, buffer: &mut [u8]) {
+    fn serialize(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         let name_len = self.name.len();
-        buffer[..name_len].copy_from_slice(self.name.as_bytes());
-
-        buffer[name_len] = if self.required {
-            Self::REQUIRED_DELIMITER
-        } else {
-            Self::OPTIONAL_DELIMITER
-        } as u8;
-
-        // value goes just after delimiter
         let value_len = self.value.len();
-        buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
+
+        // name + value + 1 extra byte for delimiter
+        let encoded_len = name_len + 1 + value_len;
+
+        // buffer must be large enough to hold name, value, and delimiter
+        if buffer.len() >= encoded_len {
+            buffer[..name_len].copy_from_slice(self.name.as_bytes());
+
+            // choose delimiter based on whether argument is required
+            buffer[name_len] = if self.required {
+                Self::REQUIRED_DELIMITER
+            } else {
+                Self::OPTIONAL_DELIMITER
+            } as u8;
+
+            // value goes just after delimiter
+            buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
+
+            Ok(encoded_len)
+        } else {
+            Err(SerializeError::NotEnoughSpace)
+        }
     }
 
     /// Attempts to deserialize a packet from its name-value encoding on the wire.
@@ -135,9 +149,9 @@ impl<'data> Argument<'data> {
 
         // NOTE: buffer is checked to be full ASCII above, so these unwraps should never panic
         let name = FieldText::try_from(&buffer[..delimiter_index])
-            .map_err(|_| InvalidArgument::NotAscii)?;
+            .map_err(|_| InvalidArgument::BadText)?;
         let value = FieldText::try_from(&buffer[delimiter_index + 1..])
-            .map_err(|_| InvalidArgument::NotAscii)?;
+            .map_err(|_| InvalidArgument::BadText)?;
 
         // use constructor here to perform checks on fields to avoid diverging code paths
         Self::new(name, value, required)
@@ -202,8 +216,10 @@ impl<'args> Arguments<'args> {
     }
 
     /// Serializes the stored arguments in their proper encoding to a buffer.
-    #[must_use]
-    pub(super) fn serialize_encoded_values(&self, buffer: &mut [u8]) -> usize {
+    pub(super) fn serialize_encoded_values(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<usize, SerializeError> {
         let full_encoded_length = self
             .0
             .iter()
@@ -217,19 +233,25 @@ impl<'args> Arguments<'args> {
             for argument in self.0.iter() {
                 let argument_length = argument.encoded_length() as usize;
                 let next_argument_start = argument_start + argument_length;
-                argument.serialize(&mut buffer[argument_start..next_argument_start]);
+                let written_length =
+                    argument.serialize(&mut buffer[argument_start..next_argument_start])?;
+
+                assert_eq!(
+                    written_length, argument_length,
+                    "mismatch between calculated argument length and written length"
+                );
 
                 // update loop state
                 argument_start = next_argument_start;
 
                 // this is technically redundant with the initial full_encoded_length calculation above
                 // but better to be safe than sorry right?
-                total_written += argument_length;
+                total_written += written_length;
             }
 
-            total_written
+            Ok(total_written)
         } else {
-            0
+            Err(SerializeError::NotEnoughSpace)
         }
     }
 }
