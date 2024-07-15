@@ -65,11 +65,7 @@ impl<'data> Argument<'data> {
     /// The delimiter used for an optional argument.
     pub const OPTIONAL_DELIMITER: char = '*';
 
-    /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).
-    ///
-    /// See [RFC8907 section 6.1] for more information on argument encodings.
-    ///
-    /// [RFC8907 section 6.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
+    /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte for encoding reasons).
     pub fn new(
         name: FieldText<'data>,
         value: FieldText<'data>,
@@ -164,6 +160,8 @@ pub struct Arguments<'args>(&'args [Argument<'args>]);
 
 impl<'args> Arguments<'args> {
     /// Constructs a new `Arguments`, returning `Some` if the provided slice has less than `u8::MAX` and None otherwise.
+    ///
+    /// The `u8::MAX` restriction is due to the argument count being required to fit into a single byte when encoding.
     pub fn new<T: AsRef<[Argument<'args>]>>(arguments: &'args T) -> Option<Self> {
         if u8::try_from(arguments.as_ref().len()).is_ok() {
             Some(Self(arguments.as_ref()))
