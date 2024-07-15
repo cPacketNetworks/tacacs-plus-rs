@@ -213,6 +213,9 @@ struct ReplyFieldLengths {
 }
 
 impl Reply<'_> {
+    /// Offset of the server message in an accounting reply packet body, if present.
+    const SERVER_MESSAGE_OFFSET: usize = 5;
+
     /// Determines how long a raw reply packet is, if applicable, based on various lengths stored in the body "header."
     pub fn extract_total_length(buffer: &[u8]) -> Result<u32, DeserializeError> {
         if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
@@ -266,13 +269,14 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
         if buffer.len() >= extracted_lengths.total_length as usize {
             let status = Status::try_from(buffer[4])?;
 
-            let server_message_start = Self::REQUIRED_FIELDS_LENGTH;
-            let data_start =
-                server_message_start + extracted_lengths.server_message_length as usize;
+            // server message starts
+            let data_offset =
+                Self::SERVER_MESSAGE_OFFSET + extracted_lengths.server_message_length as usize;
 
-            let server_message = FieldText::try_from(&buffer[server_message_start..data_start])
-                .map_err(|_| DeserializeError::InvalidWireBytes)?;
-            let data = &buffer[data_start..data_start + extracted_lengths.data_length as usize];
+            let server_message =
+                FieldText::try_from(&buffer[Self::SERVER_MESSAGE_OFFSET..data_offset])
+                    .map_err(|_| DeserializeError::InvalidWireBytes)?;
+            let data = &buffer[data_offset..data_offset + extracted_lengths.data_length as usize];
 
             Ok(Self {
                 status,
