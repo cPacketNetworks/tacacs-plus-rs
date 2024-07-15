@@ -143,11 +143,10 @@ impl Serialize for Start<'_> {
         if buffer.len() >= self.wire_size() {
             buffer[0] = self.action as u8;
 
-            self.authentication
-                .serialize_header_information(&mut buffer[1..4]);
+            self.authentication.serialize(&mut buffer[1..4]);
 
             self.user_information
-                .serialize_header_information(&mut buffer[4..7])?;
+                .serialize_field_lengths(&mut buffer[4..7])?;
 
             // information written before this occupies 8 bytes
             let mut total_bytes_written = 8;
@@ -156,7 +155,7 @@ impl Serialize for Start<'_> {
             // cap slice with wire size to avoid overflows, although that shouldn't happen
             let user_info_written_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[8..wire_size]);
+                .serialize_field_values(&mut buffer[8..wire_size])?;
             total_bytes_written += user_info_written_len;
 
             // data starts after the end of the user information values

@@ -66,10 +66,9 @@ impl Serialize for Request<'_> {
 
         if buffer.len() >= wire_size {
             buffer[0] = self.method as u8;
-            self.authentication_context
-                .serialize_header_information(&mut buffer[1..4]);
+            self.authentication_context.serialize(&mut buffer[1..4]);
             self.user_information
-                .serialize_header_information(&mut buffer[4..7])?;
+                .serialize_field_lengths(&mut buffer[4..7])?;
 
             let argument_count = self.arguments.argument_count() as usize;
 
@@ -79,7 +78,7 @@ impl Serialize for Request<'_> {
             // cap slice with wire slice to avoid overflowing beyond end of packet body
             let user_info_written_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[user_info_start..wire_size]);
+                .serialize_field_values(&mut buffer[user_info_start..wire_size])?;
 
             // argument lengths start at index 7, just after the argument count
             // extra 1 added to allow room for argument count itself

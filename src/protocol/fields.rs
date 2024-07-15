@@ -3,6 +3,9 @@ use crate::FieldText;
 
 use super::SerializeError;
 
+#[cfg(test)]
+mod tests;
+
 /// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -165,7 +168,7 @@ impl AuthenticationContext {
     pub const WIRE_SIZE: usize = 3;
 
     /// Serializes authentication context information into a packet body "header."
-    pub(super) fn serialize_header_information(&self, buffer: &mut [u8]) {
+    pub(super) fn serialize(&self, buffer: &mut [u8]) {
         buffer[0] = self.privilege_level.0;
         buffer[1] = self.authentication_type as u8;
         buffer[2] = self.service as u8;
@@ -182,10 +185,10 @@ pub struct UserInformation<'info> {
 
 impl<'info> UserInformation<'info> {
     /// Number of bytes occupied by `UserInformation` "header" information (i.e., field lengths).
-    pub const HEADER_INFORMATION_SIZE: usize = 3; // 3 single-byte field lengths
+    pub(super) const HEADER_INFORMATION_SIZE: usize = 3; // 3 single-byte field lengths
 
     /// Returns the number of bytes this information bundle will occupy on the wire.
-    pub fn wire_size(&self) -> usize {
+    pub(super) fn wire_size(&self) -> usize {
         Self::HEADER_INFORMATION_SIZE
             + self.user.len()
             + self.port.len()
@@ -215,30 +218,43 @@ impl<'info> UserInformation<'info> {
         }
     }
 
-    /// Places field lengths into the "header" section of a packet body.
-    pub(super) fn serialize_header_information(
+    /// Serializes the lengths of the contained fields in the proper order, as to be done in the "header" of a client-sent packet body.
+    pub(super) fn serialize_field_lengths(
         &self,
         buffer: &mut [u8],
     ) -> Result<usize, SerializeError> {
-        buffer[0] = self.user.len().try_into()?;
-        buffer[1] = self.port.len().try_into()?;
-        buffer[2] = self.remote_address.len().try_into()?;
+        if buffer.len() >= Self::HEADER_INFORMATION_SIZE {
+            buffer[0] = self.user.len().try_into()?;
+            buffer[1] = self.port.len().try_into()?;
+            buffer[2] = self.remote_address.len().try_into()?;
 
-        // 3 bytes serialized as part of "header" information
-        Ok(3)
+            // 3 bytes serialized as part of "header" information
+            Ok(3)
+        } else {
+            Err(SerializeError::NotEnoughSpace)
+        }
     }
 
     /// Copies client information fields into their proper locations within a packet body.
-    pub(super) fn serialize_body_information(&self, buffer: &mut [u8]) -> usize {
-        let user_len = self.user.len();
-        let port_len = self.port.len();
-        let remote_address_len = self.remote_address.len();
-        let total_len = user_len + port_len + remote_address_len;
+    pub(super) fn serialize_field_values(
+        &self,
+        buffer: &mut [u8],
+    ) -> Result<usize, SerializeError> {
+        // ensure buffer is large enough to serialize field values into (i.e., excluding the header lengths)
+        if buffer.len() >= self.wire_size() - Self::HEADER_INFORMATION_SIZE {
+            let user_len = self.user.len();
+            let port_len = self.port.len();
+            let remote_address_len = self.remote_address.len();
+            let total_len = user_len + port_len + remote_address_len;
 
-        buffer[0..user_len].copy_from_slice(self.user.as_bytes());
-        buffer[user_len..user_len + port_len].copy_from_slice(self.port.as_bytes());
-        buffer[user_len + port_len..total_len].copy_from_slice(self.remote_address.as_bytes());
+            // three fields are serialized contiguously without any delimiters, as lengths are stored elsewhere
+            buffer[..user_len].copy_from_slice(self.user.as_bytes());
+            buffer[user_len..user_len + port_len].copy_from_slice(self.port.as_bytes());
+            buffer[user_len + port_len..total_len].copy_from_slice(self.remote_address.as_bytes());
 
-        total_len
+            Ok(total_len)
+        } else {
+            Err(SerializeError::NotEnoughSpace)
+        }
     }
 }

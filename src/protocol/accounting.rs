@@ -117,10 +117,9 @@ impl Serialize for Request<'_> {
             buffer[1] = self.authentication_method as u8;
 
             // header information (lengths, etc.)
-            self.authentication
-                .serialize_header_information(&mut buffer[2..5]);
+            self.authentication.serialize(&mut buffer[2..5]);
             self.user_information
-                .serialize_header_information(&mut buffer[5..8])?;
+                .serialize_field_lengths(&mut buffer[5..8])?;
 
             let argument_count = self.arguments.argument_count() as usize;
 
@@ -131,7 +130,7 @@ impl Serialize for Request<'_> {
             // as below, slice bounds are capped to end of packet body to avoid overflowing
             let user_information_len = self
                 .user_information
-                .serialize_body_information(&mut buffer[body_start..wire_size]);
+                .serialize_field_values(&mut buffer[body_start..wire_size])?;
 
             let arguments_serialized_len =
                 // argument lengths start at index 8
