@@ -1,6 +1,7 @@
 //! Accounting protocol packet (de)serialization.
 
 use bitflags::bitflags;
+use byteorder::{ByteOrder, NetworkEndian};
 use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
@@ -204,27 +205,46 @@ pub struct Reply<'packet> {
     data: &'packet [u8],
 }
 
+/// Field lengths of a reply packet as well as the total length.
+struct ReplyFieldLengths {
+    server_message_length: u16,
+    data_length: u16,
+    total_length: u32,
+}
+
 impl Reply<'_> {
-    // TODO: merge claimed_length & extract_field lengths into single function, like that one other packet type
-    /// Determines how long a raw reply packet claims to be, if applicable, based on various lengths stored in the body "header."
-    pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
+    /// Determines how long a raw reply packet is, if applicable, based on various lengths stored in the body "header."
+    pub fn extract_total_length(buffer: &[u8]) -> Result<u32, DeserializeError> {
         if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
-            let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
-            Some(Self::REQUIRED_FIELDS_LENGTH + server_message_length + data_length)
+            Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
         } else {
-            None
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 
     /// Extracts the server message and data field lengths from a buffer, treating it as if it were a serialized reply packet body.
-    fn extract_field_lengths(buffer: &[u8]) -> Option<(usize, usize)> {
-        if buffer.len() >= 4 {
-            let server_message_length = u16::from_be_bytes(buffer[0..2].try_into().ok()?);
-            let data_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?);
+    fn extract_field_lengths(buffer: &[u8]) -> Result<ReplyFieldLengths, DeserializeError> {
+        // ensure buffer is large enough to comprise a valid reply packet
+        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
+            // server message length is at the beginning of the packet
+            let server_message_length = NetworkEndian::read_u16(&buffer[..2]);
 
-            Some((server_message_length as usize, data_length as usize))
+            // data length is just after the server message length
+            let data_length = NetworkEndian::read_u16(&buffer[2..4]);
+
+            // full packet has required fields/lengths as well as the field values themselves
+            // SAFETY: REQUIRED_FIELDS_LENGTH is guaranteed to fit in a u32 based on its defined value
+            let total_length = u32::try_from(Self::REQUIRED_FIELDS_LENGTH).unwrap()
+                + u32::from(server_message_length)
+                + u32::from(data_length);
+
+            Ok(ReplyFieldLengths {
+                server_message_length,
+                data_length,
+                total_length,
+            })
         } else {
-            None
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 }
@@ -240,22 +260,19 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        let claimed_body_length =
-            Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+        let extracted_lengths = Self::extract_field_lengths(buffer)?;
 
-        // NOTE: the length returned by claimed_length() if non-None is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
-        if buffer.len() >= claimed_body_length {
-            let status: Status = buffer[4].try_into()?;
-
-            let (server_message_length, data_length) =
-                Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
+        // NOTE: the length returned by claimed_length() if non-Err is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
+        if buffer.len() >= extracted_lengths.total_length as usize {
+            let status = Status::try_from(buffer[4])?;
 
             let server_message_start = Self::REQUIRED_FIELDS_LENGTH;
-            let data_start = server_message_start + server_message_length;
+            let data_start =
+                server_message_start + extracted_lengths.server_message_length as usize;
 
             let server_message = FieldText::try_from(&buffer[server_message_start..data_start])
                 .map_err(|_| DeserializeError::InvalidWireBytes)?;
-            let data = &buffer[data_start..data_start + data_length];
+            let data = &buffer[data_start..data_start + extracted_lengths.data_length as usize];
 
             Ok(Self {
                 status,
