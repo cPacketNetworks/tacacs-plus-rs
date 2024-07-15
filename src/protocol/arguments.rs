@@ -64,6 +64,10 @@ impl<'data> Argument<'data> {
     pub const OPTIONAL_DELIMITER: char = '*';
 
     /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte).
+    ///
+    /// See [RFC8907 section 6.1] for more information on argument encodings.
+    ///
+    /// [RFC8907 section 6.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
     pub fn new(
         name: FieldText<'data>,
         value: FieldText<'data>,
@@ -112,63 +116,31 @@ impl<'data> Argument<'data> {
         buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
     }
 
-    /// Checks whether a given byte slice is a valid argument encoding.
-    ///
-    /// See [RFC8907 section 6.1] for more information on argument encodings.
-    ///
-    /// [RFC8907 section 6.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
-    pub(super) fn check_encoding(raw_argument: &[u8]) -> Result<(), InvalidArgument> {
-        if u8::try_from(raw_argument.len()).is_err() {
-            // length has to fit in a u8 to be encodeable
-            Err(InvalidArgument::TooLong)
-        } else if !(raw_argument.is_ascii() && raw_argument.iter().all(|c| !c.is_ascii_control())) {
-            // arguments must be ASCII (and more specifically not ASCII control characters)
-            Err(InvalidArgument::NotAscii)
-        } else if !(raw_argument.contains(&(Self::REQUIRED_DELIMITER as u8))
-            || raw_argument.contains(&(Self::OPTIONAL_DELIMITER as u8)))
-        {
-            // argument must contain a delimiter...
-            Err(InvalidArgument::NoDelimiter)
-        } else if raw_argument[0] == Self::REQUIRED_DELIMITER as u8
-            || raw_argument[0] == Self::OPTIONAL_DELIMITER as u8
-        {
-            // ...but not start with one, since argument names must be nonempty (?)
-            Err(InvalidArgument::EmptyName)
-        } else {
-            Ok(())
-        }
-    }
-
     /// Attempts to deserialize a packet from its name-value encoding on the wire.
     pub(super) fn deserialize(buffer: &'data [u8]) -> Result<Self, InvalidArgument> {
-        // ensure encoding is valid before attempting to deserialize
-        Self::check_encoding(buffer)?;
-
         // note: these are guaranteed to be unequal, since a single index cannot contain two characters at once
         let equals_index = buffer.iter().position(|c| *c == b'=');
         let star_index = buffer.iter().position(|c| *c == b'*');
 
         // determine first delimiter that appears, which is the actual delimiter as names MUST NOT (RFC 8907) contain either delimiter character
-        // NOTE: the unwrap should never panic since the presence of a delimiter is checked
         let delimiter_index = match (equals_index, star_index) {
             (None, star) => star,
             (equals, None) => equals,
             (Some(equals), Some(star)) => Some(equals.min(star)),
         }
-        .unwrap();
+        .ok_or(InvalidArgument::NoDelimiter)?;
 
         // at this point, delimiter_index was non-None and must contain one of {*, =}
         let required = buffer[delimiter_index] == Self::REQUIRED_DELIMITER as u8;
 
         // NOTE: buffer is checked to be full ASCII above, so these unwraps should never panic
-        let name = FieldText::try_from(&buffer[..delimiter_index]).unwrap();
-        let value = FieldText::try_from(&buffer[delimiter_index + 1..]).unwrap();
+        let name = FieldText::try_from(&buffer[..delimiter_index])
+            .map_err(|_| InvalidArgument::NotAscii)?;
+        let value = FieldText::try_from(&buffer[delimiter_index + 1..])
+            .map_err(|_| InvalidArgument::NotAscii)?;
 
-        Ok(Self {
-            name,
-            value,
-            required,
-        })
+        // use constructor here to perform checks on fields to avoid diverging code paths
+        Self::new(name, value, required)
     }
 }
 

@@ -251,7 +251,8 @@ impl<'packet> Reply<'packet> {
             let raw_argument = &values[argument_start..argument_start + length as usize];
             argument_start += length as usize;
 
-            Argument::check_encoding(raw_argument)
+            // we don't care about the actual argument here, but the specific error should be kept
+            Argument::deserialize(raw_argument).map(|_| ())
         })
     }
 
