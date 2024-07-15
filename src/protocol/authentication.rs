@@ -299,6 +299,9 @@ pub struct Continue<'packet> {
 }
 
 impl<'packet> Continue<'packet> {
+    /// Offset of the user message within a continue packet body, if present.
+    const USER_MESSAGE_OFFSET: usize = 5;
+
     /// Constructs a continue packet, performing length checks on the user message and data fields to ensure encodable lengths.
     pub fn new(
         user_message: Option<&'packet [u8]>,
@@ -335,28 +338,29 @@ impl Serialize for Continue<'_> {
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
+            // write field lengths into beginning of body
+            let user_message_len = self.user_message.map_or(0, <[u8]>::len).try_into()?;
+            NetworkEndian::write_u16(&mut buffer[..2], user_message_len);
+
+            let data_len = self.data.map_or(0, <[u8]>::len).try_into()?;
+            NetworkEndian::write_u16(&mut buffer[2..4], data_len);
+
+            let data_offset = Self::USER_MESSAGE_OFFSET + user_message_len as usize;
+
             // set abort flag if needed
             buffer[4] = self.flags.bits();
 
-            let mut user_message_len = 0;
+            // copy user message into buffer, if present
             if let Some(message) = self.user_message {
-                user_message_len = message.len();
-                buffer[5..5 + user_message_len].copy_from_slice(message);
+                buffer[Self::USER_MESSAGE_OFFSET..data_offset].copy_from_slice(message);
             }
 
-            // set user message length in packet buffer
-            NetworkEndian::write_u16(&mut buffer[..2], user_message_len.try_into()?);
-
-            let mut data_len = 0;
+            // copy data into buffer, again if present
             if let Some(data) = self.data {
-                data_len = data.len();
-                buffer[5 + user_message_len..5 + user_message_len + data_len].copy_from_slice(data);
+                buffer[data_offset..data_offset + data_len as usize].copy_from_slice(data);
             }
 
-            // set data length
-            NetworkEndian::write_u16(&mut buffer[2..4], data_len.try_into()?);
-
-            Ok(Self::REQUIRED_FIELDS_LENGTH + user_message_len + data_len)
+            Ok(Self::REQUIRED_FIELDS_LENGTH + user_message_len as usize + data_len as usize)
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
