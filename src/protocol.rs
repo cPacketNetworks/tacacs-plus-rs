@@ -386,27 +386,17 @@ impl<B: PacketBody> Packet<B> {
 
     /// Assembles a header and body into a full packet.
     ///
-    /// NOTE: The header may be updated depending on the contents of the provided body,
-    /// so prefer to use the getter over another copy of the provided `HeaderInfo`.
-    pub fn new(header: HeaderInfo, body: B) -> Self {
-        match body.required_minor_version() {
-            Some(MinorVersion::V1) => {
-                // update minor version from default if necessary
-                let minor_v1 = Version(MajorVersion::RFC8907, MinorVersion::V1);
-                let updated_header = HeaderInfo {
-                    version: minor_v1,
-                    ..header
-                };
-
-                Self {
-                    header: updated_header,
-                    body,
-                }
-            }
-
-            // otherwise use default minor version (based on HeaderInfo constructor)
-            _ => Self { header, body },
+    /// NOTE: The version stored in the header may be updated depending on the body,
+    /// as authentication start packets in particular may require a specific protocol
+    /// minor version. Prefer using [`Packet::header()`] and reading the version from
+    /// there rather than the `HeaderInfo` passed as an argument.
+    pub fn new(mut header: HeaderInfo, body: B) -> Self {
+        // update minor version to what is required by the body, if applicable
+        if let Some(minor) = body.required_minor_version() {
+            header.version.1 = minor;
         }
+
+        Self { header, body }
     }
 }
 
