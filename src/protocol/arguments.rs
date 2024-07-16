@@ -146,7 +146,7 @@ impl<'data> Argument<'data> {
         // at this point, delimiter_index was non-None and must contain one of {*, =}
         let required = buffer[delimiter_index] == Self::REQUIRED_DELIMITER as u8;
 
-        // NOTE: buffer is checked to be full ASCII above, so these unwraps should never panic
+        // ensure name/value are valid text values per RFC 8907 (i.e., fully printable ASCII)
         let name = FieldText::try_from(&buffer[..delimiter_index])
             .map_err(|_| InvalidArgument::BadText)?;
         let value = FieldText::try_from(&buffer[delimiter_index + 1..])
@@ -201,7 +201,6 @@ impl<'args> Arguments<'args> {
 
         // strict greater than to allow room for encoded argument count itself
         if buffer.len() > argument_count as usize {
-            // NOTE: checks in construction should prevent this unwrap from panicking
             buffer[0] = argument_count;
 
             // fill in argument lengths after argument count
