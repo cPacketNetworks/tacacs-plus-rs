@@ -275,6 +275,11 @@ fn deserialize_reply_two_arguments() {
     // check actual arguments
     assert_eq!(arguments_iter.next(), Some(expected_arguments[0]));
     assert_eq!(arguments_iter.next(), Some(expected_arguments[1]));
+
+    // check ExactSizeIterator impl again, ensuring size_hint and therefore len() return the remaining length
+    assert_eq!(arguments_iter.len(), 0);
+
+    // there should be nothing else in the iterator
     assert_eq!(arguments_iter.next(), None);
 }
 
@@ -340,5 +345,10 @@ fn deserialize_full_reply_packet() {
     assert_eq!(argument_iter.len(), 1);
 
     assert_eq!(argument_iter.next(), Some(expected_argument));
+
+    // check ExactSizeIterator impl again, ensuring size_hint and therefore len() return the remaining length
+    assert_eq!(argument_iter.len(), 0);
+
+    // there should be nothing else in the iterator
     assert_eq!(argument_iter.next(), None);
 }
