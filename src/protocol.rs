@@ -352,7 +352,8 @@ pub trait PacketBody: sealed::Sealed {
     const REQUIRED_FIELDS_LENGTH: usize;
 
     /// Required protocol minor version based on the contents of the packet body.
-    /// This really only exists since certain authentication methods are supposed to be gated by minor version.
+    ///
+    /// This is used since [`AuthenticationMethod`]s are partitioned by protocol minor version.
     fn required_minor_version(&self) -> Option<MinorVersion> {
         None
     }
@@ -363,7 +364,7 @@ pub trait Serialize {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
 
-    /// Serializes data into a buffer, returning the resulting length on success or `NotEnoughSpace` on error.
+    /// Serializes data into a buffer, returning the resulting length on success.
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
 
@@ -422,9 +423,11 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
                 .serialize_into_buffer(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])?;
 
             // fill in header information
-            let header_bytes = self
-                .header
-                .serialize(buffer, B::TYPE, body_length.try_into()?)?;
+            let header_bytes = self.header.serialize(
+                &mut buffer[..HeaderInfo::HEADER_SIZE_BYTES],
+                B::TYPE,
+                body_length.try_into()?,
+            )?;
 
             // return total length written
             Ok(header_bytes + body_length)

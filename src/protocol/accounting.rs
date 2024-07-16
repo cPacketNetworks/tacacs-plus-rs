@@ -52,7 +52,7 @@ impl From<Flags> for RawFlags {
 
 impl Flags {
     /// The number of bytes occupied by a flag set on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    pub(super) const WIRE_SIZE: usize = 1;
 }
 
 /// An accounting request packet, used to start, stop, or provide progress on a running job.
@@ -181,7 +181,7 @@ pub enum Status {
 
 impl Status {
     /// The number of bytes an accounting reply status occupies on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    pub(super) const WIRE_SIZE: usize = 1;
 }
 
 #[doc(hidden)]

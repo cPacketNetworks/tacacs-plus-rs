@@ -60,10 +60,10 @@ impl From<InvalidArgument> for DeserializeError {
 
 impl<'data> Argument<'data> {
     /// The delimiter used for a required argument.
-    pub const REQUIRED_DELIMITER: char = '=';
+    const REQUIRED_DELIMITER: char = '=';
 
     /// The delimiter used for an optional argument.
-    pub const OPTIONAL_DELIMITER: char = '*';
+    const OPTIONAL_DELIMITER: char = '*';
 
     /// Constructs an argument, enforcing a maximum combined name + value + delimiter length of `u8::MAX` (as it must fit in a single byte for encoding reasons).
     pub fn new(

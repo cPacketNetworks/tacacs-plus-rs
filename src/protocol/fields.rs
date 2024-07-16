@@ -46,7 +46,7 @@ pub enum AuthenticationMethod {
 
 impl AuthenticationMethod {
     /// The number of bytes an `AuthenticationMethod` occupies on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    pub(super) const WIRE_SIZE: usize = 1;
 }
 
 /// A privilege level for authentication. Limited to the range 0-15, inclusive.
@@ -167,7 +167,7 @@ pub struct AuthenticationContext {
 
 impl AuthenticationContext {
     /// Size of authentication context information on the wire, in bytes.
-    pub const WIRE_SIZE: usize = 3;
+    pub(super) const WIRE_SIZE: usize = 3;
 
     /// Serializes authentication context information into a packet body "header."
     pub(super) fn serialize(&self, buffer: &mut [u8]) {

@@ -33,7 +33,7 @@ pub enum Action {
 
 impl Action {
     /// The number of bytes an `Action` occupies on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    const WIRE_SIZE: usize = 1;
 }
 
 /// The authentication status, as returned by a TACACS+ server.
@@ -68,7 +68,7 @@ pub enum Status {
 
 impl Status {
     /// Number of bytes an authentication reply status occupies on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    const WIRE_SIZE: usize = 1;
 }
 
 #[doc(hidden)]
@@ -261,7 +261,7 @@ pub struct ReplyFlags(u8);
 
 impl ReplyFlags {
     /// Number of bytes reply flags occupy on the wire.
-    pub const WIRE_SIZE: usize = 1;
+    const WIRE_SIZE: usize = 1;
 }
 
 bitflags! {
