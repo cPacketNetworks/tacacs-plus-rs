@@ -291,26 +291,38 @@ pub struct Reply<'packet> {
     flags: ReplyFlags,
 }
 
+struct ReplyFieldLengths {
+    server_message_length: u16,
+    data_length: u16,
+    total_length: u32,
+}
+
 impl Reply<'_> {
     /// Attempts to extract the claimed reply packed body length from a buffer.
-    pub fn claimed_length(buffer: &[u8]) -> Option<usize> {
-        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
-            let (server_message_length, data_length) = Self::extract_field_lengths(buffer)?;
-            Some(Self::REQUIRED_FIELDS_LENGTH + server_message_length + data_length)
-        } else {
-            None
-        }
+    pub fn extract_total_length(buffer: &[u8]) -> Result<u32, DeserializeError> {
+        Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
     }
 
     /// Extracts the server message and data field lengths from a buffer, treating it as if it were a serialized reply packet body.
-    fn extract_field_lengths(buffer: &[u8]) -> Option<(usize, usize)> {
-        if buffer.len() >= 4 {
-            let server_message_length = u16::from_be_bytes(buffer[2..4].try_into().ok()?);
-            let data_length = u16::from_be_bytes(buffer[4..6].try_into().ok()?);
+    fn extract_field_lengths(buffer: &[u8]) -> Result<ReplyFieldLengths, DeserializeError> {
+        // data length is the last required field
+        if buffer.len() >= Self::REQUIRED_FIELDS_LENGTH {
+            let server_message_length = NetworkEndian::read_u16(&buffer[2..4]);
+            let data_length = NetworkEndian::read_u16(&buffer[4..6]);
 
-            Some((server_message_length as usize, data_length as usize))
+            // total length is just the sum of field lengths & the encoded lengths themselves
+            // SAFETY: REQUIRED_FIELDS_LENGTH as defined is guaranteed to fit in a u32
+            let total_length = u32::try_from(Self::REQUIRED_FIELDS_LENGTH).unwrap()
+                + u32::from(server_message_length)
+                + u32::from(data_length);
+
+            Ok(ReplyFieldLengths {
+                server_message_length,
+                data_length,
+                total_length,
+            })
         } else {
-            None
+            Err(DeserializeError::UnexpectedEnd)
         }
     }
 }
@@ -326,26 +338,26 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
-        let claimed_length = Self::claimed_length(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
-        let buffer_length = buffer.len();
+        let field_lengths = Self::extract_field_lengths(buffer)?;
 
-        if buffer_length >= claimed_length {
-            let status: Status = buffer[0].try_into()?;
+        // ensure buffer is large enough to contain entire packet
+        if buffer.len() >= field_lengths.total_length as usize {
+            let status = Status::try_from(buffer[0])?;
             let flag_byte = buffer[1];
             let flags = ReplyFlags::from_bits(flag_byte)
                 .ok_or(DeserializeError::InvalidBodyFlags(flag_byte))?;
 
-            let (server_message_length, data_length) =
-                Self::extract_field_lengths(buffer).ok_or(DeserializeError::UnexpectedEnd)?;
-
             let body_begin = Self::REQUIRED_FIELDS_LENGTH;
-            let data_begin = body_begin + server_message_length;
+            let data_begin = body_begin + field_lengths.server_message_length as usize;
+
+            let server_message = FieldText::try_from(&buffer[body_begin..data_begin])
+                .map_err(|_| DeserializeError::BadText)?;
+            let data = &buffer[data_begin..data_begin + field_lengths.data_length as usize];
 
             Ok(Reply {
                 status,
-                server_message: FieldText::try_from(&buffer[body_begin..data_begin])
-                    .map_err(|_| DeserializeError::BadText)?,
-                data: &buffer[data_begin..data_begin + data_length],
+                server_message,
+                data,
                 flags,
             })
         } else {
