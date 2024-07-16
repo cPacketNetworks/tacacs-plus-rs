@@ -1,1 +1,5 @@
+# build artifacts
 /target
+
+# ignored as this crate is a library
+Cargo.lock
