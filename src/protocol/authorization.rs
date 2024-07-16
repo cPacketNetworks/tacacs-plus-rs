@@ -180,7 +180,7 @@ pub struct ArgumentsIterator<'iter> {
     /// Argument information, including argument count.
     arguments_info: &'iter ArgumentsInfo<'iter>,
 
-    /// Position of the next argument
+    /// Position of the next argument, as if into a zero-indexed array of complete arguments.
     next_argument_number: usize,
 
     /// Offset of an argument within the buffer.
@@ -211,9 +211,11 @@ impl<'iter> Iterator for ArgumentsIterator<'iter> {
 
     // required for ExactSizeIterator impl
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.arguments_info.argument_count as usize;
+        let total_size = self.arguments_info.argument_count as usize;
+        let remaining_size = total_size - self.next_argument_number;
+
         // these are asserted to be equal in the default ExactSizeIterator::len() implementation
-        (size, Some(size))
+        (remaining_size, Some(remaining_size))
     }
 }
 
