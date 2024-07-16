@@ -128,8 +128,6 @@ impl<'packet> Start<'packet> {
         user_information: UserInformation<'packet>,
         data: Option<&'packet [u8]>,
     ) -> Result<Self, BadStart> {
-        // TODO: ensure action/authentication type compatibility?
-
         // ensure data length is small enough to be properly encoded without truncation
         if data.map_or(false, |slice| u8::try_from(slice.len()).is_err()) {
             Err(BadStart::DataTooLong)
