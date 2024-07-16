@@ -1,8 +1,8 @@
 use super::*;
 use crate::protocol::{
     Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, Serialize,
-    UserInformation,
+    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
+    PrivilegeLevel, Serialize, UserInformation, Version,
 };
 use crate::FieldText;
 
@@ -118,6 +118,7 @@ fn serialize_request_one_argument() {
 fn serialize_full_request_packet() {
     let session_id: u32 = 578263403;
     let header = HeaderInfo {
+        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 1,
         flags: PacketFlags::UNENCRYPTED,
         session_id,
@@ -311,6 +312,7 @@ fn deserialize_full_reply_packet() {
         Argument::new(FieldText::assert("service"), FieldText::assert("nah"), true).unwrap();
 
     let expected_header = HeaderInfo {
+        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 4,
         flags: PacketFlags::UNENCRYPTED | PacketFlags::SINGLE_CONNECTION,
         session_id: 92837492,

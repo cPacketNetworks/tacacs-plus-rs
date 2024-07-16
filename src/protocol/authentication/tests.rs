@@ -1,7 +1,7 @@
 use super::*;
 use crate::protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, Packet,
-    PacketFlags, PrivilegeLevel, UserInformation,
+    AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, MajorVersion,
+    MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
 };
 use crate::FieldText;
 
@@ -125,6 +125,8 @@ fn serialize_start_data_too_long() {
 fn serialize_full_start_packet() {
     let session_id = 123457;
     let header = HeaderInfo {
+        // note that minor version 1 is required for PAP
+        version: Version(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 1,
         flags: PacketFlags::SINGLE_CONNECTION,
         session_id,
@@ -291,7 +293,7 @@ fn deserialize_reply_full_packet() {
 
     // HEADER
     raw_packet.extend_from_slice(&[
-        (0xc << 4) | 1, // version
+        (0xc << 4) | 1, // version (minor v1)
         1,              // authentication packet
         4,              // sequence number
         1,              // unencrypted flag set
@@ -311,6 +313,7 @@ fn deserialize_reply_full_packet() {
     raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
     let expected_header = HeaderInfo {
+        version: Version(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 4,
         flags: PacketFlags::UNENCRYPTED,
         session_id,
@@ -452,6 +455,7 @@ fn serialize_continue_only_data_field() {
 fn serialize_continue_full_packet() {
     let session_id = 856473784;
     let header = HeaderInfo {
+        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
         sequence_number: 49,
         flags: PacketFlags::SINGLE_CONNECTION,
         session_id,

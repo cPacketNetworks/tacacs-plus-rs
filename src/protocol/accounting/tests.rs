@@ -1,7 +1,8 @@
 use super::*;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
-    AuthenticationType, HeaderInfo, Packet, PacketFlags, PrivilegeLevel, UserInformation,
+    AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
+    PrivilegeLevel, UserInformation, Version,
 };
 use crate::FieldText;
 
@@ -100,11 +101,7 @@ fn serialize_full_request_packet() {
     };
 
     let session_id = 298734923;
-    let header = HeaderInfo {
-        sequence_number: 1,
-        flags: PacketFlags::empty(),
-        session_id,
-    };
+    let header = HeaderInfo::new(Default::default(), 1, PacketFlags::empty(), session_id);
 
     let packet = Packet::new(header, body);
 
@@ -205,6 +202,7 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"fifteen letters"); // data
 
     let expected_header = HeaderInfo {
+        version: Version(MajorVersion::RFC8907, MinorVersion::V1),
         sequence_number: 2,
         flags: PacketFlags::all(),
         session_id,

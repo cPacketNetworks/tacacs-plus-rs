@@ -4,7 +4,7 @@ use core::{fmt, num::TryFromIntError};
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
-use getset::Getters;
+use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 pub mod accounting;
@@ -180,6 +180,11 @@ pub enum MinorVersion {
 pub struct Version(MajorVersion, MinorVersion);
 
 impl Version {
+    /// Bundles together a TACACS+ protocol major and minor version.
+    pub fn new(major: MajorVersion, minor: MinorVersion) -> Self {
+        Self(major, minor)
+    }
+
     /// Gets the major TACACS+ version.
     pub fn major(&self) -> MajorVersion {
         self.0
@@ -188,6 +193,12 @@ impl Version {
     /// Gets the minor TACACS+ version.
     pub fn minor(&self) -> MinorVersion {
         self.1
+    }
+}
+
+impl Default for Version {
+    fn default() -> Self {
+        Self(MajorVersion::RFC8907, MinorVersion::Default)
     }
 }
 
@@ -217,6 +228,7 @@ impl From<Version> for u8 {
 }
 
 /// Flags to indicate information about packets or the client/server.
+#[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PacketFlags(u8);
 
@@ -231,33 +243,49 @@ bitflags! {
 }
 
 /// Information included in a TACACS+ packet header.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, CopyGetters)]
 pub struct HeaderInfo {
+    #[getset(get_copy = "pub")]
+    /// The protocol major and minor version.
+    version: Version,
+
+    #[getset(get_copy = "pub")]
     /// The sequence number of the packet. This should be odd for client packets, and even for server packets.
-    pub sequence_number: u8,
+    sequence_number: u8,
 
+    #[getset(get_copy = "pub")]
     /// Session/packet flags.
-    pub flags: PacketFlags,
+    flags: PacketFlags,
 
+    #[getset(get_copy = "pub")]
     /// ID of the current session.
-    pub session_id: u32,
+    session_id: u32,
 }
 
 impl HeaderInfo {
     /// Size of a full TACACS+ packet header.
     const HEADER_SIZE_BYTES: usize = 12;
 
+    /// Bundles some information to be put in the header of a TACACS+ packet.
+    pub fn new(version: Version, sequence_number: u8, flags: PacketFlags, session_id: u32) -> Self {
+        Self {
+            version,
+            sequence_number,
+            flags,
+            session_id,
+        }
+    }
+
     /// Serializes the information stored in a `HeaderInfo` struct, along with the supplemented information to form a complete header.
     fn serialize(
         &self,
         buffer: &mut [u8],
-        version: Version,
         packet_type: PacketType,
         body_length: u32,
     ) -> Result<usize, SerializeError> {
         // ensure buffer is large enough to store header
         if buffer.len() >= Self::HEADER_SIZE_BYTES {
-            buffer[0] = version.into();
+            buffer[0] = self.version.into();
             buffer[1] = packet_type as u8;
             buffer[2] = self.sequence_number;
             buffer[3] = self.flags.bits();
@@ -280,6 +308,7 @@ impl TryFrom<&[u8]> for HeaderInfo {
 
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
         let header = Self {
+            version: buffer[0].try_into()?,
             sequence_number: buffer[2],
             flags: PacketFlags::from_bits(buffer[3])
                 .ok_or(DeserializeError::InvalidHeaderFlags(buffer[3]))?,
@@ -341,14 +370,13 @@ pub trait Serialize {
 /// A full TACACS+ protocol packet.
 #[derive(Getters, PartialEq, Eq, Debug)]
 pub struct Packet<B: PacketBody> {
-    #[getset(get)]
+    /// Gets some of the header information associated with a packet.
+    #[getset(get = "pub")]
     header: HeaderInfo,
 
-    #[getset(get)]
+    /// Gets the body of the packet.
+    #[getset(get = "pub")]
     body: B,
-
-    #[getset(get)]
-    version: Version,
 }
 
 impl<B: PacketBody> Packet<B> {
@@ -356,16 +384,27 @@ impl<B: PacketBody> Packet<B> {
     const BODY_START: usize = 12;
 
     /// Assembles a header and body into a full packet.
+    ///
+    /// NOTE: The header may be updated depending on the contents of the provided body,
+    /// so prefer to use the getter over another copy of the provided `HeaderInfo`.
     pub fn new(header: HeaderInfo, body: B) -> Self {
-        let minor_version = body
-            .required_minor_version()
-            .unwrap_or(MinorVersion::Default);
-        let version = Version(MajorVersion::RFC8907, minor_version);
+        match body.required_minor_version() {
+            Some(MinorVersion::V1) => {
+                // update minor version from default if necessary
+                let minor_v1 = Version(MajorVersion::RFC8907, MinorVersion::V1);
+                let updated_header = HeaderInfo {
+                    version: minor_v1,
+                    ..header
+                };
 
-        Self {
-            header,
-            body,
-            version,
+                Self {
+                    header: updated_header,
+                    body,
+                }
+            }
+
+            // otherwise use default minor version (based on HeaderInfo constructor)
+            _ => Self { header, body },
         }
     }
 }
@@ -383,9 +422,9 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
                 .serialize_into_buffer(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])?;
 
             // fill in header information
-            let header_bytes =
-                self.header
-                    .serialize(buffer, self.version, B::TYPE, body_length.try_into()?)?;
+            let header_bytes = self
+                .header
+                .serialize(buffer, B::TYPE, body_length.try_into()?)?;
 
             // return total length written
             Ok(header_bytes + body_length)
