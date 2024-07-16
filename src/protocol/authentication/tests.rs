@@ -1,5 +1,3 @@
-#![allow(clippy::cast_possible_truncation)]
-
 use super::*;
 use crate::protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, Packet,
@@ -404,8 +402,14 @@ fn serialize_continue_both_valid_data_fields() {
         .expect("buffer should be big enough");
 
     // field lengths
-    assert_eq!(buffer[..2], (user_message_length as u16).to_be_bytes());
-    assert_eq!(buffer[2..4], (data_length as u16).to_be_bytes());
+    assert_eq!(
+        buffer[..2],
+        u16::try_from(user_message_length).unwrap().to_be_bytes()
+    );
+    assert_eq!(
+        buffer[2..4],
+        u16::try_from(data_length).unwrap().to_be_bytes()
+    );
 
     // abort flag (set)
     assert_eq!(buffer[4], 1);
