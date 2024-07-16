@@ -79,8 +79,8 @@ impl<'data> Argument<'data> {
         } else if name.contains_any(&[Self::REQUIRED_DELIMITER, Self::OPTIONAL_DELIMITER]) {
             // "An argument name MUST NOT contain either of the separators." [RFC 8907]
             Err(InvalidArgument::NameContainsDelimiter)
-        } else if name.len() + value.len() >= u8::MAX as usize {
-            // length of argument (including delimiter, which is reflected in using < rather than <=) must also fit in a u8 to be encodeable
+        } else if u8::try_from(name.len() + 1 + value.len()).is_err() {
+            // length of encoded argument (i.e., including delimiter) must also fit in a u8 to be encodeable
             Err(InvalidArgument::TooLong)
         } else {
             Ok(Argument {
@@ -93,7 +93,7 @@ impl<'data> Argument<'data> {
 
     /// The encoded length of an argument, including the name/value/delimiter but not the byte holding its length earlier on in a packet.
     fn encoded_length(&self) -> u8 {
-        // NOTE: this should never panic due to length checks in new()
+        // SAFETY: this should never panic due to length checks in new()
         // length includes delimiter
         (self.name.len() + 1 + self.value.len()).try_into().unwrap()
     }
@@ -103,22 +103,25 @@ impl<'data> Argument<'data> {
         let name_len = self.name.len();
         let value_len = self.value.len();
 
+        // delimiter is placed just after name, meaning its index is exactly the name length
+        let delimiter_index = name_len;
+
         // name + value + 1 extra byte for delimiter
         let encoded_len = name_len + 1 + value_len;
 
         // buffer must be large enough to hold name, value, and delimiter
         if buffer.len() >= encoded_len {
-            buffer[..name_len].copy_from_slice(self.name.as_bytes());
+            buffer[..delimiter_index].copy_from_slice(self.name.as_bytes());
 
             // choose delimiter based on whether argument is required
-            buffer[name_len] = if self.required {
+            buffer[delimiter_index] = if self.required {
                 Self::REQUIRED_DELIMITER
             } else {
                 Self::OPTIONAL_DELIMITER
             } as u8;
 
             // value goes just after delimiter
-            buffer[name_len + 1..name_len + 1 + value_len].copy_from_slice(self.value.as_bytes());
+            buffer[delimiter_index + 1..encoded_len].copy_from_slice(self.value.as_bytes());
 
             Ok(encoded_len)
         } else {
@@ -234,11 +237,6 @@ impl<'args> Arguments<'args> {
                 let written_length =
                     argument.serialize(&mut buffer[argument_start..next_argument_start])?;
 
-                assert_eq!(
-                    written_length, argument_length,
-                    "mismatch between calculated argument length and written length"
-                );
-
                 // update loop state
                 argument_start = next_argument_start;
 
@@ -247,7 +245,16 @@ impl<'args> Arguments<'args> {
                 total_written += written_length;
             }
 
-            Ok(total_written)
+            // this case shouldn't happen since argument serialization is basically just direct slice copying
+            // but on the off chance that it does this makes it easier to debug
+            if total_written != full_encoded_length {
+                Err(SerializeError::LengthMismatch {
+                    expected: full_encoded_length,
+                    actual: total_written,
+                })
+            } else {
+                Ok(total_written)
+            }
         } else {
             Err(SerializeError::NotEnoughSpace)
         }
