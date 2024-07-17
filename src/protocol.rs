@@ -89,8 +89,8 @@ pub enum DeserializeError {
     /// Text field was not ASCII when it should have been.
     BadText,
 
-    /// Invalid byte representation of an object.
-    InvalidWireBytes,
+    /// Unencrypted flag was not the expected value.
+    IncorrectUnencryptedFlag,
 
     /// Object representation was cut off in some way.
     UnexpectedEnd,
@@ -111,11 +111,11 @@ impl fmt::Display for DeserializeError {
             ),
             Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
             Self::BadText => write!(f, "text field was not printable ASCII"),
+            Self::IncorrectUnencryptedFlag => write!(f, "unencrypted flag had an incorrect value"),
             Self::PacketTypeMismatch { expected, actual } => write!(
                 f,
                 "packet type mismatch: expected {expected:?} but got {actual:?}"
             ),
-            Self::InvalidWireBytes => write!(f, "invalid byte representation of object"),
             Self::UnexpectedEnd => write!(f, "unexpected end of buffer when deserializing object"),
         }
     }

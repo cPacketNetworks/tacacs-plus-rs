@@ -6,12 +6,14 @@ use getset::Getters;
 use md5::{Digest, Md5};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
-// TODO: move packetflags into here?
 use super::{DeserializeError, SerializeError};
 use super::{PacketBody, Serialize};
 
 pub(super) mod header;
 use header::HeaderInfo;
+
+#[cfg(test)]
+mod tests;
 
 /// Flags to indicate information about packets or the client/server.
 #[repr(transparent)]
@@ -88,10 +90,12 @@ impl<B: PacketBody> Packet<B> {
 /// MD5 hash output size, in bytes.
 const MD5_OUTPUT_SIZE: usize = 16;
 
-/// Obfuscates the body of a packet as specified in [RFC8907 section 4.5].
+/// (De)obfuscates the body of a packet as specified in [RFC8907 section 4.5].
+///
+/// Since obfuscation is done by XOR, obfuscating & deobfuscating are the same operation.
 ///
 /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#name-data-obfuscation
-fn obfuscate_body(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [u8]) {
+fn xor_body_with_pad(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [u8]) {
     let mut pseudo_pad = [0; MD5_OUTPUT_SIZE];
 
     // prehash common prefix for all hash invocations
@@ -154,7 +158,7 @@ impl<B: PacketBody + Serialize> Packet<B> {
 
         let packet_length = self.serialize_packet(buffer)?;
 
-        obfuscate_body(
+        xor_body_with_pad(
             &self.header,
             secret_key.as_ref(),
             &mut buffer[HeaderInfo::HEADER_SIZE_BYTES..packet_length],
@@ -184,7 +188,7 @@ impl<B: PacketBody + Serialize> Packet<B> {
             // serialize body first to get its length, which is stored in the header
             let body_length = self
                 .body
-                .serialize_into_buffer(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..wire_size])?;
+                .serialize_into_buffer(&mut buffer[Self::BODY_START..wire_size])?;
 
             // fill in header information
             let header_bytes = self.header.serialize(
@@ -201,16 +205,51 @@ impl<B: PacketBody + Serialize> Packet<B> {
     }
 }
 
-// TODO: separate lifetime for key? probably fine to keep the same but still check
-impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFrom<&'raw [u8]>
-    for Packet<B>
-{
-    type Error = DeserializeError;
+impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet<B> {
+    /// Attempts to deserialize an obfuscated packet with the provided secret key.
+    ///
+    /// This function also ensures that the [`UNENCRYPTED`](PacketFlags::UNENCRYPTED)
+    /// is not set, and returns an error if it is.
+    pub fn deserialize<K: AsRef<[u8]>>(
+        secret_key: K,
+        buffer: &'raw mut [u8],
+    ) -> Result<Self, DeserializeError> {
+        let header = HeaderInfo::try_from(&buffer[..HeaderInfo::HEADER_SIZE_BYTES])?;
 
-    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+        // ensure unencrypted flag is not set
+        if !header.flags().contains(PacketFlags::UNENCRYPTED) {
+            xor_body_with_pad(
+                &header,
+                secret_key.as_ref(),
+                &mut buffer[Self::BODY_START..],
+            );
+
+            let body = Self::deserialize_body(buffer)?;
+
+            Ok(Self::new(header, body))
+        } else {
+            Err(DeserializeError::IncorrectUnencryptedFlag)
+        }
+    }
+
+    /// Attempts to deserialize a cleartext packet from a buffer.
+    ///
+    /// This function also ensures that the [`UNENCRYPTED`](PacketFlags::UNENCRYPTED)
+    /// is set, and returns an error if it is not.
+    pub fn deserialize_unobfuscated(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
+        let header = HeaderInfo::try_from(&buffer[..HeaderInfo::HEADER_SIZE_BYTES])?;
+
+        // ensure unencrypted flag is set
+        if header.flags().contains(PacketFlags::UNENCRYPTED) {
+            let body = Self::deserialize_body(buffer)?;
+            Ok(Self::new(header, body))
+        } else {
+            Err(DeserializeError::IncorrectUnencryptedFlag)
+        }
+    }
+
+    fn deserialize_body(buffer: &'raw [u8]) -> Result<B, DeserializeError> {
         if buffer.len() > HeaderInfo::HEADER_SIZE_BYTES {
-            let header: HeaderInfo = buffer[..HeaderInfo::HEADER_SIZE_BYTES].try_into()?;
-
             let actual_packet_type = PacketType::try_from(buffer[1])?;
             if actual_packet_type == B::TYPE {
                 // body length is stored at the end of the 12-byte header
@@ -220,8 +259,7 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> TryFro
                 if buffer[Self::BODY_START..].len() >= body_length {
                     let body =
                         buffer[Self::BODY_START..Self::BODY_START + body_length].try_into()?;
-                    // FIXME: properly deserialize obfuscated packets with key, probably not in TryFrom impl but instead via inherent method
-                    Ok(Self::new(header, body))
+                    Ok(body)
                 } else {
                     Err(DeserializeError::UnexpectedEnd)
                 }

@@ -216,7 +216,10 @@ fn deserialize_full_reply_packet() {
 
     let expected_packet = Packet::new(expected_header, expected_body);
 
-    assert_eq!(raw_packet.as_slice().try_into(), Ok(expected_packet));
+    assert_eq!(
+        Packet::deserialize_unobfuscated(&raw_packet),
+        Ok(expected_packet)
+    );
 }
 
 #[test]

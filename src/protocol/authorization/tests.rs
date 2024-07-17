@@ -323,9 +323,7 @@ fn deserialize_full_reply_packet() {
         92837492,
     );
 
-    let parsed: Packet<Reply> = raw_packet
-        .as_slice()
-        .try_into()
+    let parsed: Packet<Reply> = Packet::deserialize_unobfuscated(&raw_packet)
         .expect("packet deserialization should succeed");
 
     // check fields individually, since PartialEq and argument iteration don't play well together
@@ -352,3 +350,6 @@ fn deserialize_full_reply_packet() {
     // there should be nothing else in the iterator
     assert_eq!(argument_iter.next(), None);
 }
+
+#[test]
+fn deserialize_obfuscated_reply_packet() {}

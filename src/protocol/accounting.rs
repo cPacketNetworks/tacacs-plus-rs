@@ -277,7 +277,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             let server_message =
                 FieldText::try_from(&buffer[Self::SERVER_MESSAGE_OFFSET..data_offset])
-                    .map_err(|_| DeserializeError::InvalidWireBytes)?;
+                    .map_err(|_| DeserializeError::BadText)?;
             let data = &buffer[data_offset..data_offset + extracted_lengths.data_length as usize];
 
             Ok(Self {

@@ -316,7 +316,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let arguments_start = data_start + data_length as usize;
 
             let server_message = FieldText::try_from(&buffer[body_start..data_start])
-                .map_err(|_| DeserializeError::InvalidWireBytes)?;
+                .map_err(|_| DeserializeError::BadText)?;
             let data = &buffer[data_start..arguments_start];
 
             // arguments occupy the rest of the buffer
