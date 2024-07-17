@@ -140,6 +140,7 @@ mod error_impls {
 // seals the PacketBody trait
 mod sealed {
     use super::{accounting, authentication, authorization};
+    use super::{Packet, PacketBody};
 
     pub trait Sealed {}
 
@@ -155,6 +156,9 @@ mod sealed {
     // accounting packet bodies
     impl Sealed for accounting::Request<'_> {}
     impl Sealed for accounting::Reply<'_> {}
+
+    // full packet type
+    impl<B: PacketBody> Sealed for Packet<B> {}
 }
 
 /// The major version of the TACACS+ protocol.
@@ -361,8 +365,10 @@ pub trait PacketBody: sealed::Sealed {
     }
 }
 
+// TODO: merge with PacketBody? would have to implement serialization of Reply packets though
+// Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
 /// Something that can be serialized into a binary format.
-pub trait Serialize {
+pub trait Serialize: sealed::Sealed {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
 
