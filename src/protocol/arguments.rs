@@ -56,7 +56,7 @@ impl fmt::Display for InvalidArgument {
             ),
             Self::NoDelimiter => write!(f, "encoded argument value had no delimiter"),
             Self::TooLong => write!(f, "the total length of an argument (name + length + delimiter) must not exceed u8::MAX, for encoding reasons"),
-            Self::BadText => write!(f, "encoded argument value was not valid ASCII")
+            Self::BadText => write!(f, "encoded argument value was not printable ASCII")
         }
     }
 }
@@ -80,7 +80,7 @@ impl<'data> Argument<'data> {
         value: FieldText<'data>,
         required: bool,
     ) -> Result<Self, InvalidArgument> {
-        // NOTE: since both name/value are AsciiStrs, we don't have to check if they are ascii as in `check_encoding`
+        // NOTE: since both name/value are `FieldText`s, we don't have to check if they are ascii as in `check_encoding`
 
         if name.is_empty() {
             // name must be nonempty (?)

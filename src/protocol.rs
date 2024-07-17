@@ -86,7 +86,7 @@ pub enum DeserializeError {
         actual: PacketType,
     },
 
-    /// Text field was not ASCII when it should have been.
+    /// Text field was not printable ASCII when it should have been.
     BadText,
 
     /// Unencrypted flag was not the expected value.

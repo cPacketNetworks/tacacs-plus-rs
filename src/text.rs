@@ -1,4 +1,4 @@
-//! Convenience types for enforcing valid ASCII strings.
+//! Convenience type for enforcing valid ASCII printable strings.
 
 use core::fmt;
 
