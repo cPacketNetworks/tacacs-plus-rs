@@ -17,6 +17,8 @@ pub use arguments::{Argument, Arguments, InvalidArgument};
 mod fields;
 pub use fields::*;
 
+mod obfuscation;
+
 /// An error that occurred when serializing a packet or any of its components into their binary format.
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
@@ -405,6 +407,7 @@ impl<B: PacketBody + Serialize> Serialize for Packet<B> {
         HeaderInfo::HEADER_SIZE_BYTES + self.body.wire_size()
     }
 
+    // TODO: ensure unencrypted flag is set (or switch between obfuscated/unobfuscated if set or not?)
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         if buffer.len() >= self.wire_size() {
             // serialize body first to get its length, which is stored in the header
