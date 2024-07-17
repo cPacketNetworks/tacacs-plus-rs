@@ -117,12 +117,12 @@ fn serialize_request_one_argument() {
 #[test]
 fn serialize_full_request_packet() {
     let session_id: u32 = 578263403;
-    let header = HeaderInfo {
-        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
-        sequence_number: 1,
-        flags: PacketFlags::UNENCRYPTED,
+    let header = HeaderInfo::new(
+        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        1,
+        PacketFlags::UNENCRYPTED,
         session_id,
-    };
+    );
 
     let arguments_list = [Argument::new(
         FieldText::assert("service"),
@@ -153,7 +153,7 @@ fn serialize_full_request_packet() {
 
     let mut buffer = [0x43; 70];
     let serialized_length = packet
-        .serialize_into_buffer(buffer.as_mut_slice())
+        .serialize_unobfuscated(buffer.as_mut_slice())
         .expect("packet serialization should have succeeded");
 
     let mut expected = array_vec!([u8; 70]);
@@ -316,12 +316,12 @@ fn deserialize_full_reply_packet() {
     let expected_argument =
         Argument::new(FieldText::assert("service"), FieldText::assert("nah"), true).unwrap();
 
-    let expected_header = HeaderInfo {
-        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
-        sequence_number: 4,
-        flags: PacketFlags::UNENCRYPTED | PacketFlags::SINGLE_CONNECTION,
-        session_id: 92837492,
-    };
+    let expected_header = HeaderInfo::new(
+        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        4,
+        PacketFlags::UNENCRYPTED | PacketFlags::SINGLE_CONNECTION,
+        92837492,
+    );
 
     let parsed: Packet<Reply> = raw_packet
         .as_slice()
@@ -329,17 +329,17 @@ fn deserialize_full_reply_packet() {
         .expect("packet deserialization should succeed");
 
     // check fields individually, since PartialEq and argument iteration don't play well together
-    assert_eq!(parsed.header, expected_header);
+    assert_eq!(parsed.header(), &expected_header);
 
-    assert_eq!(parsed.body.status, Status::Fail);
+    assert_eq!(parsed.body().status, Status::Fail);
     assert_eq!(
-        parsed.body.server_message,
+        parsed.body().server_message,
         FieldText::assert("something went wrong :(")
     );
-    assert_eq!(parsed.body.data, b"\x88\x88\x88\x88");
+    assert_eq!(parsed.body().data, b"\x88\x88\x88\x88");
 
     // argument check: iterator should yield only 1 argument and then none
-    let mut argument_iter = parsed.body.iter_arguments();
+    let mut argument_iter = parsed.body().iter_arguments();
 
     // also check ExactSizeIterator impl
     assert_eq!(argument_iter.len(), 1);

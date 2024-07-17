@@ -124,13 +124,13 @@ fn serialize_start_data_too_long() {
 #[test]
 fn serialize_full_start_packet() {
     let session_id = 123457;
-    let header = HeaderInfo {
+    let header = HeaderInfo::new(
         // note that minor version 1 is required for PAP
-        version: Version(MajorVersion::RFC8907, MinorVersion::V1),
-        sequence_number: 1,
-        flags: PacketFlags::SINGLE_CONNECTION,
+        Version(MajorVersion::RFC8907, MinorVersion::V1),
+        1,
+        PacketFlags::SINGLE_CONNECTION,
         session_id,
-    };
+    );
 
     let body = Start::new(
         Action::Login,
@@ -153,7 +153,7 @@ fn serialize_full_start_packet() {
 
     let mut buffer = [42; 50];
     packet
-        .serialize_into_buffer(&mut buffer)
+        .serialize_unobfuscated(&mut buffer)
         .expect("buffer should have been large enough for packet");
 
     let mut expected = array_vec!([u8; 50]);
@@ -163,7 +163,7 @@ fn serialize_full_start_packet() {
         (0xc << 4) | 0x1, // major/minor version (default)
         0x01,             // authentication
         1,                // sequence number
-        0x04,             // single connection flag set
+        0x1 | 0x04, // both single connection and unencrypted flags set (updated in serialize_unobfuscated!)
     ]);
     expected.extend_from_slice(session_id.to_be_bytes().as_slice());
     expected.extend_from_slice(31_u32.to_be_bytes().as_slice()); // body length
@@ -312,12 +312,12 @@ fn deserialize_reply_full_packet() {
     raw_packet.extend_from_slice(b"try again"); // server message
     raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
-    let expected_header = HeaderInfo {
-        version: Version(MajorVersion::RFC8907, MinorVersion::V1),
-        sequence_number: 4,
-        flags: PacketFlags::UNENCRYPTED,
+    let expected_header = HeaderInfo::new(
+        Version(MajorVersion::RFC8907, MinorVersion::V1),
+        4,
+        PacketFlags::UNENCRYPTED,
         session_id,
-    };
+    );
 
     let expected_body = Reply {
         status: Status::Restart,
@@ -454,12 +454,12 @@ fn serialize_continue_only_data_field() {
 #[test]
 fn serialize_continue_full_packet() {
     let session_id = 856473784;
-    let header = HeaderInfo {
-        version: Version(MajorVersion::RFC8907, MinorVersion::Default),
-        sequence_number: 49,
-        flags: PacketFlags::SINGLE_CONNECTION,
+    let header = HeaderInfo::new(
+        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        49,
+        PacketFlags::SINGLE_CONNECTION,
         session_id,
-    };
+    );
 
     let body = Continue::new(
         Some(b"this is a message"),
@@ -472,7 +472,7 @@ fn serialize_continue_full_packet() {
 
     let mut buffer = [0x64; 50];
     let serialized_length = packet
-        .serialize_into_buffer(buffer.as_mut_slice())
+        .serialize_unobfuscated(buffer.as_mut_slice())
         .expect("packet serialization should succeed");
 
     let mut expected = array_vec!([u8; 50]);
@@ -483,7 +483,7 @@ fn serialize_continue_full_packet() {
         0xc << 4, // version
         1,        // authentication packet
         49,       // sequence number
-        4,        // single connection flag set
+        1 | 4, // both single connection and unencrypted flags set (latter updated in serialize_unobfuscated)
     ]);
     expected.extend_from_slice(session_id.to_be_bytes().as_slice());
     expected.extend_from_slice(27_u32.to_be_bytes().as_slice()); // body length

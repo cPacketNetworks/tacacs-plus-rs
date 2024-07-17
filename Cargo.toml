@@ -18,4 +18,5 @@ getset = { version = "0.1.2" }
 md-5 = { version = "0.10.6", default-features = false }
 
 [dev-dependencies]
+hex-literal = "0.4.1"
 tinyvec = { version = "1.6.1", features = ["rustc_1_57"] }
