@@ -352,4 +352,89 @@ fn deserialize_full_reply_packet() {
 }
 
 #[test]
-fn deserialize_obfuscated_reply_packet() {}
+fn deserialize_obfuscated_reply_packet() {
+    let mut raw_packet = array_vec!([u8; 70] =>
+         // HEADER
+         0xc << 4, // version (only major, default minor)
+         2,        // authorization packet
+         2,        // sequence number
+         4,        // single connect flag set (not unencrypted)
+         // session id (big-endian u32)
+         2,
+         234,
+         98,
+         242,
+         // body length (big-endian u32)
+         0,
+         0,
+         0,
+         38,
+         // BODY
+         2, // status: pass/replace arguments
+         1, // argument count
+         // server message length (big-endian u16)
+         0,
+         21,
+         // data length (big-endian u16)
+         0,
+         0,
+         // argument 1 length
+         10,
+    );
+
+    // server message
+    raw_packet.extend_from_slice(b"privilege level reset");
+
+    // (data field is empty)
+
+    // argument 1
+    raw_packet.extend_from_slice(b"priv-lvl=0");
+
+    // obfuscate packet body with proper pseudo-pad, again generated in python
+    // secret key: packetissecured
+    let pseudo_pad = hex_literal::hex!("314ff6fbc628e07dc864cc41bfb4e4e96c23e65110c3201ef2133e2cfd8a0d305b3122f38b84dc0e4f2ed6dcc04a2becd124");
+    for (packet, pad) in core::iter::zip(
+        raw_packet[Packet::<Reply>::BODY_START..].iter_mut(),
+        pseudo_pad,
+    ) {
+        *packet ^= pad;
+    }
+
+    // attempt to deserialize obfuscated packet
+    let packet: Packet<Reply> = Packet::deserialize(b"packetissecured", &mut raw_packet)
+        .expect("packet deserialization should have succeeded");
+
+    // ensure validity of packet fields
+
+    // header
+    assert_eq!(
+        *packet.header(),
+        HeaderInfo::new(
+            Version::new(MajorVersion::RFC8907, MinorVersion::Default),
+            2,
+            PacketFlags::SINGLE_CONNECTION,
+            48915186
+        )
+    );
+
+    // body fields
+    let parsed_body = packet.body();
+    assert_eq!(*parsed_body.status(), Status::PassReplace);
+    assert_eq!(
+        parsed_body.server_message().as_ref(),
+        "privilege level reset"
+    );
+    assert_eq!(parsed_body.data(), &[]);
+
+    // also check argument (& ArgumentsInfo iterator impls)
+    let mut arguments_iter = parsed_body.iter_arguments();
+    assert_eq!(arguments_iter.len(), 1);
+
+    assert_eq!(
+        arguments_iter.next(),
+        // unwrap/rewrap is done to ensure the iterator actually yields an element
+        Some(Argument::new(FieldText::assert("priv-lvl"), FieldText::assert("0"), true).unwrap())
+    );
+
+    assert_eq!(arguments_iter.len(), 0);
+}

@@ -69,7 +69,7 @@ pub struct Packet<B: PacketBody> {
 
 impl<B: PacketBody> Packet<B> {
     /// Location of the start of the packet body, after the header.
-    const BODY_START: usize = 12;
+    pub(super) const BODY_START: usize = 12;
 
     /// Assembles a header and body into a full packet.
     ///
