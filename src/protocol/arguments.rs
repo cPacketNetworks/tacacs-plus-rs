@@ -1,18 +1,27 @@
 use core::fmt;
 use core::iter::zip;
 
-use crate::FieldText;
+use getset::CopyGetters;
 
 use super::{DeserializeError, SerializeError};
+use crate::FieldText;
 
 #[cfg(test)]
 mod tests;
 
 /// An argument in the TACACS+ protocol, which exists for extensibility.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, CopyGetters)]
 pub struct Argument<'data> {
+    /// Gets the name of the argument.
+    #[getset(get_copy = "pub")]
     name: FieldText<'data>,
+
+    /// Gets the value of the argument.
+    #[getset(get_copy = "pub")]
     value: FieldText<'data>,
+
+    /// Whether this argument is required to be processed or not.
+    #[getset(get_copy = "pub")]
     required: bool,
 }
 
