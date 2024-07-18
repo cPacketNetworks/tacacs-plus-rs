@@ -1,0 +1,52 @@
+name: Build/Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo-build-test:
+    name: Cargo build and test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [std, no_std]
+      fail-fast: false
+
+    # allow for cache to be shared between jobs
+    concurrency: cargodeps-${{ matrix.features }}
+
+    env:
+      FEATURE_FLAGS: ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable --no-self-update
+      - name: Set up Rust artifact cache
+        uses: actions/cache@v4
+        with:
+          key: cargodeps-${{ matrix.features}}-${{ hashFiles('**/Cargo.toml') }}
+          # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+          # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target
+      - name: Build crate
+        run: cargo build --verbose $FEATURE_FLAGS
+      - name: Run tests
+        run: cargo test --verbose $FEATURE_FLAGS

@@ -1,0 +1,59 @@
+name: Code checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -Dwarnings
+
+jobs:
+  formatting:
+    name: Formatting check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable --no-self-update
+      - name: Check formatting
+        run: cargo fmt --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        features: [std, no_std]
+      fail-fast: false
+
+    concurrency: cargodeps-${{ matrix.features }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Update Rust toolchain (stable)
+        run: rustup update stable --no-self-update
+      - name: Set up Rust artifact cache
+        uses: actions/cache@v4
+        with:
+          key: cargodeps-${{ matrix.features }}-${{ hashFiles('**/Cargo.toml') }}
+          # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
+          # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target
+      - name: Run Clippy (${{ matrix.features }})
+        run: cargo clippy --verbose ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
