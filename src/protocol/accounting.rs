@@ -266,9 +266,12 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
         let extracted_lengths = Self::extract_field_lengths(buffer)?;
+        let buffer_len = buffer.len();
 
-        // NOTE: the length returned by claimed_length() if non-Err is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
-        if buffer.len() >= extracted_lengths.total_length as usize {
+        // NOTE: the total length returned by extract_field_lengths() if non-Err is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
+        // exact equality is checked here due to packet obfuscation requiring such a check
+        // Packet::deserialize_body() slices the buffer to the length reported in the header, so we can just check the buffer length here
+        if buffer_len == extracted_lengths.total_length as usize {
             let status = Status::try_from(buffer[4])?;
 
             // server message starts
@@ -286,7 +289,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 data,
             })
         } else {
-            Err(DeserializeError::UnexpectedEnd)
+            Err(DeserializeError::WrongBodyBufferSize {
+                expected: extracted_lengths.total_length as usize,
+                buffer_size: buffer_len,
+            })
         }
     }
 }

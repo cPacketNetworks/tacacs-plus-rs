@@ -307,7 +307,9 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             total_length,
         } = Self::extract_field_lengths(buffer)?;
 
-        if buffer.len() >= total_length as usize {
+        let buffer_len = buffer.len();
+
+        if buffer_len == total_length as usize {
             let status: Status = buffer[0].try_into()?;
             let argument_count = buffer[1];
 
@@ -338,7 +340,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 arguments_info,
             })
         } else {
-            Err(DeserializeError::UnexpectedEnd)
+            Err(DeserializeError::WrongBodyBufferSize {
+                expected: total_length as usize,
+                buffer_size: buffer_len,
+            })
         }
     }
 }

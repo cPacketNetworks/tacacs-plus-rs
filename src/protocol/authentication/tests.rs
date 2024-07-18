@@ -208,11 +208,15 @@ fn deserialize_reply_pass_both_data_fields() {
     // data
     packet_data.extend_from_slice(&[0x12, 0x77, 0xfa, 0xcc]);
 
-    // extra byte that is not part of packet
+    // extra byte that is not part of packet, to be sliced out later
     packet_data.push(0xde);
 
+    // get expected packet length to slice the packet data buffer properly
+    let expected_packet_length =
+        Reply::extract_total_length(&packet_data).expect("packet length extraction should succeed");
+
     assert_eq!(
-        Reply::try_from(packet_data.as_slice()),
+        Reply::try_from(&packet_data[..expected_packet_length as usize]),
         Ok(Reply {
             status: Status::Pass,
             server_message: FieldText::assert("login successful"),
@@ -226,18 +230,23 @@ fn deserialize_reply_pass_both_data_fields() {
 fn deserialize_reply_bad_server_message_length() {
     let mut packet_data = array_vec!([u8; 30]);
 
+    let server_message = b"something's wrong";
     packet_data.extend_from_slice(&[
         0x02, // status: fail
         0,    // no flags set
         13, 37, // server length - way too large
         0, 0, // arbitrary data length - shouldn't matter
     ]);
-    packet_data.extend_from_slice(b"something's wrong"); // server message
+    packet_data.extend_from_slice(server_message); // server message
 
     // guard on specific error flavor
     assert_eq!(
         Reply::try_from(packet_data.as_slice()),
-        Err(DeserializeError::UnexpectedEnd)
+        Err(DeserializeError::WrongBodyBufferSize {
+            // expected length: server length + required fields + data length (0)
+            expected: NetworkEndian::read_u16(&[13, 37]) as usize + Reply::REQUIRED_FIELDS_LENGTH,
+            buffer_size: server_message.len() + Reply::REQUIRED_FIELDS_LENGTH
+        })
     );
 }
 

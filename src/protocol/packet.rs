@@ -256,6 +256,7 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
                 // body length is stored at the end of the 12-byte header
                 let body_length = NetworkEndian::read_u32(&buffer[8..12]) as usize;
 
+                // NOTE: the rest of the buffer is checked here to avoid a panic if it's shorter than body_length when trying to slice that large
                 // ensure buffer actually contains whole body
                 if buffer[Self::BODY_START..].len() >= body_length {
                     let body =

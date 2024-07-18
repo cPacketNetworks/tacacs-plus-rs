@@ -92,6 +92,14 @@ pub enum DeserializeError {
     /// Unencrypted flag was not the expected value.
     IncorrectUnencryptedFlag,
 
+    /// Buffer containing raw body had incorrect length with respect to length fields in the body.
+    WrongBodyBufferSize {
+        /// The expected buffer length, based on length fields in the packet body.
+        expected: usize,
+        /// The size of the buffer being deserialized, sliced to just the body section.
+        buffer_size: usize,
+    },
+
     /// Object representation was cut off in some way.
     UnexpectedEnd,
 }
@@ -112,10 +120,8 @@ impl fmt::Display for DeserializeError {
             Self::InvalidArgument(reason) => write!(f, "invalid argument: {reason}"),
             Self::BadText => write!(f, "text field was not printable ASCII"),
             Self::IncorrectUnencryptedFlag => write!(f, "unencrypted flag had an incorrect value"),
-            Self::PacketTypeMismatch { expected, actual } => write!(
-                f,
-                "packet type mismatch: expected {expected:?} but got {actual:?}"
-            ),
+            Self::PacketTypeMismatch { expected, actual } => write!(f, "packet type mismatch: expected {expected:?} but got {actual:?}"),
+            Self::WrongBodyBufferSize { expected, buffer_size } => write!(f, "body buffer size didn't match length fields: expected {expected} bytes, but buffer was actually {buffer_size}"),
             Self::UnexpectedEnd => write!(f, "unexpected end of buffer when deserializing object"),
         }
     }

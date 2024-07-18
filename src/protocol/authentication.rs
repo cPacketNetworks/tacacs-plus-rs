@@ -339,9 +339,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
         let field_lengths = Self::extract_field_lengths(buffer)?;
+        let buffer_len = buffer.len();
 
         // ensure buffer is large enough to contain entire packet
-        if buffer.len() >= field_lengths.total_length as usize {
+        if buffer_len == field_lengths.total_length as usize {
             let status = Status::try_from(buffer[0])?;
             let flag_byte = buffer[1];
             let flags = ReplyFlags::from_bits(flag_byte)
@@ -361,7 +362,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
                 flags,
             })
         } else {
-            Err(DeserializeError::UnexpectedEnd)
+            Err(DeserializeError::WrongBodyBufferSize {
+                expected: field_lengths.total_length as usize,
+                buffer_size: buffer_len,
+            })
         }
     }
 }
