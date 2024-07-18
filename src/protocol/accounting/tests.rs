@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::packet::xor_body_with_pad;
 use crate::protocol::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
@@ -258,7 +259,7 @@ fn serialize_request_packet_obfuscated() {
     let session_id = 234897234;
     let header = HeaderInfo::new(Default::default(), 1, PacketFlags::all(), session_id);
 
-    let packet = Packet::new(header, body);
+    let packet = Packet::new(header.clone(), body);
 
     let key = b"supersecurekey";
     let mut buffer = [0xff; 70];
@@ -306,13 +307,7 @@ fn serialize_request_packet_obfuscated() {
 
     // obfuscation of body
     // pad generated using python for diversity of md5 implementations or something
-    let pseudopad = hex_literal::hex!("9af15319924a133b7301e2ad76d4d5d5a189bc5bb31fd13db2b8fb6dfbd05f13be0cfd8ac528286179f6eb1921c0027f83d95fe296");
-    for (out, pad) in core::iter::zip(
-        expected[HeaderInfo::HEADER_SIZE_BYTES..serialized_length].iter_mut(),
-        pseudopad,
-    ) {
-        *out ^= pad;
-    }
+    xor_body_with_pad(&header, key, &mut expected[HeaderInfo::HEADER_SIZE_BYTES..]);
 
     // ensure obfuscation is correct
     assert_eq!(&buffer[..serialized_length], &expected[..serialized_length]);

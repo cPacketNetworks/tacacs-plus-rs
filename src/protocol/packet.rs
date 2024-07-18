@@ -95,7 +95,7 @@ const MD5_OUTPUT_SIZE: usize = 16;
 /// Since obfuscation is done by XOR, obfuscating & deobfuscating are the same operation.
 ///
 /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#name-data-obfuscation
-fn xor_body_with_pad(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [u8]) {
+pub(super) fn xor_body_with_pad(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [u8]) {
     let mut pseudo_pad = [0; MD5_OUTPUT_SIZE];
 
     // prehash common prefix for all hash invocations

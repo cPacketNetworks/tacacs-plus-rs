@@ -1,4 +1,5 @@
 use super::*;
+use crate::protocol::packet::xor_body_with_pad;
 use crate::protocol::{
     Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
@@ -390,32 +391,29 @@ fn deserialize_obfuscated_reply_packet() {
     // argument 1
     raw_packet.extend_from_slice(b"priv-lvl=0");
 
+    let expected_header = HeaderInfo::new(
+        Version::new(MajorVersion::RFC8907, MinorVersion::Default),
+        2,
+        PacketFlags::SINGLE_CONNECTION,
+        48915186,
+    );
+
     // obfuscate packet body with proper pseudo-pad, again generated in python
-    // secret key: packetissecured
-    let pseudo_pad = hex_literal::hex!("314ff6fbc628e07dc864cc41bfb4e4e96c23e65110c3201ef2133e2cfd8a0d305b3122f38b84dc0e4f2ed6dcc04a2becd124");
-    for (packet, pad) in core::iter::zip(
-        raw_packet[Packet::<Reply>::BODY_START..].iter_mut(),
-        pseudo_pad,
-    ) {
-        *packet ^= pad;
-    }
+    let secret_key = b"packetissecured";
+    xor_body_with_pad(
+        &expected_header,
+        secret_key,
+        &mut raw_packet[HeaderInfo::HEADER_SIZE_BYTES..],
+    );
 
     // attempt to deserialize obfuscated packet
-    let packet: Packet<Reply> = Packet::deserialize(b"packetissecured", &mut raw_packet)
+    let packet: Packet<Reply> = Packet::deserialize(secret_key, &mut raw_packet)
         .expect("packet deserialization should have succeeded");
 
     // ensure validity of packet fields
 
     // header
-    assert_eq!(
-        *packet.header(),
-        HeaderInfo::new(
-            Version::new(MajorVersion::RFC8907, MinorVersion::Default),
-            2,
-            PacketFlags::SINGLE_CONNECTION,
-            48915186
-        )
-    );
+    assert_eq!(packet.header(), &expected_header);
 
     // body fields
     let parsed_body = packet.body();
