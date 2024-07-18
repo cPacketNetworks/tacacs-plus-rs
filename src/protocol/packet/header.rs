@@ -1,27 +1,27 @@
 use byteorder::{ByteOrder, NetworkEndian};
-use getset::CopyGetters;
+use getset::{CopyGetters, MutGetters};
 
 use super::{PacketFlags, PacketType};
 use crate::protocol::{DeserializeError, SerializeError, Version};
 
 /// Information included in a TACACS+ packet header.
-#[derive(PartialEq, Eq, Debug, Clone, CopyGetters)]
+#[derive(PartialEq, Eq, Debug, Clone, CopyGetters, MutGetters)]
 pub struct HeaderInfo {
-    #[getset(get_copy = "pub")]
+    #[getset(get_copy = "pub", get_mut = "pub(super)")]
     /// The protocol major and minor version.
-    pub(super) version: Version,
+    version: Version,
 
     #[getset(get_copy = "pub")]
     /// The sequence number of the packet. This should be odd for client packets, and even for server packets.
-    pub(super) sequence_number: u8,
+    sequence_number: u8,
 
-    #[getset(get_copy = "pub")]
+    #[getset(get_copy = "pub", get_mut = "pub(super)")]
     /// Session/packet flags.
-    pub(super) flags: PacketFlags,
+    flags: PacketFlags,
 
     #[getset(get_copy = "pub")]
     /// ID of the current session.
-    pub(super) session_id: u32,
+    session_id: u32,
 }
 
 impl HeaderInfo {

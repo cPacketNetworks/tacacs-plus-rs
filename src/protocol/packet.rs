@@ -80,7 +80,7 @@ impl<B: PacketBody> Packet<B> {
     pub fn new(mut header: HeaderInfo, body: B) -> Self {
         // update minor version to what is required by the body, if applicable
         if let Some(minor) = body.required_minor_version() {
-            header.version.1 = minor;
+            header.version_mut().1 = minor;
         }
 
         Self { header, body }
@@ -101,12 +101,12 @@ fn xor_body_with_pad(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [
     // prehash common prefix for all hash invocations
     // prefix: session id -> key -> version -> sequence number
     let mut prefix_hasher = Md5::new();
-    prefix_hasher.update(header.session_id.to_be_bytes());
+    prefix_hasher.update(header.session_id().to_be_bytes());
     prefix_hasher.update(secret_key);
 
     // technically these to_be_bytes calls don't do anything since both fields end up as `u8`s but still
-    prefix_hasher.update(u8::from(header.version).to_be_bytes());
-    prefix_hasher.update(header.sequence_number.to_be_bytes());
+    prefix_hasher.update(u8::from(header.version()).to_be_bytes());
+    prefix_hasher.update(header.sequence_number().to_be_bytes());
 
     let mut chunks_iter = body_buffer.chunks_mut(MD5_OUTPUT_SIZE);
 
@@ -133,6 +133,7 @@ fn xor_body_with_pad(header: &HeaderInfo, secret_key: &[u8], body_buffer: &mut [
     }
 }
 
+/// XORs two byte slices together, truncating to the shorter of the two argument lengths.
 fn xor_slices(output: &mut [u8], pseudo_pad: &[u8]) {
     for (out, pad) in zip(output, pseudo_pad) {
         *out ^= pad;
@@ -154,14 +155,14 @@ impl<B: PacketBody + Serialize> Packet<B> {
         buffer: &mut [u8],
     ) -> Result<usize, SerializeError> {
         // remove unencrypted flag from header
-        self.header.flags.remove(PacketFlags::UNENCRYPTED);
+        self.header.flags_mut().remove(PacketFlags::UNENCRYPTED);
 
         let packet_length = self.serialize_packet(buffer)?;
 
         xor_body_with_pad(
             &self.header,
             secret_key.as_ref(),
-            &mut buffer[HeaderInfo::HEADER_SIZE_BYTES..packet_length],
+            &mut buffer[Self::BODY_START..packet_length],
         );
 
         Ok(packet_length)
@@ -176,7 +177,7 @@ impl<B: PacketBody + Serialize> Packet<B> {
     /// [section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
     pub fn serialize_unobfuscated(mut self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
         // ensure unencrypted flag is set
-        self.header.flags.insert(PacketFlags::UNENCRYPTED);
+        self.header.flags_mut().insert(PacketFlags::UNENCRYPTED);
 
         self.serialize_packet(buffer)
     }
