@@ -16,7 +16,7 @@ pub struct ReplyOwned {
     pub server_message: String,
 
     /// An administrative/console log message.
-    pub data: Vec<u8>,
+    pub data: String,
 
     /// The arguments sent by the server.
     pub arguments: Vec<ArgumentOwned>,
@@ -31,7 +31,7 @@ impl ToOwnedBody for Reply<'_> {
         ReplyOwned {
             status: self.status,
             server_message: self.server_message.as_ref().to_owned(),
-            data: self.data.to_owned(),
+            data: self.data.as_ref().to_owned(),
             arguments: arguments_vec,
         }
     }

@@ -7,13 +7,13 @@ use super::Argument;
 #[derive(Debug, PartialEq, Eq)]
 pub struct ArgumentOwned {
     /// The name of the argument.
-    pub(super) name: String,
+    pub(in crate::protocol) name: String,
 
     /// The value of the argument.
-    pub(super) value: String,
+    pub(in crate::protocol) value: String,
 
     /// Whether this argument is required.
-    pub(super) required: bool,
+    pub(in crate::protocol) required: bool,
 }
 
 impl ArgumentOwned {

@@ -166,9 +166,9 @@ pub struct Reply<'packet> {
     #[getset(get_copy = "pub")]
     server_message: FieldText<'packet>,
 
-    /// Gets the administrative/log data returned from the server.
+    /// Gets the administrative log message returned from the server.
     #[getset(get_copy = "pub")]
-    data: &'packet [u8],
+    data: FieldText<'packet>,
 
     // this field not publicly exposed on purpose
     // (used for iterating over arguments)
@@ -330,7 +330,8 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             let server_message = FieldText::try_from(&buffer[body_start..data_start])
                 .map_err(|_| DeserializeError::BadText)?;
-            let data = &buffer[data_start..arguments_start];
+            let data = FieldText::try_from(&buffer[data_start..arguments_start])
+                .map_err(|_| DeserializeError::BadText)?;
 
             // arguments occupy the rest of the buffer
             let argument_lengths = &buffer[Self::ARGUMENT_LENGTHS_START..body_start];

@@ -201,11 +201,11 @@ fn deserialize_reply_no_arguments() {
         0x01, // status: pass/add
         0,    // no arguments
         0, 15, // server message length
-        0, 6, // data length
+        0, 5, // data length
     ]);
 
     raw_bytes.extend_from_slice(b"this is a reply"); // server message
-    raw_bytes.extend_from_slice(&[123, 91, 3, 4, 21, 168]); // data
+    raw_bytes.extend_from_slice(b"short"); // data
 
     let parsed: Reply = raw_bytes
         .as_slice()
@@ -215,7 +215,7 @@ fn deserialize_reply_no_arguments() {
     // field checks
     assert_eq!(parsed.status, Status::PassAdd);
     assert_eq!(parsed.server_message, FieldText::assert("this is a reply"));
-    assert_eq!(parsed.data, &[123, 91, 3, 4, 21, 168]);
+    assert_eq!(parsed.data.as_ref(), "short");
 
     // ensure iterator has no elements & reports a length of 0
     let mut argument_iter = parsed.iter_arguments();
@@ -265,7 +265,7 @@ fn deserialize_reply_two_arguments() {
     // check specific fields, as iterator's can't really implement PartialEq
     assert_eq!(parsed.status, Status::PassAdd);
     assert_eq!(parsed.server_message, FieldText::assert("hello"));
-    assert_eq!(parsed.data, b"world");
+    assert_eq!(parsed.data.as_ref(), "world");
 
     // ensure argument iteration works properly
     let mut arguments_iter = parsed.iter_arguments();
@@ -311,7 +311,7 @@ fn deserialize_full_reply_packet() {
     ]);
 
     raw_packet.extend_from_slice(b"something went wrong :("); // server message
-    raw_packet.extend_from_slice(&[0x88; 4]); // data
+    raw_packet.extend_from_slice(b"data"); // data
     raw_packet.extend_from_slice(b"service=nah");
 
     let expected_argument =
@@ -335,7 +335,7 @@ fn deserialize_full_reply_packet() {
         parsed.body().server_message,
         FieldText::assert("something went wrong :(")
     );
-    assert_eq!(parsed.body().data, b"\x88\x88\x88\x88");
+    assert_eq!(parsed.body().data.as_ref(), "data");
 
     // argument check: iterator should yield only 1 argument and then none
     let mut argument_iter = parsed.body().iter_arguments();
@@ -422,7 +422,7 @@ fn deserialize_obfuscated_reply_packet() {
         parsed_body.server_message().as_ref(),
         "privilege level reset"
     );
-    assert_eq!(parsed_body.data(), &[]);
+    assert_eq!(parsed_body.data().as_ref(), "");
 
     // also check argument (& ArgumentsInfo iterator impls)
     let mut arguments_iter = parsed_body.iter_arguments();
@@ -435,4 +435,82 @@ fn deserialize_obfuscated_reply_packet() {
     );
 
     assert_eq!(arguments_iter.len(), 0);
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn full_unobfuscated_reply_packet_to_owned() {
+    use std::string::String;
+    use std::vec;
+
+    use crate::protocol::ArgumentOwned;
+
+    let mut raw_packet = array_vec!([u8; 60] =>
+        // HEADER
+        0xc << 4, // version - major only version, minor v0
+        2,        // authorization packet
+        2,        // sequence number
+        1 | 4,    // both single connection/unencrypted flags set
+        // session id
+        0xd4,
+        0x95,
+        0x32,
+        0xc3,
+        // body length
+        0,
+        0,
+        0,
+        41,
+        // BODY
+        1, // status: add
+        1, // argument count
+        // server message length
+        0,
+        11,
+        // data length
+        0,
+        10,
+        // argument 1 length
+        13,
+    );
+
+    // server message
+    raw_packet.extend_from_slice(b"message (1)");
+
+    // data/log message
+    raw_packet.extend_from_slice(b"ten chars!");
+
+    // argument
+    raw_packet.extend_from_slice(b"service=owned");
+
+    let packet: Packet<Reply> = Packet::deserialize_unobfuscated(&raw_packet)
+        .expect("packet deserialization should have succeeded");
+
+    let owned_packet = packet.to_owned();
+
+    // check owned packet header
+    assert_eq!(
+        owned_packet.header(),
+        &HeaderInfo::new(
+            Version::new(MajorVersion::RFC8907, MinorVersion::Default),
+            2,
+            PacketFlags::all(),
+            3566547651
+        )
+    );
+
+    // check body fields
+    let owned_body = owned_packet.body();
+
+    assert_eq!(owned_body.status, Status::PassAdd);
+    assert_eq!(owned_body.server_message, "message (1)");
+    assert_eq!(owned_body.data, "ten chars!");
+    assert_eq!(
+        owned_body.arguments,
+        vec![ArgumentOwned {
+            name: String::from("service"),
+            value: String::from("owned"),
+            required: true
+        }]
+    );
 }
