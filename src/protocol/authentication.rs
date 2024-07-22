@@ -16,6 +16,9 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+mod owned;
+
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -256,7 +259,7 @@ impl Serialize for Start<'_> {
 
 /// Flags received in an authentication reply packet.
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct ReplyFlags(u8);
 
 impl ReplyFlags {
