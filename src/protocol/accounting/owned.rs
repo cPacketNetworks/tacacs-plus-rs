@@ -7,9 +7,14 @@ use crate::protocol::ToOwnedBody;
 
 /// An owned version of a [`Reply`](super::Reply).
 pub struct ReplyOwned {
+    /// The status returned by the server.
     pub status: Status,
+
     // TODO: string or separate FieldTextOwned (?) type?
+    /// The message to display to the user.
     pub server_message: String,
+
+    /// The console/administrative message from the server.
     pub data: Vec<u8>,
 }
 

@@ -16,8 +16,12 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "std")]
-mod owned;
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        mod owned;
+        pub use owned::ReplyOwned;
+    }
+}
 
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
