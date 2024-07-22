@@ -13,6 +13,13 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        mod owned;
+        pub use owned::ReplyOwned;
+    }
+}
+
 /// An authorization request packet body, including arguments.
 pub struct Request<'packet> {
     /// Method used to authenticate to TACACS+ client.

@@ -11,10 +11,13 @@ pub use packet::header::HeaderInfo;
 pub use packet::{Packet, PacketFlags, PacketType};
 
 #[cfg(feature = "std")]
-pub use packet::owned::PacketOwned;
+pub use packet::PacketOwned;
 
 mod arguments;
 pub use arguments::{Argument, Arguments, InvalidArgument};
+
+#[cfg(feature = "std")]
+pub use arguments::ArgumentOwned;
 
 mod fields;
 pub use fields::*;

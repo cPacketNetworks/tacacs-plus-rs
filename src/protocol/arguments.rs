@@ -9,6 +9,13 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
+cfg_if::cfg_if! {
+    if #[cfg(feature = "std")] {
+        mod owned;
+        pub use owned::ArgumentOwned;
+    }
+}
+
 /// An argument in the TACACS+ protocol, which exists for extensibility.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug, CopyGetters)]
 pub struct Argument<'data> {
