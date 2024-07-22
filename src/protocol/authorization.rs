@@ -297,6 +297,8 @@ impl PacketBody for Reply<'_> {
     const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 1 + 4;
 }
 
+// Hidden from docs as this is not meant for external use
+#[doc(hidden)]
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
@@ -307,12 +309,14 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             total_length,
         } = Self::extract_field_lengths(buffer)?;
 
-        let buffer_len = buffer.len();
+        // buffer argument is sliced to proper length in Packet::deserialize_body(), so we can compare against that header length indirectly like this
+        let length_from_header = buffer.len();
 
-        if buffer_len == total_length as usize {
-            let status: Status = buffer[0].try_into()?;
+        if total_length as usize == length_from_header {
+            let status = Status::try_from(buffer[0])?;
             let argument_count = buffer[1];
 
+            // figure out field offsets
             let body_start = Self::ARGUMENT_LENGTHS_START + argument_count as usize;
             let data_start = body_start + server_message_length as usize;
             let arguments_start = data_start + data_length as usize;
@@ -327,6 +331,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
 
             Self::ensure_arguments_valid(argument_lengths, argument_values)?;
 
+            // bundle some information about arguments for iterator purposes
             let arguments_info = ArgumentsInfo {
                 argument_count,
                 argument_lengths,
@@ -342,7 +347,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
         } else {
             Err(DeserializeError::WrongBodyBufferSize {
                 expected: total_length as usize,
-                buffer_size: buffer_len,
+                buffer_size: length_from_header,
             })
         }
     }

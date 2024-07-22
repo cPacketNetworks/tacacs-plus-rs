@@ -298,6 +298,9 @@ struct ReplyFieldLengths {
 }
 
 impl Reply<'_> {
+    /// Server message offset within packet body as a zero-based index.
+    const SERVER_MESSAGE_OFFSET: usize = 6;
+
     /// Attempts to extract the claimed reply packed body length from a buffer.
     pub fn extract_total_length(buffer: &[u8]) -> Result<u32, DeserializeError> {
         Self::extract_field_lengths(buffer).map(|lengths| lengths.total_length)
@@ -334,25 +337,31 @@ impl PacketBody for Reply<'_> {
     const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + ReplyFlags::WIRE_SIZE + 4;
 }
 
+// Hide from docs, as this is meant for internal use only
+#[doc(hidden)]
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
         let field_lengths = Self::extract_field_lengths(buffer)?;
-        let buffer_len = buffer.len();
+
+        // buffer is sliced to length reported in packet header in Packet::deserialize_body(), so we can compare against
+        // it using the buffer length
+        let length_from_header = buffer.len();
 
         // ensure buffer is large enough to contain entire packet
-        if buffer_len == field_lengths.total_length as usize {
+        if field_lengths.total_length as usize == length_from_header {
             let status = Status::try_from(buffer[0])?;
             let flag_byte = buffer[1];
             let flags = ReplyFlags::from_bits(flag_byte)
                 .ok_or(DeserializeError::InvalidBodyFlags(flag_byte))?;
 
-            let body_begin = Self::REQUIRED_FIELDS_LENGTH;
-            let data_begin = body_begin + field_lengths.server_message_length as usize;
+            let data_begin =
+                Self::SERVER_MESSAGE_OFFSET + field_lengths.server_message_length as usize;
 
-            let server_message = FieldText::try_from(&buffer[body_begin..data_begin])
-                .map_err(|_| DeserializeError::BadText)?;
+            let server_message =
+                FieldText::try_from(&buffer[Self::SERVER_MESSAGE_OFFSET..data_begin])
+                    .map_err(|_| DeserializeError::BadText)?;
             let data = &buffer[data_begin..data_begin + field_lengths.data_length as usize];
 
             Ok(Reply {
@@ -364,7 +373,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
         } else {
             Err(DeserializeError::WrongBodyBufferSize {
                 expected: field_lengths.total_length as usize,
-                buffer_size: buffer_len,
+                buffer_size: length_from_header,
             })
         }
     }
