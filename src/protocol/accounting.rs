@@ -261,20 +261,23 @@ impl PacketBody for Reply<'_> {
     const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 4;
 }
 
+// hide in docs, since this isn't meant to be used externally
+#[doc(hidden)]
 impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
     type Error = DeserializeError;
 
     fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
         let extracted_lengths = Self::extract_field_lengths(buffer)?;
-        let buffer_len = buffer.len();
 
-        // NOTE: the total length returned by extract_field_lengths() if non-Err is guaranteed to be at least REQUIRED_FIELDS_LENGTH (5) so we can assume that here without explicitly checking it
-        // exact equality is checked here due to packet obfuscation requiring such a check
-        // Packet::deserialize_body() slices the buffer to the length reported in the header, so we can just check the buffer length here
-        if buffer_len == extracted_lengths.total_length as usize {
+        // the provided buffer is sliced to the length reported in the packet header in Packet::deserialize_body(),
+        // so we can compare against it this way
+        let length_from_header = buffer.len();
+
+        // ensure buffer length & calculated length from body fields match
+        if extracted_lengths.total_length as usize == length_from_header {
+            // SAFETY: extract_field_lengths() performs a check against REQUIRED_FIELDS_LENGTH (5), so this will not panic
             let status = Status::try_from(buffer[4])?;
 
-            // server message starts
             let data_offset =
                 Self::SERVER_MESSAGE_OFFSET + extracted_lengths.server_message_length as usize;
 
@@ -291,7 +294,7 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
         } else {
             Err(DeserializeError::WrongBodyBufferSize {
                 expected: extracted_lengths.total_length as usize,
-                buffer_size: buffer_len,
+                buffer_size: length_from_header,
             })
         }
     }
