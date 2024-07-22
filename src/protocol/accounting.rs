@@ -14,6 +14,9 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+mod owned;
+
 bitflags! {
     /// Raw bitflags for accounting request packet.
     struct RawFlags: u8 {

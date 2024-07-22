@@ -16,6 +16,9 @@ pub use arguments::{Argument, Arguments, InvalidArgument};
 mod fields;
 pub use fields::*;
 
+#[cfg(feature = "std")]
+mod owned;
+
 /// An error that occurred when serializing a packet or any of its components into their binary format.
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
@@ -267,4 +270,17 @@ trait Serialize: sealed::Sealed {
 
     /// Serializes data into a buffer, returning the resulting length on success.
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
+}
+
+/// Converts a reference-based packet to a packet that owns its fields.
+///
+/// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,
+/// which is why the [`ToOwned`](std::borrow::ToOwned) trait isn't used.
+#[cfg(feature = "std")]
+pub(crate) trait ToOwnedBody: PacketBody {
+    /// The resulting owned packet type.
+    type Owned;
+
+    /// Converts the packet type with references to its data to one that owns its field data.
+    fn to_owned(&self) -> Self::Owned;
 }
