@@ -152,11 +152,11 @@ fn serialize_full_request_packet() {
 
 #[test]
 fn deserialize_reply_all_fields() {
-    let mut body_raw = array_vec!([u8; 60]);
+    let mut body_raw = array_vec!([u8; 70]);
 
     body_raw.extend_from_slice(&[
         0, 47, // server message length
-        0, 2,    // data length,
+        0, 9,    // data length,
         0x02, // status: error
     ]);
 
@@ -164,13 +164,13 @@ fn deserialize_reply_all_fields() {
     body_raw.extend_from_slice(&server_message);
 
     // data
-    body_raw.extend_from_slice(&[0xa4, 0x42]);
+    body_raw.extend_from_slice(b"some data");
 
     assert_eq!(
         Ok(Reply {
             status: Status::Error,
             server_message: FieldText::try_from(server_message.as_slice()).unwrap(),
-            data: &[0xa4, 0x42]
+            data: FieldText::assert("some data")
         }),
         body_raw.as_slice().try_into()
     );
@@ -212,7 +212,7 @@ fn deserialize_full_reply_packet() {
     let expected_body = Reply {
         status: Status::Error,
         server_message: FieldText::assert("hello"),
-        data: b"fifteen letters",
+        data: FieldText::assert("fifteen letters"),
     };
 
     let expected_packet = Packet::new(expected_header, expected_body);

@@ -1,6 +1,5 @@
 use std::borrow::ToOwned;
 use std::string::String;
-use std::vec::Vec;
 
 use super::{Reply, Status};
 use crate::protocol::ToOwnedBody;
@@ -15,7 +14,7 @@ pub struct ReplyOwned {
     pub server_message: String,
 
     /// The console/administrative message from the server.
-    pub data: Vec<u8>,
+    pub data: String,
 }
 
 impl ToOwnedBody for Reply<'_> {
@@ -25,7 +24,7 @@ impl ToOwnedBody for Reply<'_> {
         ReplyOwned {
             status: self.status,
             server_message: self.server_message.as_ref().to_owned(),
-            data: self.data.to_owned(),
+            data: self.data.as_ref().to_owned(),
         }
     }
 }

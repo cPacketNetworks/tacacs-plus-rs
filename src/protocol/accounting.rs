@@ -211,7 +211,7 @@ pub struct Reply<'packet> {
 
     /// Gets the administrative/log data received from the server.
     #[getset(get_copy = "pub")]
-    data: &'packet [u8],
+    data: FieldText<'packet>,
 }
 
 /// Field lengths of a reply packet as well as the total length.
@@ -291,7 +291,10 @@ impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
             let server_message =
                 FieldText::try_from(&buffer[Self::SERVER_MESSAGE_OFFSET..data_offset])
                     .map_err(|_| DeserializeError::BadText)?;
-            let data = &buffer[data_offset..data_offset + extracted_lengths.data_length as usize];
+            let data = FieldText::try_from(
+                &buffer[data_offset..data_offset + extracted_lengths.data_length as usize],
+            )
+            .map_err(|_| DeserializeError::BadText)?;
 
             Ok(Self {
                 status,
