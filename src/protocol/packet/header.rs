@@ -26,7 +26,7 @@ pub struct HeaderInfo {
 
 impl HeaderInfo {
     /// Size of a full TACACS+ packet header.
-    pub(in crate::protocol) const HEADER_SIZE_BYTES: usize = 12;
+    pub(crate) const HEADER_SIZE_BYTES: usize = 12;
 
     /// Bundles some information to be put in the header of a TACACS+ packet.
     pub fn new(version: Version, sequence_number: u8, flags: PacketFlags, session_id: u32) -> Self {

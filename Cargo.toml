@@ -7,7 +7,14 @@ edition = "2021"
 
 [features]
 default = ["std"]
-std = ["byteorder/std", "num_enum/std", "md-5/std"]
+std = [
+    "byteorder/std",
+    "num_enum/std",
+    "md-5/std",
+    "dep:futures",
+    "dep:rand",
+    "dep:thiserror",
+]
 docsrs = []
 
 [dependencies]
@@ -16,6 +23,9 @@ byteorder = { version = "1.5.0", default-features = false }
 num_enum = { version = "0.7.2", default-features = false }
 getset = { version = "0.1.2" }
 md-5 = { version = "0.10.6", default-features = false }
+futures = { version = "0.3.30", optional = true }
+rand = { version = "0.8.5", optional = true }
+thiserror = { version = "1.0.63", optional = true }
 
 [dev-dependencies]
 tinyvec = { version = "1.6.1", features = ["rustc_1_57"] }

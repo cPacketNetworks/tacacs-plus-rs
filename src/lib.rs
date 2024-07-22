@@ -13,5 +13,8 @@ extern crate std;
 
 pub mod protocol;
 
+#[cfg(feature = "std")]
+pub mod client;
+
 mod text;
 pub use text::FieldText;

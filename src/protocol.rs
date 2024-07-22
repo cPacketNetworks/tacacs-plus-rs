@@ -264,7 +264,7 @@ pub trait PacketBody: sealed::Sealed {
 // Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
 /// Something that can be serialized into a binary format.
 #[doc(hidden)]
-trait Serialize: sealed::Sealed {
+pub(crate) trait Serialize: sealed::Sealed {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
 
