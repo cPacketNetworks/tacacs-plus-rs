@@ -140,6 +140,8 @@ fn xor_slices(output: &mut [u8], pseudo_pad: &[u8]) {
     }
 }
 
+// The Serialize trait is not meant to be exposed publicly, but we still use it internally for serializing packet bodies so we silence the lint here
+#[allow(private_bounds)]
 impl<B: PacketBody + Serialize> Packet<B> {
     /// Calculates the size of this packet as encoded into its binary format.
     pub fn wire_size(&self) -> usize {

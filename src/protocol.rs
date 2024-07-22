@@ -257,20 +257,14 @@ pub trait PacketBody: sealed::Sealed {
     }
 }
 
-// place Serialize trait in dedicated module so that it isn't quite publicly exposed
-use serialize::Serialize;
-mod serialize {
-    use super::{sealed::Sealed, SerializeError};
+// TODO: merge with PacketBody? would have to implement serialization of Reply packets though
+// Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
+/// Something that can be serialized into a binary format.
+#[doc(hidden)]
+trait Serialize: sealed::Sealed {
+    /// Returns the current size of the packet as represented on the wire.
+    fn wire_size(&self) -> usize;
 
-    // TODO: merge with PacketBody? would have to implement serialization of Reply packets though
-    // Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
-    /// Something that can be serialized into a binary format.
-    #[doc(hidden)]
-    pub trait Serialize: Sealed {
-        /// Returns the current size of the packet as represented on the wire.
-        fn wire_size(&self) -> usize;
-
-        /// Serializes data into a buffer, returning the resulting length on success.
-        fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
-    }
+    /// Serializes data into a buffer, returning the resulting length on success.
+    fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
