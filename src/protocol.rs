@@ -10,9 +10,6 @@ mod packet;
 pub use packet::header::HeaderInfo;
 pub use packet::{Packet, PacketFlags, PacketType};
 
-#[cfg(feature = "std")]
-pub use packet::PacketOwned;
-
 mod arguments;
 pub use arguments::{Argument, Arguments, InvalidArgument};
 
@@ -275,7 +272,6 @@ trait Serialize: sealed::Sealed {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
 
-// TODO: visibility?
 /// Converts a reference-based packet to a packet that owns its fields.
 ///
 /// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,

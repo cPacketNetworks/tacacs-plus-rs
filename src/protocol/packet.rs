@@ -15,12 +15,6 @@ use header::HeaderInfo;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "std")]
-mod owned;
-
-#[cfg(feature = "std")]
-pub use owned::PacketOwned;
-
 /// Flags to indicate information about packets or the client/server.
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -63,7 +57,7 @@ impl From<TryFromPrimitiveError<PacketType>> for DeserializeError {
 
 /// A full TACACS+ protocol packet.
 #[derive(Getters, Debug, PartialEq, Eq)]
-pub struct Packet<B: PacketBody> {
+pub struct Packet<B> {
     /// Gets some of the header information associated with a packet.
     #[getset(get = "pub")]
     header: HeaderInfo,
@@ -281,6 +275,17 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
             }
         } else {
             Err(DeserializeError::UnexpectedEnd)
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<B: super::ToOwnedBody> Packet<B> {
+    /// Converts this packet into one that owns its body's fields.
+    pub fn to_owned(&self) -> Packet<B::Owned> {
+        Packet {
+            header: self.header.clone(),
+            body: self.body.to_owned(),
         }
     }
 }
