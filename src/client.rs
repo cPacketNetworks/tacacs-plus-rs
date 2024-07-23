@@ -9,11 +9,16 @@ use byteorder::{ByteOrder, NetworkEndian};
 use futures::io;
 use futures::{AsyncRead, AsyncReadExt};
 use futures::{AsyncWrite, AsyncWriteExt};
+use rand::Rng;
 use thiserror::Error;
 
-use crate::protocol::ToOwnedBody;
-use crate::protocol::{self, HeaderInfo};
-use crate::protocol::{Packet, PacketBody, Serialize};
+use crate::protocol::{self, HeaderInfo, MajorVersion, MinorVersion, Version};
+use crate::protocol::{
+    AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
+    UserInformation,
+};
+use crate::protocol::{Packet, PacketBody, PacketFlags};
+use crate::protocol::{Serialize, ToOwnedBody};
 
 /// A TACACS+ client.
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
@@ -46,7 +51,11 @@ pub enum ClientError {
 
     /// Invalid packet received from a server.
     #[error("invalid packet received from server: {0}")]
-    InvalidPacket(#[from] protocol::DeserializeError),
+    InvalidPacketReceived(#[from] protocol::DeserializeError),
+
+    /// Invalid packet field when attempting to send a packet.
+    #[error("invalid packet field")]
+    InvalidPacketField,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
@@ -93,42 +102,85 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             .map_err(Into::into)
     }
 
-    async fn receive_packet<B>(&mut self) -> Result<Packet<B::Owned>, ClientError>
+    async fn receive_packet<'raw, B>(
+        &mut self,
+        // TODO: figure out how not to pass buffer, if possible
+        buffer: &'raw mut Vec<u8>,
+    ) -> Result<Packet<B::Owned>, ClientError>
     where
-        B: PacketBody
-            + ToOwnedBody
-            + for<'raw> TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
-        // B: PacketBody + ToOwnedBody + TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
+        B: PacketBody + ToOwnedBody + TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
     {
         // start out by reading 12-byte header
-        let mut packet_buffer = vec![0u8; HeaderInfo::HEADER_SIZE_BYTES];
-        self.connection.read_exact(&mut packet_buffer).await?;
+        buffer.resize(HeaderInfo::HEADER_SIZE_BYTES, 0);
+        self.connection.read_exact(buffer).await?;
 
         // read rest of body based on length reported in header
-        let body_length = NetworkEndian::read_u32(&packet_buffer[8..12]);
-        packet_buffer.resize(HeaderInfo::HEADER_SIZE_BYTES + body_length as usize, 0);
+        let body_length = NetworkEndian::read_u32(&buffer[8..12]);
+        buffer.resize(HeaderInfo::HEADER_SIZE_BYTES + body_length as usize, 0);
         self.connection
-            .read_exact(&mut packet_buffer[HeaderInfo::HEADER_SIZE_BYTES..])
+            .read_exact(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])
             .await?;
 
         // unobfuscate packet as necessary
-        // TODO: figure out how to return buffer while also referencing it (Pin?)
         let deserialize_result = if let Some(secret_key) = &self.secret {
-            Packet::<B>::deserialize(secret_key, &mut packet_buffer)
+            Packet::<B>::deserialize(secret_key, buffer)?
         } else {
-            Packet::deserialize_unobfuscated(&packet_buffer)
+            Packet::deserialize_unobfuscated(buffer)?
         };
 
-        deserialize_result
-            .map(|packet| packet.to_owned())
-            .map_err(Into::into)
+        Ok(deserialize_result.to_owned())
     }
 
     // TODO: return type?
     /// Authenticates against a TACACS+ server with a plaintext username & password.
-    pub async fn authenticate_ascii(&mut self) {
-        // TODO: select between (un)obfuscated serialization
+    pub async fn authenticate_pap_login(
+        &mut self,
+        username: &str,
+        password: &str,
+        privilege_level: PrivilegeLevel,
+        // TODO: return type (bool or enum?)
+    ) -> Result<bool, ClientError> {
+        use protocol::authentication::{Action, Status};
+        use protocol::authentication::{Reply, Start};
 
-        todo!()
+        // generate random id for this session
+        let session_id: u32 = rand::thread_rng().gen();
+
+        // packet 1: send username + password in START packet
+        let start_packet = Packet::new(
+            HeaderInfo::new(
+                Version::new(MajorVersion::RFC8907, MinorVersion::V1),
+                1,                              // first packet in session
+                PacketFlags::SINGLE_CONNECTION, // TODO: unencrypted
+                session_id,
+            ),
+            Start::new(
+                Action::Login,
+                AuthenticationContext {
+                    privilege_level,
+                    authentication_type: AuthenticationType::Pap,
+                    service: AuthenticationService::Login,
+                },
+                UserInformation::new(
+                    username,
+                    // SAFETY: constant strings are known to be valid printable ASCII
+                    "tacacs-plus-rs".try_into().unwrap(),
+                    "rust-tty0".try_into().unwrap(),
+                )
+                .ok_or(ClientError::InvalidPacketField)?,
+                Some(password.as_bytes()),
+            )
+            .map_err(|_| ClientError::InvalidPacketField)?,
+        );
+
+        self.write_packet(start_packet).await?;
+
+        // response: whether authentication succeeded
+        let mut packet_buffer = Vec::new();
+        let reply = self.receive_packet::<Reply<'_>>(&mut packet_buffer).await?;
+
+        // TODO: check if single connection flag is set by server, and close connection if not
+
+        Ok(reply.body().status == Status::Pass)
     }
 }
