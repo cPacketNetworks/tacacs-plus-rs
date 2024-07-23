@@ -11,6 +11,7 @@ use futures::{AsyncRead, AsyncReadExt};
 use futures::{AsyncWrite, AsyncWriteExt};
 use thiserror::Error;
 
+use crate::protocol::ToOwnedBody;
 use crate::protocol::{self, HeaderInfo};
 use crate::protocol::{Packet, PacketBody, Serialize};
 
@@ -92,8 +93,13 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             .map_err(Into::into)
     }
 
-    // TODO: TryFrom bound
-    async fn receive_packet<B: PacketBody>(&mut self) -> Result<Packet<B>, ClientError> {
+    async fn receive_packet<B>(&mut self) -> Result<Packet<B::Owned>, ClientError>
+    where
+        B: PacketBody
+            + ToOwnedBody
+            + for<'raw> TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
+        // B: PacketBody + ToOwnedBody + TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
+    {
         // start out by reading 12-byte header
         let mut packet_buffer = vec![0u8; HeaderInfo::HEADER_SIZE_BYTES];
         self.connection.read_exact(&mut packet_buffer).await?;
@@ -107,16 +113,22 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // unobfuscate packet as necessary
         // TODO: figure out how to return buffer while also referencing it (Pin?)
-        // if let Some(secret_key) = &self.secret {
-        //     Packet::deserialize(secret_key, packet_buffer.as_mut_slice()).map_err(Into::into);
-        // }
+        let deserialize_result = if let Some(secret_key) = &self.secret {
+            Packet::<B>::deserialize(secret_key, &mut packet_buffer)
+        } else {
+            Packet::deserialize_unobfuscated(&packet_buffer)
+        };
 
-        todo!()
+        deserialize_result
+            .map(|packet| packet.to_owned())
+            .map_err(Into::into)
     }
 
     // TODO: return type?
     /// Authenticates against a TACACS+ server with a plaintext username & password.
     pub async fn authenticate_ascii(&mut self) {
         // TODO: select between (un)obfuscated serialization
+
+        todo!()
     }
 }
