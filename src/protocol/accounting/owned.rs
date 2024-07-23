@@ -5,16 +5,18 @@ use super::{Reply, Status};
 use crate::protocol::ToOwnedBody;
 
 /// An owned version of a [`Reply`](super::Reply).
-pub struct ReplyOwned {
+// TODO: stop ignoring dead_code lint when fields are actually used in client
+#[allow(dead_code)]
+pub(crate) struct ReplyOwned {
     /// The status returned by the server.
-    pub status: Status,
+    pub(crate) status: Status,
 
     // TODO: string or separate FieldTextOwned (?) type?
     /// The message to display to the user.
-    pub server_message: String,
+    pub(crate) server_message: String,
 
     /// The console/administrative message from the server.
-    pub data: String,
+    pub(crate) data: String,
 }
 
 impl ToOwnedBody for Reply<'_> {

@@ -8,18 +8,20 @@ use super::Reply;
 use super::{ReplyFlags, Status};
 
 /// An authentication reply packet with owned fields.
-pub struct ReplyOwned {
+// TODO: stop ignoring dead_code lint when fields are actually used
+#[allow(dead_code)]
+pub(crate) struct ReplyOwned {
     /// The status, as returned by the server.
-    pub status: Status,
+    pub(crate) status: Status,
 
     /// The flags set in the server response.
-    pub flags: ReplyFlags,
+    pub(crate) flags: ReplyFlags,
 
     /// The message to be displayed to the user.
-    pub server_message: String,
+    pub(crate) server_message: String,
 
     /// The domain-specific data included in the reply.
-    pub data: Vec<u8>,
+    pub(crate) data: Vec<u8>,
 }
 
 impl ToOwnedBody for Reply<'_> {

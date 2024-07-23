@@ -277,7 +277,7 @@ trait Serialize: sealed::Sealed {
 /// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,
 /// which is why the [`ToOwned`](std::borrow::ToOwned) trait isn't used.
 #[cfg(feature = "std")]
-pub trait ToOwnedBody: PacketBody {
+pub(crate) trait ToOwnedBody: PacketBody {
     /// The resulting owned packet type.
     type Owned;
 

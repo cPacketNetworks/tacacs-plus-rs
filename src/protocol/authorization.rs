@@ -14,10 +14,7 @@ use crate::FieldText;
 mod tests;
 
 #[cfg(feature = "std")]
-mod owned;
-
-#[cfg(feature = "std")]
-pub use owned::ReplyOwned;
+pub(crate) mod owned;
 
 /// An authorization request packet body, including arguments.
 pub struct Request<'packet> {

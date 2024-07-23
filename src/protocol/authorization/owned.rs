@@ -8,18 +8,20 @@ use crate::protocol::ArgumentOwned;
 use crate::protocol::ToOwnedBody;
 
 /// An authorization reply packet with owned fields.
-pub struct ReplyOwned {
+// TODO: stop ignoring dead_code lint when fields are actually used
+#[allow(dead_code)]
+pub(crate) struct ReplyOwned {
     /// The status returned by the TACACS+ server.
-    pub status: Status,
+    pub(crate) status: Status,
 
     /// The message to present to the user connected to this client.
-    pub server_message: String,
+    pub(crate) server_message: String,
 
     /// An administrative/console log message.
-    pub data: String,
+    pub(crate) data: String,
 
     /// The arguments sent by the server.
-    pub arguments: Vec<ArgumentOwned>,
+    pub(crate) arguments: Vec<ArgumentOwned>,
 }
 
 impl ToOwnedBody for Reply<'_> {
