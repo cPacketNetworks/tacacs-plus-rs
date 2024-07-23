@@ -15,6 +15,12 @@ use header::HeaderInfo;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "std")]
+mod owned;
+
+#[cfg(feature = "std")]
+pub use owned::PacketOwned;
+
 /// Flags to indicate information about packets or the client/server.
 #[repr(transparent)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -276,12 +282,5 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
         } else {
             Err(DeserializeError::UnexpectedEnd)
         }
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        mod owned;
-        pub use owned::PacketOwned;
     }
 }
