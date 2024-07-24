@@ -2,11 +2,13 @@
 
 // we don't have the std prelude since we're #![no_std], gotta import stuff manually
 use std::borrow::ToOwned;
+use std::sync::Arc;
 use std::vec;
 use std::vec::Vec;
 
 use byteorder::{ByteOrder, NetworkEndian};
 use futures::io;
+use futures::lock::Mutex;
 use futures::{AsyncRead, AsyncReadExt};
 use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
@@ -21,15 +23,15 @@ use crate::protocol::{Packet, PacketBody, PacketFlags};
 use crate::protocol::{Serialize, ToOwnedBody};
 
 /// A TACACS+ client.
+#[derive(Clone)]
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
     /// The underlying TCP connection of the client.
-    connection: S,
+    connection: Arc<Mutex<S>>,
 
     /// The shared secret used for packet obfuscation, if provided.
-    secret: Option<Vec<u8>>, // config necessary fields:
-                             // - user info
-                             // - obfuscation (or Option<Key>, probably Vec cause I'm so tired of no alloc)
-                             // - session id (internal? like generated from randomness per session)
+    secret: Option<Vec<u8>>,
+    // config necessary fields:
+    // - user info? unless something standard used/supplied per exchange
 }
 
 /// An error during a TACACS+ exchange.
@@ -53,15 +55,19 @@ pub enum ClientError {
     #[error("invalid packet received from server: {0}")]
     InvalidPacketReceived(#[from] protocol::DeserializeError),
 
+    // TODO: break out into more specific other types
     /// Invalid packet field when attempting to send a packet.
     #[error("invalid packet field")]
     InvalidPacketField,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
-    /// Initializes a new TACACS+ client.
+    /// Initializes a new TACACS+ client on the given connection (should be TCP).
     ///
-    /// As no secrets is provided in this constructor, it does not obfuscate packets
+    /// A client expects exclusive access to the connection, so avoid cloning it or
+    /// reusing the same connection for multiple purposes.
+    ///
+    /// As no secret is provided in this constructor, it does not obfuscate packets
     /// sent over the provided connection. Per [RFC8907 section 4.5], unobfuscated
     /// packet transfer MUST NOT be used in production; generally, you should prefer to
     /// use [`new_with_secret()`](Client::new_with_secret) instead.
@@ -69,21 +75,28 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
     pub fn new(connection: S) -> Self {
         Self {
-            connection,
+            connection: Arc::new(Mutex::new(connection)),
             secret: None,
         }
     }
 
     /// Initializes a new TACACS+ client with a shared secret for packet obfuscation.
+    ///
+    /// [RFC8907 section 10.5.1] specifies that clients SHOULD NOT allow secret keys less
+    /// than 16 characters in length. This constructor does not check for that, but
+    /// consider yourself warned.
+    ///
+    /// [RFC8907 section 10.5.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.1-3.8.1
     pub fn new_with_secret(connection: S, secret: &[u8]) -> Self {
         Self {
-            connection,
+            connection: Arc::new(Mutex::new(connection)),
             secret: Some(secret.to_owned()),
         }
     }
 
     async fn write_packet<B: PacketBody + Serialize>(
-        &mut self,
+        &self,
+        connection: &mut S,
         packet: Packet<B>,
     ) -> Result<(), ClientError> {
         // allocate zero-filled buffer large enough to hold packet
@@ -96,14 +109,16 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             packet.serialize_unobfuscated(&mut packet_buffer)?;
         }
 
-        self.connection
+        connection
             .write_all(&packet_buffer)
             .await
             .map_err(Into::into)
     }
 
+    // TODO: explain how borrowed packet is used as generic parameter, but owned variant is what's returned
     async fn receive_packet<'raw, B>(
-        &mut self,
+        &self,
+        connection: &mut S,
         // TODO: figure out how not to pass buffer, if possible
         buffer: &'raw mut Vec<u8>,
     ) -> Result<Packet<B::Owned>, ClientError>
@@ -112,18 +127,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     {
         // start out by reading 12-byte header
         buffer.resize(HeaderInfo::HEADER_SIZE_BYTES, 0);
-        self.connection.read_exact(buffer).await?;
+        connection.read_exact(buffer).await?;
 
         // read rest of body based on length reported in header
         let body_length = NetworkEndian::read_u32(&buffer[8..12]);
         buffer.resize(HeaderInfo::HEADER_SIZE_BYTES + body_length as usize, 0);
-        self.connection
+        connection
             .read_exact(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])
             .await?;
 
         // unobfuscate packet as necessary
-        let deserialize_result = if let Some(secret_key) = &self.secret {
-            Packet::<B>::deserialize(secret_key, buffer)?
+        let deserialize_result: Packet<B> = if let Some(secret_key) = &self.secret {
+            Packet::deserialize(secret_key, buffer)?
         } else {
             Packet::deserialize_unobfuscated(buffer)?
         };
@@ -131,7 +146,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         Ok(deserialize_result.to_owned())
     }
 
-    // TODO: return type?
     /// Authenticates against a TACACS+ server with a plaintext username & password.
     pub async fn authenticate_pap_login(
         &mut self,
@@ -140,6 +154,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         privilege_level: PrivilegeLevel,
         // TODO: return type (bool or enum?)
     ) -> Result<bool, ClientError> {
+        use protocol::authentication::owned::ReplyOwned;
         use protocol::authentication::{Action, Status};
         use protocol::authentication::{Reply, Start};
 
@@ -161,6 +176,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     authentication_type: AuthenticationType::Pap,
                     service: AuthenticationService::Login,
                 },
+                // TODO: provided by caller?
                 UserInformation::new(
                     username,
                     // SAFETY: constant strings are known to be valid printable ASCII
@@ -173,14 +189,25 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             .map_err(|_| ClientError::InvalidPacketField)?,
         );
 
-        self.write_packet(start_packet).await?;
+        // block expression is used here to ensure that the connection mutex is only locked
+        let reply: Packet<ReplyOwned> = {
+            let mut connection = self.connection.lock().await;
 
-        // response: whether authentication succeeded
-        let mut packet_buffer = Vec::new();
-        let reply = self.receive_packet::<Reply<'_>>(&mut packet_buffer).await?;
+            self.write_packet(&mut connection, start_packet).await?;
 
-        // TODO: check if single connection flag is set by server, and close connection if not
+            // response: whether authentication succeeded
+            {
+                let mut packet_buffer = Vec::new();
+                self.receive_packet::<Reply<'_>>(&mut connection, &mut packet_buffer)
+                    .await?
+            }
 
+            // TODO: check if single connection flag is set by server, and close connection based on rules RFC if not
+            // also report error if connection is closed (maybe elsewhere?)
+            // see https://www.rfc-editor.org/rfc/rfc8907.html#name-single-connection-mode
+        };
+
+        // TODO: return more information than just whether authentication succeeded (maybe full reply packet/body?)
         Ok(reply.body().status == Status::Pass)
     }
 }
