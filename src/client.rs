@@ -189,7 +189,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             .map_err(|_| ClientError::InvalidPacketField)?,
         );
 
-        // block expression is used here to ensure that the connection mutex is only locked
+        // block expression is used here to ensure that the connection mutex is only locked during communication
         let reply: Packet<ReplyOwned> = {
             let mut connection = self.connection.lock().await;
 
