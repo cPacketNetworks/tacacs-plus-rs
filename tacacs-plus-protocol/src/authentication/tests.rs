@@ -1,9 +1,9 @@
 use super::*;
-use crate::protocol::{
+use crate::FieldText;
+use crate::{
     AuthenticationContext, AuthenticationService, AuthenticationType, HeaderInfo, MajorVersion,
     MinorVersion, Packet, PacketFlags, PrivilegeLevel, UserInformation, Version,
 };
-use crate::FieldText;
 
 use tinyvec::array_vec;
 

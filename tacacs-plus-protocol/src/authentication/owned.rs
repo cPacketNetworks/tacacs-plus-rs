@@ -2,7 +2,7 @@ use std::borrow::ToOwned;
 use std::string::String;
 use std::vec::Vec;
 
-use crate::protocol::ToOwnedBody;
+use crate::ToOwnedBody;
 
 use super::Reply;
 use super::{ReplyFlags, Status};

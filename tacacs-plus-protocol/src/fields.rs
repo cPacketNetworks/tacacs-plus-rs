@@ -1,5 +1,5 @@
-use crate::protocol::MinorVersion;
 use crate::FieldText;
+use crate::MinorVersion;
 
 use super::SerializeError;
 
@@ -59,7 +59,7 @@ impl PrivilegeLevel {
     ///
     /// # Examples
     /// ```
-    /// use tacacs_plus::protocol::PrivilegeLevel;
+    /// use tacacs_plus_protocol::PrivilegeLevel;
     ///
     /// let valid_level = PrivilegeLevel::new(3);
     /// assert!(valid_level.is_some());

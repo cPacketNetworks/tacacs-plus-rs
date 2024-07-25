@@ -4,8 +4,8 @@ use std::vec::Vec;
 
 use super::Reply;
 use super::Status;
-use crate::protocol::ArgumentOwned;
-use crate::protocol::ToOwnedBody;
+use crate::ArgumentOwned;
+use crate::ToOwnedBody;
 
 /// An authorization reply packet with owned fields.
 // TODO: stop ignoring dead_code lint when fields are actually used

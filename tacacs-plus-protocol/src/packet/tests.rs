@@ -1,7 +1,7 @@
 use super::*;
 
-use crate::protocol::accounting::Reply;
-use crate::protocol::{MajorVersion, MinorVersion, Version};
+use crate::accounting::Reply;
+use crate::{MajorVersion, MinorVersion, Version};
 
 #[test]
 fn obfuscated_packet_wrong_unencrypted_flag() {

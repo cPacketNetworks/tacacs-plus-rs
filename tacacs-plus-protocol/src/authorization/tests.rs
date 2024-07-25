@@ -1,11 +1,11 @@
 use super::*;
-use crate::protocol::packet::xor_body_with_pad;
-use crate::protocol::{
+use crate::packet::xor_body_with_pad;
+use crate::FieldText;
+use crate::{
     Arguments, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
     PrivilegeLevel, Serialize, UserInformation, Version,
 };
-use crate::FieldText;
 
 use tinyvec::array_vec;
 
@@ -443,7 +443,7 @@ fn full_unobfuscated_reply_packet_to_owned() {
     use std::string::String;
     use std::vec;
 
-    use crate::protocol::ArgumentOwned;
+    use crate::ArgumentOwned;
 
     let mut raw_packet = array_vec!([u8; 60] =>
         // HEADER

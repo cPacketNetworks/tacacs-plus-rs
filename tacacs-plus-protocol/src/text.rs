@@ -13,7 +13,7 @@ use core::fmt;
 /// Conversions from `&str`:
 ///
 /// ```
-/// use tacacs_plus::FieldText;
+/// use tacacs_plus_protocol::FieldText;
 ///
 /// let valid_ascii = "a string";
 /// assert!(FieldText::try_from(valid_ascii).is_ok());
@@ -25,7 +25,7 @@ use core::fmt;
 /// Conversions from `&[u8]`:
 ///
 /// ```
-/// use tacacs_plus::FieldText;
+/// use tacacs_plus_protocol::FieldText;
 ///
 /// let valid_slice = b"this is (almost) a string";
 /// assert!(FieldText::try_from(valid_slice.as_slice()).is_ok());

@@ -1,4 +1,15 @@
-//! TACACS+ protocol packet <-> binary format conversions.
+//! # tacacs-plus-protocol
+//!
+//! Serialization & deserialization of (RFC8907) TACACS+ protocol packets.
+
+#![no_std]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![warn(missing_docs)]
+#![warn(clippy::cast_lossless)]
+#![warn(clippy::cast_possible_truncation)]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 use core::{fmt, num::TryFromIntError};
 
@@ -18,6 +29,9 @@ pub use arguments::ArgumentOwned;
 
 mod fields;
 pub use fields::*;
+
+mod text;
+pub use text::FieldText;
 
 /// An error that occurred when serializing a packet or any of its components into their binary format.
 #[non_exhaustive]

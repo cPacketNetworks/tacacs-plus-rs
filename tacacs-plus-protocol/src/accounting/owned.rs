@@ -2,7 +2,7 @@ use std::borrow::ToOwned;
 use std::string::String;
 
 use super::{Reply, Status};
-use crate::protocol::ToOwnedBody;
+use crate::ToOwnedBody;
 
 /// An owned version of a [`Reply`](super::Reply).
 // TODO: stop ignoring dead_code lint when fields are actually used in client
