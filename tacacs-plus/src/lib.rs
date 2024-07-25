@@ -9,3 +9,5 @@
 
 pub mod client;
 pub use client::{Client, ClientError};
+
+pub use tacacs_plus_protocol as protocol;

@@ -1,0 +1,19 @@
+FROM debian:buster
+
+# install the shrubbery TACACS+ daemon (https://shrubbery.net/tac_plus/)
+RUN apt-get update && apt-get install -y tacacs+ && rm -rf /var/lib/apt/lists/*
+
+# basic TACACS+ daemon configuration
+COPY <<EOF /srv/tac_plus/tac_plus.conf
+key = "this shouldn't be hardcoded"
+
+user = someuser {
+    pap = cleartext hunter2
+}
+EOF
+
+# run TACACS+ daemon on container start on port 5555
+# the -G flag makes it run in the foreground, which prevents the container from exiting immediately
+CMD ["tac_plus", "-C", "/srv/tac_plus/tac_plus.conf", "-p", "5555", "-G"]
+
+EXPOSE 5555

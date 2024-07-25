@@ -2,6 +2,7 @@
 name = "tacacs-plus"
 version = "0.1.0"
 edition = "2021"
+exclude = ["assets"]
 
 [dependencies]
 futures = "0.3.30"
@@ -9,3 +10,12 @@ rand = "0.8.5"
 thiserror = "1.0.63"
 tacacs-plus-protocol = { path = "../tacacs-plus-protocol" }
 byteorder = "1.5.0"
+
+[dev-dependencies]
+tokio = { version = "1.39.1", default-features = false, features = [
+    "rt",
+    "rt-multi-thread",
+    "net",
+    "macros",
+] }
+tokio-util = { version = "0.7.11", features = ["compat"] }
