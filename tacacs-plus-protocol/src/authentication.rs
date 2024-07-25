@@ -17,7 +17,10 @@ use crate::FieldText;
 mod tests;
 
 #[cfg(feature = "std")]
-pub(crate) mod owned;
+mod owned;
+
+#[cfg(feature = "std")]
+pub use owned::ReplyOwned;
 
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]

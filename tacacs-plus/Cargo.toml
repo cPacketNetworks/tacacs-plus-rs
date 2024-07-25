@@ -1,0 +1,11 @@
+[package]
+name = "tacacs-plus"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.30"
+rand = "0.8.5"
+thiserror = "1.0.63"
+tacacs-plus-protocol = { path = "../tacacs-plus-protocol" }
+byteorder = "1.5.0"

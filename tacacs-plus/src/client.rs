@@ -1,10 +1,6 @@
 //! An implementation of an RFC8907 TACACS+ client.
 
-// we don't have the std prelude since we're #![no_std], gotta import stuff manually
-use std::borrow::ToOwned;
 use std::sync::Arc;
-use std::vec;
-use std::vec::Vec;
 
 use byteorder::{ByteOrder, NetworkEndian};
 use futures::io;
@@ -14,13 +10,14 @@ use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
 use thiserror::Error;
 
-use crate::protocol::{self, HeaderInfo, MajorVersion, MinorVersion, Version};
-use crate::protocol::{
+use tacacs_plus_protocol as protocol;
+use tacacs_plus_protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
     UserInformation,
 };
-use crate::protocol::{Packet, PacketBody, PacketFlags};
-use crate::protocol::{Serialize, ToOwnedBody};
+use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
+use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
+use tacacs_plus_protocol::{Serialize, ToOwnedBody};
 
 /// A TACACS+ client.
 #[derive(Clone)]
@@ -154,9 +151,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         privilege_level: PrivilegeLevel,
         // TODO: return type (bool or enum?)
     ) -> Result<bool, ClientError> {
-        use protocol::authentication::owned::ReplyOwned;
         use protocol::authentication::{Action, Status};
-        use protocol::authentication::{Reply, Start};
+        use protocol::authentication::{Reply, ReplyOwned, Start};
 
         // generate random id for this session
         let session_id: u32 = rand::thread_rng().gen();

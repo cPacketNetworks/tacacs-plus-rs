@@ -1,4 +1,15 @@
-//! TACACS+ protocol packet <-> binary format conversions.
+//! # tacacs-plus-protocol
+//!
+//! Serialization & deserialization of (RFC8907) TACACS+ protocol packets.
+
+#![no_std]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![warn(missing_docs)]
+#![warn(clippy::cast_lossless)]
+#![warn(clippy::cast_possible_truncation)]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 use core::{fmt, num::TryFromIntError};
 
@@ -18,6 +29,9 @@ pub use arguments::ArgumentOwned;
 
 mod fields;
 pub use fields::*;
+
+mod text;
+pub use text::FieldText;
 
 /// An error that occurred when serializing a packet or any of its components into their binary format.
 #[non_exhaustive]
@@ -264,7 +278,7 @@ pub trait PacketBody: sealed::Sealed {
 // Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
 /// Something that can be serialized into a binary format.
 #[doc(hidden)]
-pub(crate) trait Serialize: sealed::Sealed {
+pub trait Serialize: sealed::Sealed {
     /// Returns the current size of the packet as represented on the wire.
     fn wire_size(&self) -> usize;
 
@@ -277,7 +291,7 @@ pub(crate) trait Serialize: sealed::Sealed {
 /// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,
 /// which is why the [`ToOwned`](std::borrow::ToOwned) trait isn't used.
 #[cfg(feature = "std")]
-pub(crate) trait ToOwnedBody: PacketBody {
+pub trait ToOwnedBody: PacketBody {
     /// The resulting owned packet type.
     type Owned;
 

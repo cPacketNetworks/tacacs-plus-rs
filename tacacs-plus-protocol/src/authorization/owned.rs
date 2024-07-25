@@ -4,24 +4,24 @@ use std::vec::Vec;
 
 use super::Reply;
 use super::Status;
-use crate::protocol::ArgumentOwned;
-use crate::protocol::ToOwnedBody;
+use crate::ArgumentOwned;
+use crate::ToOwnedBody;
 
 /// An authorization reply packet with owned fields.
 // TODO: stop ignoring dead_code lint when fields are actually used
 #[allow(dead_code)]
-pub(crate) struct ReplyOwned {
+pub struct ReplyOwned {
     /// The status returned by the TACACS+ server.
-    pub(crate) status: Status,
+    pub status: Status,
 
     /// The message to present to the user connected to this client.
-    pub(crate) server_message: String,
+    pub server_message: String,
 
     /// An administrative/console log message.
-    pub(crate) data: String,
+    pub data: String,
 
     /// The arguments sent by the server.
-    pub(crate) arguments: Vec<ArgumentOwned>,
+    pub arguments: Vec<ArgumentOwned>,
 }
 
 impl ToOwnedBody for Reply<'_> {

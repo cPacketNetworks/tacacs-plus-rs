@@ -15,7 +15,10 @@ use crate::FieldText;
 mod tests;
 
 #[cfg(feature = "std")]
-pub(crate) mod owned;
+mod owned;
+
+#[cfg(feature = "std")]
+pub use owned::ReplyOwned;
 
 bitflags! {
     /// Raw bitflags for accounting request packet.

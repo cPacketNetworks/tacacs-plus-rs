@@ -1,11 +1,11 @@
 use super::*;
-use crate::protocol::packet::xor_body_with_pad;
-use crate::protocol::{
+use crate::packet::xor_body_with_pad;
+use crate::FieldText;
+use crate::{
     Argument, AuthenticationContext, AuthenticationMethod, AuthenticationService,
     AuthenticationType, HeaderInfo, MajorVersion, MinorVersion, Packet, PacketFlags,
     PrivilegeLevel, UserInformation, Version,
 };
-use crate::FieldText;
 
 use tinyvec::array_vec;
 

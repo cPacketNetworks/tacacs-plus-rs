@@ -286,7 +286,7 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
 #[allow(dead_code)]
 impl<B: super::ToOwnedBody> Packet<B> {
     /// Converts this packet into one that owns its body's fields.
-    pub(crate) fn to_owned(&self) -> Packet<B::Owned> {
+    pub fn to_owned(&self) -> Packet<B::Owned> {
         Packet {
             header: self.header.clone(),
             body: self.body.to_owned(),
