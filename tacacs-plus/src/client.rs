@@ -143,26 +143,43 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         Ok(deserialize_result.to_owned())
     }
 
-    /// Authenticates against a TACACS+ server with a plaintext username & password.
+    async fn post_session_cleanup(
+        connection: &mut S,
+        reply_flags: PacketFlags,
+    ) -> Result<(), ClientError> {
+        // close session if server doesn't agree to SINGLE_CONNECTION negotiation
+        if !reply_flags.contains(PacketFlags::SINGLE_CONNECTION) {
+            connection.close().await.map_err(Into::into)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
     pub async fn authenticate_pap_login(
         &mut self,
         username: &str,
         password: &str,
         privilege_level: PrivilegeLevel,
-        // TODO: return type (bool or enum?)
-    ) -> Result<bool, ClientError> {
-        use protocol::authentication::{Action, Status};
-        use protocol::authentication::{Reply, ReplyOwned, Start};
+    ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
+        use protocol::authentication::Action;
+        use protocol::authentication::{Reply, Start};
 
         // generate random id for this session
         let session_id: u32 = rand::thread_rng().gen();
+
+        let flags = if self.secret.is_some() {
+            PacketFlags::SINGLE_CONNECTION
+        } else {
+            PacketFlags::SINGLE_CONNECTION | PacketFlags::UNENCRYPTED
+        };
 
         // packet 1: send username + password in START packet
         let start_packet = Packet::new(
             HeaderInfo::new(
                 Version::new(MajorVersion::RFC8907, MinorVersion::V1),
-                1,                              // first packet in session
-                PacketFlags::SINGLE_CONNECTION, // TODO: unencrypted
+                1, // first packet in session
+                flags,
                 session_id,
             ),
             Start::new(
@@ -186,24 +203,26 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         );
 
         // block expression is used here to ensure that the connection mutex is only locked during communication
-        let reply: Packet<ReplyOwned> = {
+        let reply = {
             let mut connection = self.connection.lock().await;
 
             self.write_packet(&mut connection, start_packet).await?;
 
             // response: whether authentication succeeded
-            {
+            let reply = {
                 let mut packet_buffer = Vec::new();
                 self.receive_packet::<Reply<'_>>(&mut connection, &mut packet_buffer)
                     .await?
-            }
+            };
 
             // TODO: check if single connection flag is set by server, and close connection based on rules RFC if not
             // also report error if connection is closed (maybe elsewhere?)
             // see https://www.rfc-editor.org/rfc/rfc8907.html#name-single-connection-mode
+            Self::post_session_cleanup(&mut connection, reply.header().flags()).await?;
+
+            reply
         };
 
-        // TODO: return more information than just whether authentication succeeded (maybe full reply packet/body?)
-        Ok(reply.body().status == Status::Pass)
+        Ok(reply)
     }
 }
