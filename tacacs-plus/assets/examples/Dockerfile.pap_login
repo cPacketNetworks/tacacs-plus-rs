@@ -1,7 +1,5 @@
-FROM debian:buster
-
-# install the shrubbery TACACS+ daemon (https://shrubbery.net/tac_plus/)
-RUN apt-get update && apt-get install -y tacacs+ && rm -rf /var/lib/apt/lists/*
+# this image is meant to be built from assets/Dockerfile.tac_plus, hence the weird name
+FROM localhost/tac-plus
 
 # basic TACACS+ daemon configuration
 COPY <<EOF /srv/tac_plus/tac_plus.conf
