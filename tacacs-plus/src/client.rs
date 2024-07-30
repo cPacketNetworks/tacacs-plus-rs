@@ -33,7 +33,6 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
 }
 
 /// An error during a TACACS+ exchange.
-// TODO: figure out error hierarchy/variants
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum ClientError {

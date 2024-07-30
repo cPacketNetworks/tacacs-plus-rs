@@ -25,7 +25,7 @@ async fn main() {
             if packet.body().status == Status::Pass {
                 println!("Authentication successful!")
             } else {
-                println!("Authentication request denied")
+                println!("Reply status was {:?}, not pass", packet.body().status);
             }
         }
         Err(e) => eprintln!("Error: {e}"),
