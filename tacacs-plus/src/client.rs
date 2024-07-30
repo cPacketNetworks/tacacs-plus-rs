@@ -27,9 +27,7 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
 
     /// The shared secret used for packet obfuscation, if provided.
     secret: Option<Vec<u8>>,
-    // config necessary fields:
-    // - user info? unless something standard used/supplied per exchange
-    // - whether connection has been closed? since IO errors are kind of opaque in that case
+    // TODO: keep track of whether connection was closed by us due to single connection negotiation?
 }
 
 /// An error during a TACACS+ exchange.
@@ -158,16 +156,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         }
     }
 
-    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
-    pub async fn authenticate_pap_login(
-        &mut self,
-        user_info: UserInformation<'_>,
-        password: &str,
-        privilege_level: PrivilegeLevel,
-    ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
-        use protocol::authentication::Action;
-        use protocol::authentication::{Reply, Start};
-
+    fn make_header(&self, sequence_number: u8, minor_version: MinorVersion) -> HeaderInfo {
         // generate random id for this session
         let session_id: u32 = rand::thread_rng().gen();
 
@@ -178,14 +167,28 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             PacketFlags::SINGLE_CONNECTION | PacketFlags::UNENCRYPTED
         };
 
+        HeaderInfo::new(
+            Version::new(MajorVersion::RFC8907, minor_version),
+            sequence_number,
+            flags,
+            session_id,
+        )
+    }
+
+    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
+    pub async fn authenticate_pap_login(
+        &mut self,
+        user_info: UserInformation<'_>,
+        password: &str,
+        privilege_level: PrivilegeLevel,
+    ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
+        use protocol::authentication::Action;
+        use protocol::authentication::{Reply, Start};
+
         // packet 1: send username + password in START packet
         let start_packet = Packet::new(
-            HeaderInfo::new(
-                Version::new(MajorVersion::RFC8907, MinorVersion::V1),
-                1, // first packet in session
-                flags,
-                session_id,
-            ),
+            // sequence number = 1 (first packet in session)
+            self.make_header(1, MinorVersion::V1),
             Start::new(
                 Action::Login,
                 AuthenticationContext {
