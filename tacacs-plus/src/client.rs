@@ -27,10 +27,13 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
 
     /// The shared secret used for packet obfuscation, if provided.
     secret: Option<Vec<u8>>,
-    // TODO: keep track of whether connection was closed by us due to single connection negotiation?
+
+    /// Whether the underlying connection is still open and can be used for future sessions/exchanges.
+    connection_open: bool,
 }
 
 /// An error during a TACACS+ exchange.
+// TODO: figure out error hierarchy/variants
 #[non_exhaustive]
 #[derive(Debug, Error)]
 pub enum ClientError {
@@ -38,10 +41,15 @@ pub enum ClientError {
     #[error(transparent)]
     IOError(#[from] io::Error),
 
-    // TODO: further specialization via enum?
     /// TACACS+ protocol error, e.g. an authentication failure.
     #[error("error in TACACS+ protocol exchange")]
-    ProtocolError,
+    ProtocolError {
+        /// The data received from the server.
+        data: Vec<u8>,
+
+        /// The message sent by the server.
+        message: String,
+    },
 
     /// Error when serializing a packet to the wire.
     #[error(transparent)]
@@ -55,6 +63,10 @@ pub enum ClientError {
     /// Invalid packet field when attempting to send a packet.
     #[error("invalid packet field")]
     InvalidPacketField,
+
+    /// The underlying connection was closed for protocol reasons.
+    #[error("client connection was closed for protocol reasons")]
+    ConnectionClosed,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
@@ -73,6 +85,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         Self {
             connection: Arc::new(Mutex::new(connection)),
             secret: None,
+            connection_open: true,
         }
     }
 
@@ -87,6 +100,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         Self {
             connection: Arc::new(Mutex::new(connection)),
             secret: Some(secret.to_owned()),
+            connection_open: true,
         }
     }
 
@@ -105,10 +119,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             packet.serialize_unobfuscated(&mut packet_buffer)?;
         }
 
-        connection
-            .write_all(&packet_buffer)
-            .await
-            .map_err(Into::into)
+        connection.write_all(&packet_buffer).await?;
+        connection.flush().await.map_err(Into::into)
     }
 
     /// Receives a packet from the client's connection.
@@ -147,13 +159,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     async fn post_session_cleanup(
         connection: &mut S,
         reply_flags: PacketFlags,
+        open_flag: &mut bool,
     ) -> Result<(), ClientError> {
         // close session if server doesn't agree to SINGLE_CONNECTION negotiation
         if !reply_flags.contains(PacketFlags::SINGLE_CONNECTION) {
-            connection.close().await.map_err(Into::into)
-        } else {
-            Ok(())
+            connection.close().await?;
+            *open_flag = false;
         }
+
+        Ok(())
     }
 
     fn make_header(&self, sequence_number: u8, minor_version: MinorVersion) -> HeaderInfo {
@@ -175,7 +189,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         )
     }
 
+    fn ensure_connection_open(&self) -> Result<(), ClientError> {
+        if !self.connection_open {
+            Err(ClientError::ConnectionClosed)
+        } else {
+            Ok(())
+        }
+    }
+
     /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
+    ///
+    /// NOTE: Even if this function returns `Ok`, the authentication may not have succeeded; make sure to check the
+    /// [`status`](::tacacs_plus_protocol::authentication::ReplyOwned::status) field of the returned reply packet.
     pub async fn authenticate_pap_login(
         &mut self,
         user_info: UserInformation<'_>,
@@ -183,7 +208,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         privilege_level: PrivilegeLevel,
     ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
         use protocol::authentication::Action;
-        use protocol::authentication::{Reply, Start};
+        use protocol::authentication::{Reply, Start, Status};
+
+        self.ensure_connection_open()?;
 
         // packet 1: send username + password in START packet
         let start_packet = Packet::new(
@@ -215,14 +242,25 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     .await?
             };
 
-            // TODO: check if single connection flag is set by server, and close connection based on rules RFC if not
-            // also report error if connection is closed (maybe elsewhere?)
-            // see https://www.rfc-editor.org/rfc/rfc8907.html#name-single-connection-mode
-            Self::post_session_cleanup(&mut connection, reply.header().flags()).await?;
+            // NOTE: we can't mutably borrow self completely here since the mutex lock borrows the connection field immutably
+            Self::post_session_cleanup(
+                &mut connection,
+                reply.header().flags(),
+                &mut self.connection_open,
+            )
+            .await?;
 
             reply
         };
 
-        Ok(reply)
+        if reply.body().status == Status::Error {
+            // data & message are the only relevant fields of an error response
+            Err(ClientError::ProtocolError {
+                data: reply.body().data.clone(),
+                message: reply.body().server_message.clone(),
+            })
+        } else {
+            Ok(reply)
+        }
     }
 }

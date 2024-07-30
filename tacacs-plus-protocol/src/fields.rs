@@ -87,7 +87,7 @@ impl Default for PrivilegeLevel {
 
 /// Types of authentication supported by the TACACS+ protocol.
 ///
-/// RFC-8907 partitions these by supported minor version: [`Ascii`](AuthenticationType::Ascii) requires [`MinorVersion::Default`](crate::protocol::MinorVersion::Default), while the rest (beside [`NotSet`](AuthenticationType::NotSet), I believe) require [`MinorVersion::V1`](crate::protocol::MinorVersion::V1).
+/// RFC-8907 partitions these by supported minor version: [`Ascii`](AuthenticationType::Ascii) requires [`MinorVersion::Default`](crate::MinorVersion::Default), while the rest (beside [`NotSet`](AuthenticationType::NotSet), I believe) require [`MinorVersion::V1`](crate::MinorVersion::V1).
 ///
 /// *Note:* TACACS+ as a protocol does not meet modern standards of security; access to the data lines must be protected. See [RFC-8907 Section 10.1]
 ///
