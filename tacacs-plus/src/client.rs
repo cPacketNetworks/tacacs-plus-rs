@@ -29,6 +29,7 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
     secret: Option<Vec<u8>>,
     // config necessary fields:
     // - user info? unless something standard used/supplied per exchange
+    // - whether connection has been closed? since IO errors are kind of opaque in that case
 }
 
 /// An error during a TACACS+ exchange.
@@ -112,7 +113,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             .map_err(Into::into)
     }
 
-    // TODO: explain how borrowed packet is used as generic parameter, but owned variant is what's returned
+    /// Receives a packet from the client's connection.
+    ///
+    /// NOTE: The borrowed packet variant is used as a generic parameter (B), but it's converted to the corresponding owned struct before being returned.
     async fn receive_packet<'raw, B>(
         &self,
         connection: &mut S,
@@ -158,7 +161,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
     pub async fn authenticate_pap_login(
         &mut self,
-        username: &str,
+        user_info: UserInformation<'_>,
         password: &str,
         privilege_level: PrivilegeLevel,
     ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
@@ -168,6 +171,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         // generate random id for this session
         let session_id: u32 = rand::thread_rng().gen();
 
+        // set single connection/unencrypted flags accordingly
         let flags = if self.secret.is_some() {
             PacketFlags::SINGLE_CONNECTION
         } else {
@@ -189,14 +193,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     authentication_type: AuthenticationType::Pap,
                     service: AuthenticationService::Login,
                 },
-                // TODO: provided by caller?
-                UserInformation::new(
-                    username,
-                    // SAFETY: constant strings are known to be valid printable ASCII
-                    "tacacs-plus-rs".try_into().unwrap(),
-                    "rust-tty0".try_into().unwrap(),
-                )
-                .ok_or(ClientError::InvalidPacketField)?,
+                user_info,
                 Some(password.as_bytes()),
             )
             .map_err(|_| ClientError::InvalidPacketField)?,

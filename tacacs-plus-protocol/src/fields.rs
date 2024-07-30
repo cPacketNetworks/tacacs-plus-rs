@@ -1,3 +1,5 @@
+use getset::CopyGetters;
+
 use crate::FieldText;
 use crate::MinorVersion;
 
@@ -73,6 +75,13 @@ impl PrivilegeLevel {
         } else {
             None
         }
+    }
+}
+
+impl Default for PrivilegeLevel {
+    /// Returns the lowest privilege level of 0.
+    fn default() -> Self {
+        Self(0)
     }
 }
 
@@ -178,10 +187,18 @@ impl AuthenticationContext {
 }
 
 /// Some information about the user connected to a TACACS+ client.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, CopyGetters)]
 pub struct UserInformation<'info> {
+    /// The user performing the action that is connected to the client.
+    #[getset(get_copy = "pub")]
     user: &'info str,
+
+    /// The port the user is connected to.
+    #[getset(get_copy = "pub")]
     port: FieldText<'info>,
+
+    /// The remote address that the user is connecting from.
+    #[getset(get_copy = "pub")]
     remote_address: FieldText<'info>,
 }
 
@@ -218,6 +235,16 @@ impl<'info> UserInformation<'info> {
         } else {
             None
         }
+    }
+
+    /// Creates a `UserInformation` object with the provided user and some default values for the port & remote address.
+    pub fn new_with_user(user: &'info str) -> Option<Self> {
+        // SAFETY: constants are known to be valid ASCII and of valid length, so unwrapping won't panic
+        Self::new(
+            user,
+            "tacacs-plus-rs".try_into().unwrap(),
+            "rust-tty0".try_into().unwrap(),
+        )
     }
 
     /// Serializes the lengths of the contained fields in the proper order, as to be done in the "header" of a client-sent packet body.

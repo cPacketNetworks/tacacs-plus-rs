@@ -8,8 +8,6 @@ use crate::ArgumentOwned;
 use crate::ToOwnedBody;
 
 /// An authorization reply packet with owned fields.
-// TODO: stop ignoring dead_code lint when fields are actually used
-#[allow(dead_code)]
 pub struct ReplyOwned {
     /// The status returned by the TACACS+ server.
     pub status: Status,

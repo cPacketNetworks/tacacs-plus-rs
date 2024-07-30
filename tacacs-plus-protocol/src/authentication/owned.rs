@@ -8,8 +8,6 @@ use super::Reply;
 use super::{ReplyFlags, Status};
 
 /// An authentication reply packet with owned fields.
-// TODO: stop ignoring dead_code lint when fields are actually used
-#[allow(dead_code)]
 pub struct ReplyOwned {
     /// The status, as returned by the server.
     pub status: Status,
