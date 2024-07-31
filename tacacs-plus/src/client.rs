@@ -10,11 +10,10 @@ use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
 use thiserror::Error;
 
+use tacacs_plus_protocol::authentication;
 use tacacs_plus_protocol::Serialize;
 use tacacs_plus_protocol::{self as protocol, FieldText};
-use tacacs_plus_protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, UserInformation,
-};
+use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService, UserInformation};
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
 
@@ -71,6 +70,13 @@ pub enum ClientError {
     /// Context had invalid field.
     #[error("session context had invalid field(s)")]
     InvalidContext,
+}
+
+/// The type of authentication used for a given session.
+#[non_exhaustive]
+pub enum AuthenticationType {
+    /// Authentication via the Password Authentication Protocol (PAP).
+    Pap,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
@@ -174,27 +180,21 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         )
     }
 
-    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
-    ///
-    /// NOTE: Even if this function returns `Ok`, the authentication may not have succeeded; make sure to check the
-    /// [`status`](::tacacs_plus_protocol::authentication::ReplyOwned::status) field of the returned reply packet.
-    pub async fn authenticate_pap_login(
-        &mut self,
-        context: SessionContext,
-        password: &str,
-    ) -> Result<AuthResponse, ClientError> {
+    fn pap_login_start_packet<'packet>(
+        &'packet self,
+        context: &'packet SessionContext,
+        password: &'packet str,
+    ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
         use protocol::authentication::Action;
-        use protocol::authentication::{ReplyOwned, Start};
 
-        // packet 1: send username + password in START packet
-        let start_packet = Packet::new(
+        Ok(Packet::new(
             // sequence number = 1 (first packet in session)
             self.make_header(1, MinorVersion::V1),
-            Start::new(
+            authentication::Start::new(
                 Action::Login,
                 AuthenticationContext {
                     privilege_level: context.privilege_level,
-                    authentication_type: AuthenticationType::Pap,
+                    authentication_type: protocol::AuthenticationType::Pap,
                     service: AuthenticationService::Login,
                 },
                 UserInformation::new(
@@ -208,7 +208,21 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 Some(password.as_bytes()),
             )
             .map_err(|_| ClientError::InvalidPacketField)?,
-        );
+        ))
+    }
+
+    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
+    pub async fn authenticate(
+        &mut self,
+        context: SessionContext,
+        password: &str,
+        authentication_type: AuthenticationType,
+    ) -> Result<AuthResponse, ClientError> {
+        use protocol::authentication::ReplyOwned;
+
+        let start_packet = match authentication_type {
+            AuthenticationType::Pap => self.pap_login_start_packet(&context, password),
+        }?;
 
         // block expression is used here to ensure that the connection mutex is only locked during communication
         let reply = {
@@ -225,9 +239,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             // TODO: check sequence number?
             let reply = self.receive_packet::<ReplyOwned>(connection).await?;
 
-            // NOTE: we can't mutably borrow self completely here since the mutex lock borrows the connection field immutably
             inner.update_single_connection(reply.header());
-            inner.post_session_cleanup().await?;
+            inner.post_session_cleanup(reply.body().status).await?;
 
             reply
         };

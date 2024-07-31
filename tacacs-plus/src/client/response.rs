@@ -22,6 +22,16 @@ impl TryFrom<authentication::Status> for AuthStatus {
         match value {
             authentication::Status::Pass => Ok(AuthStatus::Pass),
             authentication::Status::Fail => Ok(AuthStatus::Fail),
+
+            // this is a lowercase "should" from RFC8907
+            // (see section 5.4.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.3-3)
+            #[allow(deprecated)]
+            authentication::Status::Follow => Ok(AuthStatus::Fail),
+
+            // we don't support restart status for now, so we treat it as a failure per RFC 8907
+            // (see section 5.4.3 of RFC 8907: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.3-6)
+            authentication::Status::Restart => Ok(AuthStatus::Fail),
+
             _ => Err(BadStatus),
         }
     }

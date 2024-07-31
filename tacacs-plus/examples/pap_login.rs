@@ -1,7 +1,7 @@
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::client::{AuthStatus, SessionContextBuilder};
+use tacacs_plus::client::{AuthStatus, AuthenticationType, SessionContextBuilder};
 use tacacs_plus::Client;
 
 #[tokio::main]
@@ -29,7 +29,10 @@ async fn main() {
     let context = SessionContextBuilder::new()
         .user("someuser".to_owned())
         .build();
-    let auth_result = tac_client.authenticate_pap_login(context, "hunter2").await;
+
+    let auth_result = tac_client
+        .authenticate(context, "hunter2", AuthenticationType::Pap)
+        .await;
 
     match auth_result {
         Ok(resp) => {

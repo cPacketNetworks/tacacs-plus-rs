@@ -237,16 +237,6 @@ impl<'info> UserInformation<'info> {
         }
     }
 
-    /// Creates a `UserInformation` object with the provided user and some default values for the port & remote address.
-    pub fn new_with_user(user: &'info str) -> Option<Self> {
-        // SAFETY: constants are known to be valid ASCII and of valid length, so unwrapping won't panic
-        Self::new(
-            user,
-            "tacacs-plus-rs".try_into().unwrap(),
-            "rust-tty0".try_into().unwrap(),
-        )
-    }
-
     /// Serializes the lengths of the contained fields in the proper order, as to be done in the "header" of a client-sent packet body.
     pub(super) fn serialize_field_lengths(
         &self,
