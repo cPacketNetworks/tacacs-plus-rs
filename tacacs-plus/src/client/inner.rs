@@ -93,7 +93,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
     /// in a session, but ASCII authentication can span more packets.
     pub(super) fn update_single_connection(&mut self, header: &HeaderInfo) {
         // only update if the sequence number is 2 (i.e. this was called after the first reply packet)
-        if header.sequence_number() == 2 && header.flags().contains(PacketFlags::SINGLE_CONNECTION)
+        if !self.single_connection_established
+            && header.sequence_number() == 2
+            && header.flags().contains(PacketFlags::SINGLE_CONNECTION)
         {
             self.single_connection_established = true;
         }
@@ -105,10 +107,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
             // SAFETY: ensure_connection should be called before this function, and guarantees inner.connection is non-None
             let mut connection = self.connection.take().unwrap();
             connection.close().await?;
-        }
 
-        // reset single connection mode status in preparation for next connection
-        self.single_connection_established = false;
+            // reset single connection mode status in preparation for next connection
+            self.single_connection_established = false;
+        }
 
         Ok(())
     }
