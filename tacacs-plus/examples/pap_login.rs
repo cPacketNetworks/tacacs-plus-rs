@@ -10,7 +10,7 @@ async fn main() {
     // there is a Dockerfile in assets/ which spins one up with the proper configuration
 
     let server = std::env::var("TACACS_SERVER").unwrap_or(String::from("localhost:5555"));
-    let mut tac_client = Client::new_with_secret(
+    let mut tac_client = Client::new(
         Box::new(move || {
             // closures can also capture external variables
             let server = server.clone();
@@ -23,7 +23,7 @@ async fn main() {
                     .map(TokioAsyncWriteCompatExt::compat_write)
             })
         }),
-        b"this shouldn't be hardcoded",
+        Some("this shouldn't be hardcoded"),
     );
 
     let context = SessionContextBuilder::new()

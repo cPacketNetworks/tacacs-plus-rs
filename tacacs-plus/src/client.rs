@@ -80,39 +80,27 @@ pub enum AuthenticationType {
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
-    /// Initializes a new TACACS+ client on the given connection (should be TCP).
-    ///
-    /// A client expects exclusive access to the connection, so avoid cloning it or
-    /// reusing the same connection for multiple purposes.
-    ///
-    /// As no secret is provided in this constructor, it does not obfuscate packets
-    /// sent over the provided connection. Per [RFC8907 section 4.5], unobfuscated
-    /// packet transfer MUST NOT be used in production; generally, you should prefer to
-    /// use [`new_with_secret()`](Client::new_with_secret) instead.
-    ///
-    /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
-    pub fn new(connection_factory: ConnectionFactory<S>) -> Self {
-        let inner = inner::ClientInner::new(connection_factory);
-
-        Self {
-            inner: Arc::new(Mutex::new(inner)),
-            secret: None,
-        }
-    }
-
-    /// Initializes a new TACACS+ client with a shared secret for packet obfuscation.
+    /// Initializes a new TACACS+ client that uses the provided factory to open connections to a server.
     ///
     /// [RFC8907 section 10.5.1] specifies that clients SHOULD NOT allow secret keys less
     /// than 16 characters in length. This constructor does not check for that, but
     /// consider yourself warned.
     ///
-    /// [RFC8907 section 10.5.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.1-3.8.1
-    pub fn new_with_secret(connection_factory: ConnectionFactory<S>, secret: &[u8]) -> Self {
+    /// If no secret is provided in this constructor, the returned client does not obfuscate packets
+    /// sent over the provided connection. Per [RFC8907 section 4.5], unobfuscated
+    /// packet transfer MUST NOT be used in production, so prefer to provide a secret (of the proper length)
+    /// where possible.
+    ///
+    /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
+    pub fn new<K: AsRef<[u8]>>(
+        connection_factory: ConnectionFactory<S>,
+        secret: Option<K>,
+    ) -> Self {
         let inner = inner::ClientInner::new(connection_factory);
 
         Self {
             inner: Arc::new(Mutex::new(inner)),
-            secret: Some(secret.to_owned()),
+            secret: secret.map(|s| s.as_ref().to_owned()),
         }
     }
 
