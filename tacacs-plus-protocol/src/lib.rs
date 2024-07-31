@@ -12,7 +12,6 @@
 extern crate std;
 
 use core::{fmt, num::TryFromIntError};
-use std::boxed::Box;
 
 pub mod accounting;
 pub mod authentication;
@@ -287,7 +286,9 @@ pub trait Serialize: sealed::Sealed {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
 
+/// Something that can be deserialized from a binary format.
 pub trait Deserialize<'raw>: sealed::Sealed + Sized {
+    /// Attempts to deserialize an object from a buffer.
     fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError>;
 }
 

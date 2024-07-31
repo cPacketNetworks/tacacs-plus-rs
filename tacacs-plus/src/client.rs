@@ -20,7 +20,7 @@ use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
 
 mod inner;
-pub use inner::ConnectionFactory;
+pub use inner::{ConnectionFactory, ConnectionFuture};
 
 /// A TACACS+ client.
 #[derive(Clone)]

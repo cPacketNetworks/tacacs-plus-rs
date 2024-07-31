@@ -1,0 +1,32 @@
+FROM debian:12-slim
+
+# build pseudo-stage (not actual stage since copying stuff over would be a bit of a pain)
+# we have to build from source since the tacacs+ package was removed from repos after Debian Buster
+
+# build dependencies for tac_plus
+RUN apt-get update && apt-get install -y gcc make flex bison libwrap0-dev && rm -rf /var/lib/apt/lists/*
+
+# extract source archive, downloaded from shrubbery website: https://shrubbery.net/pub/tac_plus/
+ADD tacacs-F4.0.4.28.tar.gz /opt/
+
+WORKDIR /opt/tacacs-F4.0.4.28
+RUN ./configure && make && make install
+
+# update ld cache to pick up on libtacacs
+RUN ldconfig
+
+# basic TACACS+ daemon configuration
+COPY <<EOF /srv/tac_plus/tac_plus.conf
+key = "this shouldn't be hardcoded"
+
+user = someuser {
+    pap = cleartext hunter2
+}
+EOF
+
+# run TACACS+ daemon on container start on port 5555
+# the -G flag makes it run in the foreground, which prevents the container from exiting immediately
+ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
+CMD ["-C", "/srv/tac_plus/tac_plus.conf"]
+
+EXPOSE 5555

@@ -7,14 +7,54 @@ use std::pin::Pin;
 use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tacacs_plus_protocol::PacketFlags;
 
+/// A (pinned, boxed) future that returns a client connection or an error.
+pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>>>>;
+
 /// An async factory that returns connections used by a [`Client`](super::Client).
-// pub type ConnectionFactory<S> = fn() -> Pin<Box<dyn Future<Output = io::Result<S>>>>;
-pub type ConnectionFactory<S> = Box<dyn Fn() -> Pin<Box<dyn Future<Output = io::Result<S>>>>>;
-// pub type ConnectionFactory<S, F: Future<Output = io::Result<S>>> = fn() -> Pin<Box<F>>;
-// pub type ConnectionFactory2<S, F: Future<Output = io::Result<S>>> = fn() -> Pin<Box<F>>;
+///
+/// The `Box` allows both closures and function pointers.
+///
+/// [Async closures are currently unstable](https://github.com/rust-lang/rust/issues/62290),
+/// but you can emulate them with normal functions or closures that return `Box::pin`ned async blocks.
+///
+/// Rust's closure type inference can also fail sometimes, so either explicitly annotating
+/// the type of a closure or passing it directly to a function call (e.g., [`Client::new()`](super::Client::new))
+/// can fix that.
+///
+/// # Examples
+///
+/// ```
+/// use futures::io::{Cursor, Result};
+///
+/// use tacacs_plus::client::{ConnectionFactory, ConnectionFuture};
+///
+/// // function that returns a connection (in this case just a Cursor)
+/// fn function_factory() -> ConnectionFuture<Cursor<Vec<u8>>> {
+///     Box::pin(async {
+///         let vec = Vec::new();
+///         Ok(Cursor::new(vec))
+///     })
+/// }
+///
+/// fn typechecks() {
+///     // boxed function pointer
+///     let _: ConnectionFactory<_> = Box::new(function_factory);
+///
+///     // closures work too
+///     let _: ConnectionFactory<_> = Box::new(
+///         || Box::pin(
+///             async {
+///                 let vec: Vec<u8> = Vec::new();
+///                 Ok(Cursor::new(vec))
+///             }
+///         )
+///     );
+/// }
+/// ```
+pub type ConnectionFactory<S> = Box<dyn Fn() -> ConnectionFuture<S>>;
 
 pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
-    /// The underlying (normally TCP) connection for this client, if present.
+    /// The underlying (TCP per RFC8907) connection for this client, if present.
     pub(super) connection: Option<S>,
 
     /// A factory for opening new connections internally, so the library consumer doesn't have to.
