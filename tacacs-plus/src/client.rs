@@ -24,7 +24,7 @@ mod response;
 pub use response::{AuthResponse, AuthStatus};
 
 mod context;
-pub use context::{SessionContext, SessionContextBuilder};
+pub use context::{ContextBuilder, SessionContext};
 
 /// A TACACS+ client.
 #[derive(Clone)]

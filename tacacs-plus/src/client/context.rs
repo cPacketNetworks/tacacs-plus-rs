@@ -10,34 +10,22 @@ pub struct SessionContext {
 }
 
 /// Builder for [`SessionContext`] objects.
-pub struct SessionContextBuilder {
+pub struct ContextBuilder {
     user: String,
     port: String,
     remote_address: String,
     privilege_level: PrivilegeLevel,
 }
 
-impl Default for SessionContextBuilder {
-    fn default() -> Self {
+impl ContextBuilder {
+    /// Creates a new builder with default values for the various fields.
+    pub fn new(user: &str) -> Self {
         Self {
-            user: String::from(""),
+            user: user.to_owned(),
             port: String::from("rust_client"),
             remote_address: String::from("tacacs_plus_rs"),
             privilege_level: Default::default(),
         }
-    }
-}
-
-impl SessionContextBuilder {
-    /// Creates a new builder with default values for the various fields.
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    /// Sets the user of the resulting context.
-    pub fn user(mut self, user: String) -> Self {
-        self.user = user;
-        self
     }
 
     /// Sets the port of the resulting context.

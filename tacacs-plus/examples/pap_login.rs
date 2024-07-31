@@ -1,7 +1,7 @@
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::client::{AuthStatus, AuthenticationType, SessionContextBuilder};
+use tacacs_plus::client::{AuthStatus, AuthenticationType, ContextBuilder};
 use tacacs_plus::Client;
 
 #[tokio::main]
@@ -26,9 +26,7 @@ async fn main() {
         Some("this shouldn't be hardcoded"),
     );
 
-    let context = SessionContextBuilder::new()
-        .user("someuser".to_owned())
-        .build();
+    let context = ContextBuilder::new("someuser").build();
 
     let auth_result = tac_client
         .authenticate(context, "hunter2", AuthenticationType::Pap)
