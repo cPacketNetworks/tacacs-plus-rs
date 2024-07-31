@@ -51,7 +51,7 @@ pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>>>>;
 ///     );
 /// }
 /// ```
-pub type ConnectionFactory<S> = Box<dyn Fn() -> ConnectionFuture<S>>;
+pub type ConnectionFactory<S> = Box<dyn Fn() -> ConnectionFuture<S> + Send>;
 
 pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
     /// The underlying (TCP per RFC8907) connection for this client, if present.
