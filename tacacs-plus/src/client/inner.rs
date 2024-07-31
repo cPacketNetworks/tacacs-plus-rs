@@ -5,9 +5,9 @@ use std::io;
 use std::pin::Pin;
 
 use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tacacs_plus_protocol::PacketFlags;
+use tacacs_plus_protocol::{HeaderInfo, PacketFlags};
 
-/// A (pinned, boxed) future that returns a client connection or an error.
+/// A (pinned, boxed) future that returns a client connection or an error, as returned from a [`ConnectionFactory`].
 pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>>>>;
 
 /// An async factory that returns connections used by a [`Client`](super::Client).
@@ -80,6 +80,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
     }
 
     pub(super) async fn ensure_connection(&mut self) -> io::Result<()> {
+        // obtain new connection from factory
         if self.connection.is_none() {
             let new_conn = (self.connection_factory)().await?;
             self.connection = Some(new_conn);
@@ -90,19 +91,25 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
 
     /// NOTE: This function is separate from post_session_cleanup since it has to be done after the first reply/second packet
     /// in a session, but ASCII authentication can span more packets.
-    pub(super) fn update_single_connection(&mut self, flags: PacketFlags, sequence_number: u8) {
-        if sequence_number == 2 && flags.contains(PacketFlags::SINGLE_CONNECTION) {
+    pub(super) fn update_single_connection(&mut self, header: &HeaderInfo) {
+        // only update if the sequence number is 2 (i.e. this was called after the first reply packet)
+        if header.sequence_number() == 2 && header.flags().contains(PacketFlags::SINGLE_CONNECTION)
+        {
             self.single_connection_established = true;
         }
     }
 
     pub(super) async fn post_session_cleanup(&mut self) -> io::Result<()> {
         // close session if server doesn't agree to SINGLE_CONNECTION negotiation
+        // TODO: test this against tac_plus server
         if !self.single_connection_established {
             // SAFETY: ensure_connection should be called before this function, and guarantees inner.connection is non-None
             let mut connection = self.connection.take().unwrap();
             connection.close().await?;
         }
+
+        // reset single connection mode status in preparation for next connection
+        self.single_connection_established = false;
 
         Ok(())
     }

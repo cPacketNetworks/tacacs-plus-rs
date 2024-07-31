@@ -8,7 +8,7 @@ use tacacs_plus::Client;
 #[tokio::main]
 async fn main() {
     // NOTE: this assumes you have a TACACS+ server running already
-    // there is a Dockerfile in assets/examples which spins one up with the proper configuration
+    // there is a Dockerfile in assets/ which spins one up with the proper configuration
 
     let server = std::env::var("TACACS_SERVER").unwrap_or(String::from("localhost:5555"));
     let mut tac_client = Client::new_with_secret(

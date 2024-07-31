@@ -214,8 +214,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             let reply = { self.receive_packet::<ReplyOwned>(connection).await? };
 
             // NOTE: we can't mutably borrow self completely here since the mutex lock borrows the connection field immutably
-            inner
-                .update_single_connection(reply.header().flags(), reply.header().sequence_number());
+            inner.update_single_connection(reply.header());
             inner.post_session_cleanup().await?;
 
             reply
