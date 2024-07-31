@@ -53,7 +53,7 @@ impl AuthenticationMethod {
 
 /// A privilege level for authentication. Limited to the range 0-15, inclusive.
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct PrivilegeLevel(u8);
 
 impl PrivilegeLevel {

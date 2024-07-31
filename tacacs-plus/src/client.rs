@@ -10,11 +10,10 @@ use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
 use thiserror::Error;
 
-use tacacs_plus_protocol as protocol;
 use tacacs_plus_protocol::Serialize;
+use tacacs_plus_protocol::{self as protocol, FieldText};
 use tacacs_plus_protocol::{
-    AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
-    UserInformation,
+    AuthenticationContext, AuthenticationService, AuthenticationType, UserInformation,
 };
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
@@ -24,6 +23,9 @@ pub use inner::{ConnectionFactory, ConnectionFuture};
 
 mod response;
 pub use response::{AuthResponse, AuthStatus};
+
+mod context;
+pub use context::{SessionContext, SessionContextBuilder};
 
 /// A TACACS+ client.
 #[derive(Clone)]
@@ -66,9 +68,9 @@ pub enum ClientError {
     #[error("invalid packet field")]
     InvalidPacketField,
 
-    /// The underlying connection was closed for protocol reasons.
-    #[error("client connection was closed for protocol reasons")]
-    ConnectionClosed,
+    /// Context had invalid field.
+    #[error("session context had invalid field(s)")]
+    InvalidContext,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
@@ -178,9 +180,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// [`status`](::tacacs_plus_protocol::authentication::ReplyOwned::status) field of the returned reply packet.
     pub async fn authenticate_pap_login(
         &mut self,
-        user_info: UserInformation<'_>,
+        context: SessionContext,
         password: &str,
-        privilege_level: PrivilegeLevel,
     ) -> Result<AuthResponse, ClientError> {
         use protocol::authentication::Action;
         use protocol::authentication::{ReplyOwned, Start};
@@ -192,11 +193,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             Start::new(
                 Action::Login,
                 AuthenticationContext {
-                    privilege_level,
+                    privilege_level: context.privilege_level,
                     authentication_type: AuthenticationType::Pap,
                     service: AuthenticationService::Login,
                 },
-                user_info,
+                UserInformation::new(
+                    &context.user,
+                    FieldText::try_from(context.port.as_str())
+                        .map_err(|_| ClientError::InvalidContext)?,
+                    FieldText::try_from(context.remote_address.as_str())
+                        .map_err(|_| ClientError::InvalidContext)?,
+                )
+                .ok_or(ClientError::InvalidContext)?,
                 Some(password.as_bytes()),
             )
             .map_err(|_| ClientError::InvalidPacketField)?,
@@ -214,7 +222,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             self.write_packet(connection, start_packet).await?;
 
             // response: whether authentication succeeded
-            let reply = { self.receive_packet::<ReplyOwned>(connection).await? };
+            // TODO: check sequence number?
+            let reply = self.receive_packet::<ReplyOwned>(connection).await?;
 
             // NOTE: we can't mutably borrow self completely here since the mutex lock borrows the connection field immutably
             inner.update_single_connection(reply.header());
