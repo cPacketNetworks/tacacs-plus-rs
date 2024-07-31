@@ -1,4 +1,4 @@
-FROM debian:12-slim
+FROM debian:12-slim as base
 
 # build pseudo-stage (not actual stage since copying stuff over would be a bit of a pain)
 # we have to build from source since the tacacs+ package was removed from repos after Debian Buster
@@ -15,6 +15,14 @@ RUN ./configure && make && make install
 # update ld cache to pick up on libtacacs
 RUN ldconfig
 
+# run TACACS+ daemon on container start on port 5555
+# the -G flag makes it run in the foreground, which prevents the container from exiting immediately
+ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
+
+EXPOSE 5555
+
+FROM base AS configured
+
 # basic TACACS+ daemon configuration
 COPY <<EOF /srv/tac_plus/tac_plus.conf
 key = "this shouldn't be hardcoded"
@@ -24,9 +32,4 @@ user = someuser {
 }
 EOF
 
-# run TACACS+ daemon on container start on port 5555
-# the -G flag makes it run in the foreground, which prevents the container from exiting immediately
-ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
 CMD ["-C", "/srv/tac_plus/tac_plus.conf"]
-
-EXPOSE 5555
