@@ -73,6 +73,9 @@ pub enum ClientError {
 }
 
 /// The type of authentication used for a given session.
+///
+/// More of these might be added in the future, but the variants here are
+/// the only currently supported authentication types with a [`Client`].
 #[non_exhaustive]
 pub enum AuthenticationType {
     /// Authentication via the Password Authentication Protocol (PAP).
@@ -227,7 +230,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             // TODO: check sequence number?
             let reply = self.receive_packet::<ReplyOwned>(connection).await?;
 
-            inner.update_single_connection(reply.header());
+            inner.set_internal_single_connect_status(reply.header());
             inner.post_session_cleanup(reply.body().status).await?;
 
             reply

@@ -58,7 +58,13 @@ pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
     pub(super) connection: Option<S>,
 
     /// A factory for opening new connections internally, so the library consumer doesn't have to.
+    ///
+    /// The factory is invoked whenever a new connection needs to be established, including when an ERROR status
+    /// is reported by the server as well as for each new session if the server doesn't support single connection mode.
     connection_factory: ConnectionFactory<S>,
+
+    /// Whether a session has been completed on the contained connection.
+    first_session_completed: bool,
 
     /// Whether single connection mode has been established for this connection.
     ///
@@ -75,6 +81,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         Self {
             connection: None,
             connection_factory: factory,
+            first_session_completed: false,
             single_connection_established: false,
         }
     }
@@ -91,9 +98,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
 
     /// NOTE: This function is separate from post_session_cleanup since it has to be done after the first reply/second packet
     /// in a session, but ASCII authentication can span more packets.
-    pub(super) fn update_single_connection(&mut self, header: &HeaderInfo) {
-        // only update if the sequence number is 2 (i.e. this was called after the first reply packet)
-        if !self.single_connection_established
+    pub(super) fn set_internal_single_connect_status(&mut self, header: &HeaderInfo) {
+        // only update single connection status if this is the first reply of the first session of this connection
+        if !self.first_session_completed
             && header.sequence_number() == 2
             && header.flags().contains(PacketFlags::SINGLE_CONNECTION)
         {
@@ -108,8 +115,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
             let mut connection = self.connection.take().unwrap();
             connection.close().await?;
 
-            // reset single connection mode status in preparation for next connection
+            // reset connection status "flags", as a new one will be opened for the next session
             self.single_connection_established = false;
+            self.first_session_completed = false;
+        } else {
+            // connection was not closed, so we indicate that a session was completed on this connection to ignore
+            // the single connection mode flag for future sessions on this connection, as required by RFC 8907.
+            // (see section 4.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.3-5)
+            self.first_session_completed = true;
         }
 
         Ok(())

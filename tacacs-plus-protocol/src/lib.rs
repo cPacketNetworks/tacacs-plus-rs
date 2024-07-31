@@ -318,7 +318,9 @@ where
     }
 }
 
-// this is very boilerplatey but necessary for the client
+// boilerplate but necessary for above blanket Deserialize impl
+// NOTE: this also ignores the required_minor_version function which is irrelevant for every
+// packet type except authentication::Start, which doesn't have an owned variant as of now
 #[cfg(feature = "std")]
 impl<B: FromBorrowedBody> PacketBody for B {
     const TYPE: PacketType = <<B as FromBorrowedBody>::Borrowed<'_> as PacketBody>::TYPE;
