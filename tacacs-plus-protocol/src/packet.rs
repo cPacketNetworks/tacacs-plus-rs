@@ -6,6 +6,7 @@ use getset::Getters;
 use md5::{Digest, Md5};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
+use super::FromBorrowedBody;
 use super::{DeserializeError, SerializeError};
 use super::{PacketBody, Serialize};
 
@@ -208,7 +209,8 @@ impl<B: PacketBody + Serialize> Packet<B> {
     }
 }
 
-impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet<B> {
+// impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet<B> {
+impl<'raw, B: PacketBody + crate::Deserialize<'raw>> Packet<B> {
     /// Attempts to deserialize an obfuscated packet with the provided secret key.
     ///
     /// This function also ensures that the [`UNENCRYPTED`](PacketFlags::UNENCRYPTED)
@@ -261,8 +263,9 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
                 // NOTE: the rest of the buffer is checked here to avoid a panic if it's shorter than body_length when trying to slice that large
                 // ensure buffer actually contains whole body
                 if buffer[Self::BODY_START..].len() >= body_length {
-                    let body =
-                        buffer[Self::BODY_START..Self::BODY_START + body_length].try_into()?;
+                    let body = B::deserialize_from_buffer(
+                        &buffer[Self::BODY_START..Self::BODY_START + body_length],
+                    )?;
                     Ok(body)
                 } else {
                     Err(DeserializeError::UnexpectedEnd)
@@ -277,17 +280,12 @@ impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet
             Err(DeserializeError::UnexpectedEnd)
         }
     }
-}
 
-// private_bounds lint is ignored here since this impl block doesn't contain any public functions
-#[cfg(feature = "std")]
-#[allow(private_bounds)]
-impl<B: super::ToOwnedBody> Packet<B> {
-    /// Converts this packet into one that owns its body's fields.
-    pub fn to_owned(&self) -> Packet<B::Owned> {
+    #[cfg(feature = "std")]
+    pub fn to_owned<'b, O: FromBorrowedBody<Borrowed<'b> = B>>(&self) -> Packet<O> {
         Packet {
             header: self.header.clone(),
-            body: self.body.to_owned(),
+            body: O::from_borrowed(&self.body),
         }
     }
 }

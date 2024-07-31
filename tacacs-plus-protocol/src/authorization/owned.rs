@@ -2,10 +2,10 @@ use std::borrow::ToOwned;
 use std::string::String;
 use std::vec::Vec;
 
-use super::Reply;
-use super::Status;
+use super::{Reply, Status};
+use crate::sealed::Sealed;
 use crate::ArgumentOwned;
-use crate::ToOwnedBody;
+use crate::FromBorrowedBody;
 
 /// An authorization reply packet with owned fields.
 pub struct ReplyOwned {
@@ -22,16 +22,21 @@ pub struct ReplyOwned {
     pub arguments: Vec<ArgumentOwned>,
 }
 
-impl ToOwnedBody for Reply<'_> {
-    type Owned = ReplyOwned;
+impl Sealed for ReplyOwned {}
 
-    fn to_owned(&self) -> Self::Owned {
-        let arguments_vec = self.iter_arguments().map(|arg| arg.to_owned()).collect();
+impl FromBorrowedBody for ReplyOwned {
+    type Borrowed<'b> = Reply<'b>;
+
+    fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self {
+        let arguments_vec = borrowed
+            .iter_arguments()
+            .map(|arg| arg.to_owned())
+            .collect();
 
         ReplyOwned {
-            status: self.status,
-            server_message: self.server_message.as_ref().to_owned(),
-            data: self.data.as_ref().to_owned(),
+            status: borrowed.status,
+            server_message: borrowed.server_message.as_ref().to_owned(),
+            data: borrowed.data.as_ref().to_owned(),
             arguments: arguments_vec,
         }
     }

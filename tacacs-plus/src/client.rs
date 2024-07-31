@@ -11,25 +11,25 @@ use rand::Rng;
 use thiserror::Error;
 
 use tacacs_plus_protocol as protocol;
+use tacacs_plus_protocol::Serialize;
 use tacacs_plus_protocol::{
     AuthenticationContext, AuthenticationService, AuthenticationType, PrivilegeLevel,
     UserInformation,
 };
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
-use tacacs_plus_protocol::{Serialize, ToOwnedBody};
+
+mod inner;
+pub use inner::ConnectionFactory;
 
 /// A TACACS+ client.
 #[derive(Clone)]
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
     /// The underlying TCP connection of the client.
-    connection: Arc<Mutex<S>>,
+    inner: Arc<Mutex<inner::ClientInner<S>>>,
 
     /// The shared secret used for packet obfuscation, if provided.
     secret: Option<Vec<u8>>,
-
-    /// Whether the underlying connection is still open and can be used for future sessions/exchanges.
-    connection_open: bool,
 }
 
 /// An error during a TACACS+ exchange.
@@ -80,11 +80,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// use [`new_with_secret()`](Client::new_with_secret) instead.
     ///
     /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
-    pub fn new(connection: S) -> Self {
+    pub fn new(connection_factory: ConnectionFactory<S>) -> Self {
+        let inner = inner::ClientInner::new(connection_factory);
+
         Self {
-            connection: Arc::new(Mutex::new(connection)),
+            inner: Arc::new(Mutex::new(inner)),
             secret: None,
-            connection_open: true,
         }
     }
 
@@ -95,11 +96,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// consider yourself warned.
     ///
     /// [RFC8907 section 10.5.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.1-3.8.1
-    pub fn new_with_secret(connection: S, secret: &[u8]) -> Self {
+    pub fn new_with_secret(connection_factory: ConnectionFactory<S>, secret: &[u8]) -> Self {
+        let inner = inner::ClientInner::new(connection_factory);
+
         Self {
-            connection: Arc::new(Mutex::new(connection)),
+            inner: Arc::new(Mutex::new(inner)),
             secret: Some(secret.to_owned()),
-            connection_open: true,
         }
     }
 
@@ -123,19 +125,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     }
 
     /// Receives a packet from the client's connection.
-    ///
-    /// NOTE: The borrowed packet variant is used as a generic parameter (B), but it's converted to the corresponding owned struct before being returned.
-    async fn receive_packet<'raw, B>(
-        &self,
-        connection: &mut S,
-        // TODO: figure out how not to pass buffer, if possible
-        buffer: &'raw mut Vec<u8>,
-    ) -> Result<Packet<B::Owned>, ClientError>
+    async fn receive_packet<B>(&self, connection: &mut S) -> Result<Packet<B>, ClientError>
     where
-        B: PacketBody + ToOwnedBody + TryFrom<&'raw [u8], Error = protocol::DeserializeError>,
+        B: PacketBody + for<'a> protocol::Deserialize<'a>,
     {
-        // start out by reading 12-byte header
-        buffer.resize(HeaderInfo::HEADER_SIZE_BYTES, 0);
+        let mut buffer = vec![0; HeaderInfo::HEADER_SIZE_BYTES];
+        let buffer = &mut buffer;
         connection.read_exact(buffer).await?;
 
         // read rest of body based on length reported in header
@@ -152,21 +147,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             Packet::deserialize_unobfuscated(buffer)?
         };
 
-        Ok(deserialize_result.to_owned())
-    }
-
-    async fn post_session_cleanup(
-        connection: &mut S,
-        reply_flags: PacketFlags,
-        open_flag: &mut bool,
-    ) -> Result<(), ClientError> {
-        // close session if server doesn't agree to SINGLE_CONNECTION negotiation
-        if !reply_flags.contains(PacketFlags::SINGLE_CONNECTION) {
-            connection.close().await?;
-            *open_flag = false;
-        }
-
-        Ok(())
+        Ok(deserialize_result)
     }
 
     fn make_header(&self, sequence_number: u8, minor_version: MinorVersion) -> HeaderInfo {
@@ -188,14 +169,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         )
     }
 
-    fn ensure_connection_open(&self) -> Result<(), ClientError> {
-        if !self.connection_open {
-            Err(ClientError::ConnectionClosed)
-        } else {
-            Ok(())
-        }
-    }
-
     /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
     ///
     /// NOTE: Even if this function returns `Ok`, the authentication may not have succeeded; make sure to check the
@@ -207,9 +180,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         privilege_level: PrivilegeLevel,
     ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
         use protocol::authentication::Action;
-        use protocol::authentication::{Reply, Start, Status};
-
-        self.ensure_connection_open()?;
+        use protocol::authentication::{ReplyOwned, Start, Status};
 
         // packet 1: send username + password in START packet
         let start_packet = Packet::new(
@@ -230,24 +201,22 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // block expression is used here to ensure that the connection mutex is only locked during communication
         let reply = {
-            let mut connection = self.connection.lock().await;
+            let mut inner = self.inner.lock().await;
 
-            self.write_packet(&mut connection, start_packet).await?;
+            inner.ensure_connection().await?;
+
+            // SAFETY: ensure_connection() ensures that inner.connection is non-None (or otherwise returns err, which will lead to an early exit)
+            let connection = inner.connection.as_mut().unwrap();
+
+            self.write_packet(connection, start_packet).await?;
 
             // response: whether authentication succeeded
-            let reply = {
-                let mut packet_buffer = Vec::new();
-                self.receive_packet::<Reply<'_>>(&mut connection, &mut packet_buffer)
-                    .await?
-            };
+            let reply = { self.receive_packet::<ReplyOwned>(connection).await? };
 
             // NOTE: we can't mutably borrow self completely here since the mutex lock borrows the connection field immutably
-            Self::post_session_cleanup(
-                &mut connection,
-                reply.header().flags(),
-                &mut self.connection_open,
-            )
-            .await?;
+            inner
+                .update_single_connection(reply.header().flags(), reply.header().sequence_number());
+            inner.post_session_cleanup().await?;
 
             reply
         };

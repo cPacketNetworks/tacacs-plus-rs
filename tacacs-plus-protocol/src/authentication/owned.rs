@@ -2,10 +2,11 @@ use std::borrow::ToOwned;
 use std::string::String;
 use std::vec::Vec;
 
-use crate::ToOwnedBody;
-
 use super::Reply;
 use super::{ReplyFlags, Status};
+use crate::sealed::Sealed;
+use crate::FromBorrowedBody;
+use crate::{Deserialize, DeserializeError};
 
 /// An authentication reply packet with owned fields.
 pub struct ReplyOwned {
@@ -22,15 +23,26 @@ pub struct ReplyOwned {
     pub data: Vec<u8>,
 }
 
-impl ToOwnedBody for Reply<'_> {
-    type Owned = ReplyOwned;
+impl FromBorrowedBody for ReplyOwned {
+    type Borrowed<'b> = Reply<'b>;
 
-    fn to_owned(&self) -> Self::Owned {
+    fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self {
         ReplyOwned {
-            status: self.status,
-            flags: self.flags,
-            server_message: self.server_message.as_ref().to_owned(),
-            data: self.data.to_owned(),
+            status: borrowed.status,
+            flags: borrowed.flags,
+            server_message: borrowed.server_message.as_ref().to_owned(),
+            data: borrowed.data.to_owned(),
         }
     }
 }
+
+impl TryFrom<&[u8]> for ReplyOwned {
+    type Error = DeserializeError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let borrowed: Reply<'_> = Reply::<'_>::deserialize_from_buffer(value)?;
+        Ok(Self::from_borrowed(&borrowed))
+    }
+}
+
+impl Sealed for ReplyOwned {}

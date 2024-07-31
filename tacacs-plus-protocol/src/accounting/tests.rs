@@ -172,7 +172,7 @@ fn deserialize_reply_all_fields() {
             server_message: FieldText::try_from(server_message.as_slice()).unwrap(),
             data: FieldText::assert("some data")
         }),
-        body_raw.as_slice().try_into()
+        Reply::deserialize_from_buffer(&body_raw)
     );
 }
 

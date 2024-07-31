@@ -6,8 +6,8 @@ use getset::{CopyGetters, Getters};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
-    Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError, PacketBody,
-    PacketType, Serialize, SerializeError, UserInformation,
+    Arguments, AuthenticationContext, AuthenticationMethod, Deserialize, DeserializeError,
+    PacketBody, PacketType, Serialize, SerializeError, UserInformation,
 };
 use crate::FieldText;
 
@@ -269,10 +269,8 @@ impl PacketBody for Reply<'_> {
 
 // hide in docs, since this isn't meant to be used externally
 #[doc(hidden)]
-impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
-    type Error = DeserializeError;
-
-    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+impl<'raw> Deserialize<'raw> for Reply<'raw> {
+    fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
         let extracted_lengths = Self::extract_field_lengths(buffer)?;
 
         // the provided buffer is sliced to the length reported in the packet header in Packet::deserialize_body(),

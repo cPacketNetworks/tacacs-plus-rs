@@ -2,7 +2,8 @@ use std::borrow::ToOwned;
 use std::string::String;
 
 use super::{Reply, Status};
-use crate::ToOwnedBody;
+use crate::sealed::Sealed;
+use crate::FromBorrowedBody;
 
 /// An owned version of a [`Reply`](super::Reply).
 pub struct ReplyOwned {
@@ -16,14 +17,16 @@ pub struct ReplyOwned {
     pub data: String,
 }
 
-impl ToOwnedBody for Reply<'_> {
-    type Owned = ReplyOwned;
+impl Sealed for ReplyOwned {}
 
-    fn to_owned(&self) -> Self::Owned {
+impl FromBorrowedBody for ReplyOwned {
+    type Borrowed<'b> = Reply<'b>;
+
+    fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self {
         ReplyOwned {
-            status: self.status,
-            server_message: self.server_message.as_ref().to_owned(),
-            data: self.data.as_ref().to_owned(),
+            status: borrowed.status,
+            server_message: borrowed.server_message.as_ref().to_owned(),
+            data: borrowed.data.as_ref().to_owned(),
         }
     }
 }

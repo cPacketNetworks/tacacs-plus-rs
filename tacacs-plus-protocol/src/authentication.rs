@@ -11,7 +11,7 @@ use super::{
     AuthenticationContext, AuthenticationType, DeserializeError, MinorVersion, PacketBody,
     PacketType, Serialize, SerializeError, UserInformation,
 };
-use crate::FieldText;
+use crate::{Deserialize, FieldText};
 
 #[cfg(test)]
 mod tests;
@@ -345,10 +345,8 @@ impl PacketBody for Reply<'_> {
 
 // Hide from docs, as this is meant for internal use only
 #[doc(hidden)]
-impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
-    type Error = DeserializeError;
-
-    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+impl<'raw> Deserialize<'raw> for Reply<'raw> {
+    fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
         let field_lengths = Self::extract_field_lengths(buffer)?;
 
         // buffer is sliced to length reported in packet header in Packet::deserialize_body(), so we can compare against

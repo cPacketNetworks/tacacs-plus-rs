@@ -207,10 +207,8 @@ fn deserialize_reply_no_arguments() {
     raw_bytes.extend_from_slice(b"this is a reply"); // server message
     raw_bytes.extend_from_slice(b"short"); // data
 
-    let parsed: Reply = raw_bytes
-        .as_slice()
-        .try_into()
-        .expect("packet parsing should have succeeded");
+    let parsed =
+        Reply::deserialize_from_buffer(&raw_bytes).expect("packet parsing should have succeeded");
 
     // field checks
     assert_eq!(parsed.status, Status::PassAdd);
@@ -257,10 +255,8 @@ fn deserialize_reply_two_arguments() {
         .unwrap(),
     ];
 
-    let parsed: Reply = raw_bytes
-        .as_slice()
-        .try_into()
-        .expect("argument parsing should have succeeded");
+    let parsed =
+        Reply::deserialize_from_buffer(&raw_bytes).expect("argument parsing should have succeeded");
 
     // check specific fields, as iterator's can't really implement PartialEq
     assert_eq!(parsed.status, Status::PassAdd);
@@ -486,7 +482,7 @@ fn full_unobfuscated_reply_packet_to_owned() {
     let packet: Packet<Reply> = Packet::deserialize_unobfuscated(&raw_packet)
         .expect("packet deserialization should have succeeded");
 
-    let owned_packet = packet.to_owned();
+    let owned_packet: Packet<ReplyOwned> = packet.to_owned();
 
     // check owned packet header
     assert_eq!(

@@ -12,6 +12,7 @@
 extern crate std;
 
 use core::{fmt, num::TryFromIntError};
+use std::boxed::Box;
 
 pub mod accounting;
 pub mod authentication;
@@ -286,15 +287,40 @@ pub trait Serialize: sealed::Sealed {
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError>;
 }
 
+pub trait Deserialize<'raw>: sealed::Sealed + Sized {
+    fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError>;
+}
+
+// TODO: dedicated owned module
+#[cfg(feature = "std")]
+// TODO: update doc comment
 /// Converts a reference-based packet to a packet that owns its fields.
 ///
 /// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,
 /// which is why the [`ToOwned`](std::borrow::ToOwned) trait isn't used.
-#[cfg(feature = "std")]
-pub trait ToOwnedBody: PacketBody {
-    /// The resulting owned packet type.
-    type Owned;
+pub trait FromBorrowedBody: sealed::Sealed {
+    /// The borrowed variant of this packet body.
+    type Borrowed<'b>: PacketBody;
 
-    /// Converts the packet type with references to its data to one that owns its field data.
-    fn to_owned(&self) -> Self::Owned;
+    /// Converts the borrowed variant of this packet body to its owned variant.
+    fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self;
+}
+
+#[cfg(feature = "std")]
+impl<'b, B: FromBorrowedBody> Deserialize<'b> for B
+where
+    B::Borrowed<'b>: Deserialize<'b>,
+{
+    fn deserialize_from_buffer(buffer: &'b [u8]) -> Result<Self, DeserializeError> {
+        let borrowed = <B as FromBorrowedBody>::Borrowed::deserialize_from_buffer(buffer)?;
+        Ok(Self::from_borrowed(&borrowed))
+    }
+}
+
+// this is very boilerplatey but necessary for the client
+#[cfg(feature = "std")]
+impl<B: FromBorrowedBody> PacketBody for B {
+    const TYPE: PacketType = <<B as FromBorrowedBody>::Borrowed<'_> as PacketBody>::TYPE;
+    const REQUIRED_FIELDS_LENGTH: usize =
+        <<B as FromBorrowedBody>::Borrowed<'_> as PacketBody>::REQUIRED_FIELDS_LENGTH;
 }

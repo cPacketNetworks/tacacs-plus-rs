@@ -8,7 +8,7 @@ use super::{
     Argument, Arguments, AuthenticationContext, AuthenticationMethod, DeserializeError,
     InvalidArgument, PacketBody, PacketType, Serialize, SerializeError, UserInformation,
 };
-use crate::FieldText;
+use crate::{Deserialize, FieldText};
 
 #[cfg(test)]
 mod tests;
@@ -305,10 +305,8 @@ impl PacketBody for Reply<'_> {
 
 // Hidden from docs as this is not meant for external use
 #[doc(hidden)]
-impl<'raw> TryFrom<&'raw [u8]> for Reply<'raw> {
-    type Error = DeserializeError;
-
-    fn try_from(buffer: &'raw [u8]) -> Result<Self, Self::Error> {
+impl<'raw> Deserialize<'raw> for Reply<'raw> {
+    fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
         let ReplyFieldLengths {
             data_length,
             server_message_length,

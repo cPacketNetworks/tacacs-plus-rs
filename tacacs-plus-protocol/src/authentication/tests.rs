@@ -216,7 +216,7 @@ fn deserialize_reply_pass_both_data_fields() {
         Reply::extract_total_length(&packet_data).expect("packet length extraction should succeed");
 
     assert_eq!(
-        Reply::try_from(&packet_data[..expected_packet_length as usize]),
+        Reply::deserialize_from_buffer(&packet_data[..expected_packet_length as usize]),
         Ok(Reply {
             status: Status::Pass,
             server_message: FieldText::assert("login successful"),
@@ -241,7 +241,7 @@ fn deserialize_reply_bad_server_message_length() {
 
     // guard on specific error flavor
     assert_eq!(
-        Reply::try_from(packet_data.as_slice()),
+        Reply::deserialize_from_buffer(&packet_data),
         Err(DeserializeError::WrongBodyBufferSize {
             // expected length: server length + required fields + data length (0)
             expected: NetworkEndian::read_u16(&[13, 37]) as usize + Reply::REQUIRED_FIELDS_LENGTH,
@@ -259,7 +259,7 @@ fn deserialize_reply_shorter_than_header() {
         0, // oops lost a byte!
     ];
 
-    Reply::try_from(packet_data.as_slice())
+    Reply::deserialize_from_buffer(&packet_data)
         .expect_err("header shouldn't be long enough to be valid");
 }
 
@@ -274,7 +274,7 @@ fn deserialize_reply_bad_status() {
     ];
 
     assert_eq!(
-        Reply::try_from(packet_data.as_slice()),
+        Reply::deserialize_from_buffer(&packet_data),
         Err(DeserializeError::InvalidStatus(42))
     );
 }
@@ -290,7 +290,7 @@ fn deserialize_reply_bad_flags() {
     ];
 
     assert_eq!(
-        Reply::try_from(packet_data.as_slice()),
+        Reply::deserialize_from_buffer(&packet_data),
         Err(DeserializeError::InvalidBodyFlags(2))
     );
 }
