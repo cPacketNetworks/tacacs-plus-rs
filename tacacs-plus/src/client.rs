@@ -22,6 +22,9 @@ use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
 mod inner;
 pub use inner::{ConnectionFactory, ConnectionFuture};
 
+mod response;
+pub use response::{AuthResponse, AuthStatus};
+
 /// A TACACS+ client.
 #[derive(Clone)]
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
@@ -178,9 +181,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         user_info: UserInformation<'_>,
         password: &str,
         privilege_level: PrivilegeLevel,
-    ) -> Result<Packet<protocol::authentication::ReplyOwned>, ClientError> {
+    ) -> Result<AuthResponse, ClientError> {
         use protocol::authentication::Action;
-        use protocol::authentication::{ReplyOwned, Start, Status};
+        use protocol::authentication::{ReplyOwned, Start};
 
         // packet 1: send username + password in START packet
         let start_packet = Packet::new(
@@ -220,14 +223,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             reply
         };
 
-        if reply.body().status == Status::Error {
-            // data & message are the only relevant fields of an error response
-            Err(ClientError::ProtocolError {
+        AuthStatus::try_from(reply.body().status)
+            .map(|status| AuthResponse {
+                status,
+                server_message: reply.body().server_message.clone(),
                 data: reply.body().data.clone(),
-                message: reply.body().server_message.clone(),
             })
-        } else {
-            Ok(reply)
-        }
+            .map_err(|_| {
+                // data & message are the only relevant fields of an error response
+                ClientError::ProtocolError {
+                    data: reply.body().data.clone(),
+                    message: reply.body().server_message.clone(),
+                }
+            })
     }
 }
