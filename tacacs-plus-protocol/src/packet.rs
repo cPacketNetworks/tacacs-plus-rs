@@ -7,8 +7,8 @@ use md5::{Digest, Md5};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::FromBorrowedBody;
+use super::{Deserialize, PacketBody, Serialize};
 use super::{DeserializeError, SerializeError};
-use super::{PacketBody, Serialize};
 
 pub(super) mod header;
 use header::HeaderInfo;
@@ -209,8 +209,7 @@ impl<B: PacketBody + Serialize> Packet<B> {
     }
 }
 
-// impl<'raw, B: PacketBody + TryFrom<&'raw [u8], Error = DeserializeError>> Packet<B> {
-impl<'raw, B: PacketBody + crate::Deserialize<'raw>> Packet<B> {
+impl<'raw, B: PacketBody + Deserialize<'raw>> Packet<B> {
     /// Attempts to deserialize an obfuscated packet with the provided secret key.
     ///
     /// This function also ensures that the [`UNENCRYPTED`](PacketFlags::UNENCRYPTED)

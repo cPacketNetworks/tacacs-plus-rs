@@ -6,7 +6,6 @@ use super::Reply;
 use super::{ReplyFlags, Status};
 use crate::sealed::Sealed;
 use crate::FromBorrowedBody;
-use crate::{Deserialize, DeserializeError};
 
 /// An authentication reply packet with owned fields.
 pub struct ReplyOwned {
@@ -23,6 +22,8 @@ pub struct ReplyOwned {
     pub data: Vec<u8>,
 }
 
+impl Sealed for ReplyOwned {}
+
 impl FromBorrowedBody for ReplyOwned {
     type Borrowed<'b> = Reply<'b>;
 
@@ -35,14 +36,3 @@ impl FromBorrowedBody for ReplyOwned {
         }
     }
 }
-
-impl TryFrom<&[u8]> for ReplyOwned {
-    type Error = DeserializeError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let borrowed: Reply<'_> = Reply::<'_>::deserialize_from_buffer(value)?;
-        Ok(Self::from_borrowed(&borrowed))
-    }
-}
-
-impl Sealed for ReplyOwned {}
