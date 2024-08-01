@@ -3,7 +3,7 @@
 //! Serialization & deserialization of (RFC8907) TACACS+ protocol packets.
 
 #![no_std]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(feature = "docsrs", feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 #![warn(clippy::cast_lossless)]
 #![warn(clippy::cast_possible_truncation)]
