@@ -1,4 +1,14 @@
-use tacacs_plus_protocol::PrivilegeLevel;
+use tacacs_plus_protocol::{PrivilegeLevel, UserInformation};
+
+use super::ClientError;
+
+pub(super) struct InvalidContext(());
+
+impl From<InvalidContext> for ClientError {
+    fn from(_value: InvalidContext) -> Self {
+        ClientError::InvalidContext
+    }
+}
 
 /// Some information associated with all sessions, regardless of the action.
 #[derive(Clone, PartialEq, Eq)]
@@ -7,6 +17,23 @@ pub struct SessionContext {
     pub(super) port: String,
     pub(super) remote_address: String,
     pub(super) privilege_level: PrivilegeLevel,
+}
+
+impl SessionContext {
+    pub(super) fn as_user_information(&self) -> Result<UserInformation<'_>, InvalidContext> {
+        UserInformation::new(
+            self.user.as_str(),
+            self.port
+                .as_str()
+                .try_into()
+                .map_err(|_| InvalidContext(()))?,
+            self.remote_address
+                .as_str()
+                .try_into()
+                .map_err(|_| InvalidContext(()))?,
+        )
+        .ok_or(InvalidContext(()))
+    }
 }
 
 /// Builder for [`SessionContext`] objects.

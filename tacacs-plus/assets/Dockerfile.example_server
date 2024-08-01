@@ -29,6 +29,7 @@ key = "this shouldn't be hardcoded"
 
 user = someuser {
     pap = cleartext hunter2
+    chap = cleartext "something different"
 }
 EOF
 

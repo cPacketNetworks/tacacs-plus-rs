@@ -10,10 +10,10 @@ use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
 use thiserror::Error;
 
+use tacacs_plus_protocol as protocol;
 use tacacs_plus_protocol::authentication;
 use tacacs_plus_protocol::Serialize;
-use tacacs_plus_protocol::{self as protocol, FieldText};
-use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService, UserInformation};
+use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService};
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
 
@@ -109,6 +109,8 @@ pub enum ClientError {
 pub enum AuthenticationType {
     /// Authentication via the Password Authentication Protocol (PAP).
     Pap,
+    /// Authentication via the Challenge-Authentication Protocol (CHAP).
+    Chap,
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
@@ -214,36 +216,76 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     }
 
     fn pap_login_start_packet<'packet>(
-        &'packet self,
+        &self,
         context: &'packet SessionContext,
         password: &'packet str,
     ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
-        use protocol::authentication::Action;
-
         Ok(Packet::new(
             // sequence number = 1 (first packet in session)
             self.make_header(1, MinorVersion::V1),
             authentication::Start::new(
-                Action::Login,
+                authentication::Action::Login,
                 AuthenticationContext {
                     privilege_level: context.privilege_level,
                     authentication_type: protocol::AuthenticationType::Pap,
                     service: AuthenticationService::Login,
                 },
-                UserInformation::new(
-                    &context.user,
-                    FieldText::try_from(context.port.as_str())
-                        .map_err(|_| ClientError::InvalidContext)?,
-                    FieldText::try_from(context.remote_address.as_str())
-                        .map_err(|_| ClientError::InvalidContext)?,
-                )
-                .ok_or(ClientError::InvalidContext)?,
+                context.as_user_information()?,
                 Some(password.as_bytes()),
             )
             // NOTE: The only possible `BadStart` variant passed to this function is `DataTooLong`,
             // since the authentication type & protocol version are guaranteed to be valid due to
             // being out of user control. The data field of a PAP start packet is exactly the password,
             // hence the conversion to `ClientError::PasswordTooLong`.
+            .map_err(|_| ClientError::PasswordTooLong)?,
+        ))
+    }
+
+    fn chap_login_start_packet<'packet>(
+        &self,
+        context: &'packet SessionContext,
+        password: &'packet str,
+        data_buffer: &'packet mut Vec<u8>,
+    ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
+        use md5::{Digest, Md5};
+
+        // generate random PPP ID/challenge
+        let ppp_id: u8 = rand::thread_rng().gen();
+        let challenge = uuid::Uuid::new_v4();
+
+        // "The Response Value is the one-way hash calculated over a stream of octets consisting of the Identifier,
+        // followed by (concatenated with) the "secret", followed by (concatenated with) the Challenge Value."
+        // RFC1334 section 3.2.1 ("Value" subheading): https://www.rfc-editor.org/rfc/rfc1334.html#section-3.2.1
+        //
+        // "The MD5 algorithm option is always used." (RFC8907 section 5.4.2.3)
+        // https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.2.3-4
+        let mut hasher = Md5::new();
+        hasher.update([ppp_id]);
+        hasher.update(password.as_bytes()); // the secret is the password in this case
+        hasher.update(challenge);
+        let response = hasher.finalize();
+
+        // "the data field is a concatenation of the PPP id, the challenge, and the response"
+        // RFC8907 section 5.4.2.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.2.3-2
+        data_buffer.clear();
+        data_buffer.push(ppp_id);
+        data_buffer.extend(challenge.as_bytes());
+        data_buffer.extend(response);
+
+        Ok(Packet::new(
+            self.make_header(1, MinorVersion::V1),
+            authentication::Start::new(
+                authentication::Action::Login,
+                AuthenticationContext {
+                    privilege_level: context.privilege_level,
+                    authentication_type: protocol::AuthenticationType::Chap,
+                    service: AuthenticationService::Login,
+                },
+                context.as_user_information()?,
+                Some(data_buffer),
+            )
+            // NOTE: as with PAP authentication, the only possible error from the start constructor results from
+            // the password being too long
             .map_err(|_| ClientError::PasswordTooLong)?,
         ))
     }
@@ -257,8 +299,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     ) -> Result<AuthenticationResponse, ClientError> {
         use protocol::authentication::ReplyOwned;
 
+        // TODO: owned start packet variant? having to pass data_buffer is a bit annoying
+        // could also do enum for data field for owned/borrowed & #[cfg(std)] a variant
+        let mut data_buffer = Vec::with_capacity(0);
         let start_packet = match authentication_type {
             AuthenticationType::Pap => self.pap_login_start_packet(&context, password),
+            AuthenticationType::Chap => {
+                self.chap_login_start_packet(&context, password, &mut data_buffer)
+            }
         }?;
 
         // block expression is used here to ensure that the connection mutex is only locked during communication
