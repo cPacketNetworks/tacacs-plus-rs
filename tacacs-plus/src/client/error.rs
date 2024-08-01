@@ -70,6 +70,8 @@ pub enum ClientError {
 }
 
 // authentication data being too long is a direct result of the password being too long
+// hidden since this is an implementation detail that isn't important to library consumers
+#[doc(hidden)]
 impl From<authentication::DataTooLong> for ClientError {
     fn from(_value: authentication::DataTooLong) -> Self {
         Self::PasswordTooLong
