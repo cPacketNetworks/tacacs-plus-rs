@@ -21,7 +21,7 @@ mod inner;
 pub use inner::{ConnectionFactory, ConnectionFuture};
 
 mod response;
-pub use response::{AuthenticationResponse, AuthenticationStatus};
+pub use response::{AuthenticationResponse, ResponseStatus};
 
 mod context;
 pub use context::{ContextBuilder, SessionContext};
@@ -278,7 +278,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             reply
         };
 
-        let reply_status = AuthenticationStatus::try_from(reply.body().status);
+        let reply_status = ResponseStatus::try_from(reply.body().status);
         let message = reply.body().server_message.clone();
         let data = reply.body().data.clone();
 

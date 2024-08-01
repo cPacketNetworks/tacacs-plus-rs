@@ -1,7 +1,7 @@
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::client::{AuthenticationStatus, AuthenticationType, ContextBuilder};
+use tacacs_plus::client::{AuthenticationType, ContextBuilder, ResponseStatus};
 use tacacs_plus::Client;
 
 #[tokio::main]
@@ -34,7 +34,7 @@ async fn main() {
 
     match auth_result {
         Ok(resp) => {
-            if resp.status == AuthenticationStatus::Pass {
+            if resp.status == ResponseStatus::Success {
                 println!("Authentication successful!")
             } else {
                 println!("Authentication failed. Full response: {:?}", resp);
