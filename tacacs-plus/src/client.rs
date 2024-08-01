@@ -301,7 +301,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // TODO: owned start packet variant? having to pass data_buffer is a bit annoying
         // could also do enum for data field for owned/borrowed & #[cfg(std)] a variant
-        let mut data_buffer = Vec::with_capacity(0);
+        let mut data_buffer = Vec::new();
         let start_packet = match authentication_type {
             AuthenticationType::Pap => self.pap_login_start_packet(&context, password),
             AuthenticationType::Chap => {
