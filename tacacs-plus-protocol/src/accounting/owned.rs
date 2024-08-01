@@ -2,8 +2,8 @@ use std::borrow::ToOwned;
 use std::string::String;
 
 use super::{Reply, Status};
+use crate::owned::FromBorrowedBody;
 use crate::sealed::Sealed;
-use crate::FromBorrowedBody;
 
 /// An owned version of a [`Reply`](super::Reply).
 pub struct ReplyOwned {

@@ -33,6 +33,9 @@ pub use fields::*;
 mod text;
 pub use text::FieldText;
 
+#[cfg(feature = "std")]
+mod owned;
+
 /// An error that occurred when serializing a packet or any of its components into their binary format.
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
@@ -290,40 +293,4 @@ pub trait Serialize: sealed::Sealed {
 pub trait Deserialize<'raw>: sealed::Sealed + Sized {
     /// Attempts to deserialize an object from a buffer.
     fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError>;
-}
-
-// TODO: dedicated owned module
-#[cfg(feature = "std")]
-// TODO: update doc comment
-/// Converts a reference-based packet to a packet that owns its fields.
-///
-/// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,
-/// which is why the [`ToOwned`](std::borrow::ToOwned) trait isn't used.
-pub trait FromBorrowedBody: sealed::Sealed {
-    /// The borrowed variant of this packet body.
-    type Borrowed<'b>: PacketBody;
-
-    /// Converts the borrowed variant of this packet body to its owned variant.
-    fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self;
-}
-
-#[cfg(feature = "std")]
-impl<'b, B: FromBorrowedBody> Deserialize<'b> for B
-where
-    B::Borrowed<'b>: Deserialize<'b>,
-{
-    fn deserialize_from_buffer(buffer: &'b [u8]) -> Result<Self, DeserializeError> {
-        let borrowed = <B as FromBorrowedBody>::Borrowed::deserialize_from_buffer(buffer)?;
-        Ok(Self::from_borrowed(&borrowed))
-    }
-}
-
-// boilerplate but necessary for above blanket Deserialize impl
-// NOTE: this also ignores the required_minor_version function which is irrelevant for every
-// packet type except authentication::Start, which doesn't have an owned variant as of now
-#[cfg(feature = "std")]
-impl<B: FromBorrowedBody> PacketBody for B {
-    const TYPE: PacketType = <<B as FromBorrowedBody>::Borrowed<'_> as PacketBody>::TYPE;
-    const REQUIRED_FIELDS_LENGTH: usize =
-        <<B as FromBorrowedBody>::Borrowed<'_> as PacketBody>::REQUIRED_FIELDS_LENGTH;
 }

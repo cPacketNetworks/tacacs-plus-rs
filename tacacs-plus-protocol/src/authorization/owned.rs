@@ -3,9 +3,9 @@ use std::string::String;
 use std::vec::Vec;
 
 use super::{Reply, Status};
+use crate::owned::FromBorrowedBody;
 use crate::sealed::Sealed;
 use crate::ArgumentOwned;
-use crate::FromBorrowedBody;
 
 /// An authorization reply packet with owned fields.
 pub struct ReplyOwned {

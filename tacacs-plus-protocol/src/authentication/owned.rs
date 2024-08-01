@@ -4,8 +4,8 @@ use std::vec::Vec;
 
 use super::Reply;
 use super::{ReplyFlags, Status};
+use crate::owned::FromBorrowedBody;
 use crate::sealed::Sealed;
-use crate::FromBorrowedBody;
 
 /// An authentication reply packet with owned fields.
 pub struct ReplyOwned {

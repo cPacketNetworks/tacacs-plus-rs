@@ -6,7 +6,7 @@ use getset::Getters;
 use md5::{Digest, Md5};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
-use super::FromBorrowedBody;
+use super::owned::FromBorrowedBody;
 use super::{Deserialize, PacketBody, Serialize};
 use super::{DeserializeError, SerializeError};
 
