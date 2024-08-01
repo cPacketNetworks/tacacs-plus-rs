@@ -233,8 +233,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     ) -> Result<AuthenticationResponse, ClientError> {
         use protocol::authentication::ReplyOwned;
 
-        // TODO: owned start packet variant? having to pass data_buffer is a bit annoying
-        // could also do enum for data field for owned/borrowed & #[cfg(std)] a variant
         let start_packet = match authentication_type {
             AuthenticationType::Pap => self.pap_login_start_packet(&context, password),
             AuthenticationType::Chap => self.chap_login_start_packet(&context, password),
