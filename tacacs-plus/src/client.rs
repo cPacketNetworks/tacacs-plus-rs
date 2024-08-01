@@ -21,7 +21,7 @@ mod inner;
 pub use inner::{ConnectionFactory, ConnectionFuture};
 
 mod response;
-pub use response::{AuthStatus, AuthenticationResponse};
+pub use response::{AuthenticationResponse, AuthenticationStatus};
 
 mod context;
 pub use context::{ContextBuilder, SessionContext};
@@ -75,10 +75,9 @@ pub enum ClientError {
     #[error("invalid packet received from server: {0}")]
     InvalidPacketReceived(#[from] protocol::DeserializeError),
 
-    // TODO: break out into more specific other types
-    /// Invalid packet field when attempting to send a packet.
-    #[error("invalid packet field")]
-    InvalidPacketField,
+    /// The provided authentication password's length exceeded the valid range (i.e., 0 to `u8::MAX`).
+    #[error("authentication password was longer than 255 bytes")]
+    PasswordTooLong,
 
     /// Context had an invalid field.
     #[error("session context had invalid field(s)")]
@@ -93,7 +92,6 @@ pub enum ClientError {
         actual: u8,
     },
 
-    // TODO: check for this if ASCII is implemented? use u8::checked_add
     /// Sequence number overflowed in session.
     ///
     /// This termination is required per [section 4.1 of RFC8907].
@@ -197,6 +195,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
     fn make_header(&self, sequence_number: u8, minor_version: MinorVersion) -> HeaderInfo {
         // generate random id for this session
+        // rand::ThreadRng implements CryptoRng, so it should be suitable for use as a CSPRNG
         let session_id: u32 = rand::thread_rng().gen();
 
         // set single connection/unencrypted flags accordingly
@@ -241,11 +240,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 .ok_or(ClientError::InvalidContext)?,
                 Some(password.as_bytes()),
             )
-            .map_err(|_| ClientError::InvalidPacketField)?,
+            // NOTE: The only possible `BadStart` variant passed to this function is `DataTooLong`,
+            // since the authentication type & protocol version are guaranteed to be valid due to
+            // being out of user control. The data field of a PAP start packet is exactly the password,
+            // hence the conversion to `ClientError::PasswordTooLong`.
+            .map_err(|_| ClientError::PasswordTooLong)?,
         ))
     }
 
-    /// Authenticates against a TACACS+ server with a plaintext username & password via the PAP protocol.
+    /// Authenticates against a TACACS+ server with a username and password using the specified protocol.
     pub async fn authenticate(
         &mut self,
         context: SessionContext,
@@ -275,7 +278,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             reply
         };
 
-        let reply_status = AuthStatus::try_from(reply.body().status);
+        let reply_status = AuthenticationStatus::try_from(reply.body().status);
         let message = reply.body().server_message.clone();
         let data = reply.body().data.clone();
 

@@ -277,8 +277,6 @@ pub trait PacketBody: sealed::Sealed {
     }
 }
 
-// TODO: merge with PacketBody? would have to implement serialization of Reply packets though
-// Might also be a good idea to bring deserialization in as well (to make it more explicit than TryFrom/TryInto)
 /// Something that can be serialized into a binary format.
 #[doc(hidden)]
 pub trait Serialize: sealed::Sealed {
@@ -290,6 +288,7 @@ pub trait Serialize: sealed::Sealed {
 }
 
 /// Something that can be deserialized from a binary format.
+#[doc(hidden)]
 pub trait Deserialize<'raw>: sealed::Sealed + Sized {
     /// Attempts to deserialize an object from a buffer.
     fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError>;

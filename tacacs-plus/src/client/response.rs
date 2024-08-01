@@ -7,7 +7,7 @@ pub struct BadStatus(pub(super) authentication::Status);
 // but accounting is called success instead so reusing that wouldn't be strictly correct
 /// The status returned by a server during an authentication exchange.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum AuthStatus {
+pub enum AuthenticationStatus {
     /// The authentication succeeded.
     Pass,
     /// The authentication attempt failed.
@@ -15,22 +15,22 @@ pub enum AuthStatus {
 }
 
 #[doc(hidden)]
-impl TryFrom<authentication::Status> for AuthStatus {
+impl TryFrom<authentication::Status> for AuthenticationStatus {
     type Error = BadStatus;
 
     fn try_from(value: authentication::Status) -> Result<Self, Self::Error> {
         match value {
-            authentication::Status::Pass => Ok(AuthStatus::Pass),
-            authentication::Status::Fail => Ok(AuthStatus::Fail),
+            authentication::Status::Pass => Ok(AuthenticationStatus::Pass),
+            authentication::Status::Fail => Ok(AuthenticationStatus::Fail),
 
             // this is a lowercase "should" from RFC8907
             // (see section 5.4.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.3-3)
             #[allow(deprecated)]
-            authentication::Status::Follow => Ok(AuthStatus::Fail),
+            authentication::Status::Follow => Ok(AuthenticationStatus::Fail),
 
             // we don't support restart status for now, so we treat it as a failure per RFC 8907
             // (see section 5.4.3 of RFC 8907: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.3-6)
-            authentication::Status::Restart => Ok(AuthStatus::Fail),
+            authentication::Status::Restart => Ok(AuthenticationStatus::Fail),
 
             bad_status => Err(BadStatus(bad_status)),
         }
@@ -42,7 +42,7 @@ impl TryFrom<authentication::Status> for AuthStatus {
 #[derive(PartialEq, Eq, Debug)]
 pub struct AuthenticationResponse {
     /// Whether the authentication attempt passed or failed.
-    pub status: AuthStatus,
+    pub status: AuthenticationStatus,
 
     /// The message returned by the server, intended to be displayed to the user.
     pub message: String,
