@@ -169,11 +169,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 context.as_user_information()?,
                 Some(password.as_bytes().try_into()?),
             )
-            // NOTE: The only possible `BadStart` variant passed to this function is `DataTooLong`,
-            // since the authentication type & protocol version are guaranteed to be valid due to
-            // being out of user control. The data field of a PAP start packet is exactly the password,
-            // hence the conversion to `ClientError::PasswordTooLong`.
-            .map_err(|_| ClientError::PasswordTooLong)?,
+            // SAFETY: the version, authentication type & saction fields are hard-coded to valid values so the start constructor will not fail
+            .unwrap(),
         ))
     }
 
@@ -218,9 +215,8 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 context.as_user_information()?,
                 Some(data.try_into()?),
             )
-            // NOTE: as with PAP authentication, the only possible error from the start constructor results from
-            // the password being too long
-            .map_err(|_| ClientError::PasswordTooLong)?,
+            // SAFETY: the version, authentication type & action fields are hard-coded to valid values so the start constructor will not fail
+            .unwrap(),
         ))
     }
 
