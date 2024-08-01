@@ -19,6 +19,9 @@ mod tests;
 #[cfg(feature = "std")]
 mod owned;
 
+mod data;
+pub use data::{DataTooLong, PacketData};
+
 #[cfg(feature = "std")]
 pub use owned::ReplyOwned;
 
@@ -90,16 +93,13 @@ pub struct Start<'packet> {
     action: Action,
     authentication: AuthenticationContext,
     user_information: UserInformation<'packet>,
-    data: Option<&'packet [u8]>,
+    data: Option<PacketData<'packet>>,
 }
 
 /// Error returned when attempting to construct an invalid start packet body.
 #[non_exhaustive]
 #[derive(Debug, PartialEq, Eq)]
 pub enum BadStart {
-    /// Data field was too long to encode.
-    DataTooLong,
-
     /// Authentication type was not set, which is invalid for authentication packets.
     AuthTypeNotSet,
 
@@ -114,7 +114,6 @@ pub enum BadStart {
 impl fmt::Display for BadStart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DataTooLong => write!(f, "data field too long to encode in a single byte"),
             Self::AuthTypeNotSet => write!(
                 f,
                 "authentication type must be set for authentication packets"
@@ -132,12 +131,9 @@ impl<'packet> Start<'packet> {
         action: Action,
         authentication: AuthenticationContext,
         user_information: UserInformation<'packet>,
-        data: Option<&'packet [u8]>,
+        data: Option<PacketData<'packet>>,
     ) -> Result<Self, BadStart> {
-        // ensure data length is small enough to be properly encoded without truncation
-        if data.map_or(false, |slice| u8::try_from(slice.len()).is_err()) {
-            Err(BadStart::DataTooLong)
-        } else if authentication.authentication_type == AuthenticationType::NotSet {
+        if authentication.authentication_type == AuthenticationType::NotSet {
             // authentication type must be set in an authentication start packet
             Err(BadStart::AuthTypeNotSet)
         } else if !Self::action_and_type_compatible(authentication.authentication_type, action) {
@@ -205,7 +201,7 @@ impl Serialize for Start<'_> {
             + AuthenticationContext::WIRE_SIZE
             + self.user_information.wire_size()
             + 1 // extra byte to include length of data
-            + self.data.map_or(0, <[u8]>::len)
+            + self.data.as_ref().map_or(0, |data| data.as_bytes().len())
     }
 
     fn serialize_into_buffer(&self, buffer: &mut [u8]) -> Result<usize, SerializeError> {
@@ -231,16 +227,16 @@ impl Serialize for Start<'_> {
 
             // data starts after the end of the user information values
             let data_start = 8 + user_info_written_len;
-            if let Some(data) = self.data {
+            if let Some(data) = self.data.as_ref() {
                 let data_len = data.len();
 
                 // length is verified to fit in a u8 in new(), but verify anyways
-                buffer[7] = data_len.try_into()?;
+                buffer[7] = data.len();
 
                 // copy over packet data
-                buffer[data_start..data_start + data_len].copy_from_slice(data);
+                buffer[data_start..data_start + data_len as usize].copy_from_slice(data.as_bytes());
 
-                total_bytes_written += data_len;
+                total_bytes_written += data_len as usize;
             } else {
                 // set data_len field to 0; no data has to be copied to the data section of the packet
                 buffer[7] = 0;

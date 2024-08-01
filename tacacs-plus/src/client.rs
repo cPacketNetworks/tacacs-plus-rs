@@ -3,12 +3,10 @@
 use std::sync::Arc;
 
 use byteorder::{ByteOrder, NetworkEndian};
-use futures::io;
 use futures::lock::Mutex;
 use futures::{AsyncRead, AsyncReadExt};
 use futures::{AsyncWrite, AsyncWriteExt};
 use rand::Rng;
-use thiserror::Error;
 
 use tacacs_plus_protocol as protocol;
 use tacacs_plus_protocol::authentication;
@@ -26,6 +24,9 @@ pub use response::{AuthenticationResponse, ResponseStatus};
 mod context;
 pub use context::{ContextBuilder, SessionContext};
 
+mod error;
+pub use error::ClientError;
+
 /// A TACACS+ client.
 #[derive(Clone)]
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
@@ -34,71 +35,6 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
 
     /// The shared secret used for packet obfuscation, if provided.
     secret: Option<Vec<u8>>,
-}
-
-/// An error during a TACACS+ exchange.
-#[non_exhaustive]
-#[derive(Debug, Error)]
-pub enum ClientError {
-    /// An error occurred when reading/writing a packet.
-    #[error(transparent)]
-    IOError(#[from] io::Error),
-
-    /// TACACS+ protocol error, e.g. an authentication failure.
-    #[error("error in TACACS+ protocol exchange")]
-    ProtocolError {
-        /// The data received from the server.
-        data: Vec<u8>,
-
-        /// The message sent by the server.
-        message: String,
-    },
-
-    /// TACACS+ protocol error, as reported from a server during authentication.
-    #[error("error when performing TACACS+ authentication")]
-    AuthenticationError {
-        /// The status returned from the server, which will not be `Pass` or `Fail`.
-        status: authentication::Status,
-
-        /// The data received from the server.
-        data: Vec<u8>,
-
-        /// The message sent by the server.
-        message: String,
-    },
-
-    /// Error when serializing a packet to the wire.
-    #[error(transparent)]
-    SerializeError(#[from] protocol::SerializeError),
-
-    /// Invalid packet received from a server.
-    #[error("invalid packet received from server: {0}")]
-    InvalidPacketReceived(#[from] protocol::DeserializeError),
-
-    /// The provided authentication password's length exceeded the valid range (i.e., 0 to `u8::MAX`).
-    #[error("authentication password was longer than 255 bytes")]
-    PasswordTooLong,
-
-    /// Context had an invalid field.
-    #[error("session context had invalid field(s)")]
-    InvalidContext,
-
-    /// Sequence number in reply did not match what was expected.
-    #[error("sequence number mismatch: expected {expected}, got {actual}")]
-    SequenceNumberMismatch {
-        /// The packet sequence number expected from the server.
-        expected: u8,
-        /// The actual packet sequence number received from the server.
-        actual: u8,
-    },
-
-    /// Sequence number overflowed in session.
-    ///
-    /// This termination is required per [section 4.1 of RFC8907].
-    ///
-    /// [section 4.1 of RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.1-13.2.1
-    #[error("sequence numberflow overflowed maximum, so session was terminated")]
-    SequenceNumberOverflow,
 }
 
 /// The type of authentication used for a given session.
@@ -231,7 +167,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     service: AuthenticationService::Login,
                 },
                 context.as_user_information()?,
-                Some(password.as_bytes()),
+                Some(password.as_bytes().try_into()?),
             )
             // NOTE: The only possible `BadStart` variant passed to this function is `DataTooLong`,
             // since the authentication type & protocol version are guaranteed to be valid due to
@@ -245,7 +181,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         &self,
         context: &'packet SessionContext,
         password: &'packet str,
-        data_buffer: &'packet mut Vec<u8>,
     ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
         use md5::{Digest, Md5};
 
@@ -267,10 +202,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // "the data field is a concatenation of the PPP id, the challenge, and the response"
         // RFC8907 section 5.4.2.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.2.3-2
-        data_buffer.clear();
-        data_buffer.push(ppp_id);
-        data_buffer.extend(challenge.as_bytes());
-        data_buffer.extend(response);
+        let mut data = vec![ppp_id];
+        data.extend(challenge.as_bytes());
+        data.extend(response);
 
         Ok(Packet::new(
             self.make_header(1, MinorVersion::V1),
@@ -282,7 +216,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     service: AuthenticationService::Login,
                 },
                 context.as_user_information()?,
-                Some(data_buffer),
+                Some(data.try_into()?),
             )
             // NOTE: as with PAP authentication, the only possible error from the start constructor results from
             // the password being too long
@@ -301,12 +235,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // TODO: owned start packet variant? having to pass data_buffer is a bit annoying
         // could also do enum for data field for owned/borrowed & #[cfg(std)] a variant
-        let mut data_buffer = Vec::new();
         let start_packet = match authentication_type {
             AuthenticationType::Pap => self.pap_login_start_packet(&context, password),
-            AuthenticationType::Chap => {
-                self.chap_login_start_packet(&context, password, &mut data_buffer)
-            }
+            AuthenticationType::Chap => self.chap_login_start_packet(&context, password),
         }?;
 
         // block expression is used here to ensure that the connection mutex is only locked during communication

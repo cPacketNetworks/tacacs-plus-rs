@@ -67,7 +67,12 @@ fn serialize_start_with_data() {
             FieldText::assert("10.0.2.24"),
         )
         .expect("user information should be valid"),
-        Some("some test data with ✨ unicode ✨".as_bytes()),
+        Some(
+            "some test data with ✨ unicode ✨"
+                .as_bytes()
+                .try_into()
+                .unwrap(),
+        ),
     )
     .expect("start construction should have succeeded");
 
@@ -100,25 +105,13 @@ fn serialize_start_with_data() {
 }
 
 #[test]
-fn serialize_start_data_too_long() {
+fn start_data_too_long() {
     let long_data = [0x2a; 256];
-    let start_body = Start::new(
-        Action::Login,
-        AuthenticationContext {
-            privilege_level: PrivilegeLevel::new(5).expect("privilege level 5 should be valid"),
-            authentication_type: AuthenticationType::Ascii,
-            service: AuthenticationService::Nasi,
-        },
-        UserInformation::new(
-            "invalid",
-            FieldText::assert("theport"),
-            FieldText::assert("somewhere"),
-        )
-        .expect("user information should be valid"),
-        Some(&long_data),
-    );
 
-    assert_eq!(start_body, Err(BadStart::DataTooLong),);
+    assert_eq!(
+        PacketData::try_from(long_data.as_slice()),
+        Err(DataTooLong(()))
+    );
 }
 
 #[test]
@@ -145,7 +138,7 @@ fn serialize_full_start_packet() {
             FieldText::assert("192.168.23.10"),
         )
         .unwrap(),
-        Some(b"E"),
+        Some(b"E".as_slice().try_into().unwrap()),
     )
     .expect("start construction should have succeeded");
 
