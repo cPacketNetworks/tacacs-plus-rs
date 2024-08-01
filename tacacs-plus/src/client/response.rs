@@ -1,7 +1,7 @@
 use tacacs_plus_protocol::authentication;
 
 #[doc(hidden)]
-pub struct BadStatus;
+pub struct BadStatus(pub(super) authentication::Status);
 
 // NOTE (for future): we could expose the same status for authentication/authorization,
 // but accounting is called success instead so reusing that wouldn't be strictly correct
@@ -32,7 +32,7 @@ impl TryFrom<authentication::Status> for AuthStatus {
             // (see section 5.4.3 of RFC 8907: https://www.rfc-editor.org/rfc/rfc8907.html#section-5.4.3-6)
             authentication::Status::Restart => Ok(AuthStatus::Fail),
 
-            _ => Err(BadStatus),
+            bad_status => Err(BadStatus(bad_status)),
         }
     }
 }
@@ -40,12 +40,12 @@ impl TryFrom<authentication::Status> for AuthStatus {
 /// A server response from an authentication session.
 #[must_use = "At the very least, the authentication status must be checked, as an authentication failure is not reported as an error."]
 #[derive(PartialEq, Eq, Debug)]
-pub struct AuthResponse {
+pub struct AuthenticationResponse {
     /// Whether the authentication attempt passed or failed.
     pub status: AuthStatus,
 
     /// The message returned by the server, intended to be displayed to the user.
-    pub server_message: String,
+    pub message: String,
 
     /// Extra data returned by the server.
     pub data: Vec<u8>,

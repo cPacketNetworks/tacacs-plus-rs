@@ -21,7 +21,7 @@ mod inner;
 pub use inner::{ConnectionFactory, ConnectionFuture};
 
 mod response;
-pub use response::{AuthResponse, AuthStatus};
+pub use response::{AuthStatus, AuthenticationResponse};
 
 mod context;
 pub use context::{ContextBuilder, SessionContext};
@@ -54,6 +54,19 @@ pub enum ClientError {
         message: String,
     },
 
+    /// TACACS+ protocol error, as reported from a server during authentication.
+    #[error("error when performing TACACS+ authentication")]
+    AuthenticationError {
+        /// The status returned from the server, which will not be `Pass` or `Fail`.
+        status: authentication::Status,
+
+        /// The data received from the server.
+        data: Vec<u8>,
+
+        /// The message sent by the server.
+        message: String,
+    },
+
     /// Error when serializing a packet to the wire.
     #[error(transparent)]
     SerializeError(#[from] protocol::SerializeError),
@@ -67,9 +80,27 @@ pub enum ClientError {
     #[error("invalid packet field")]
     InvalidPacketField,
 
-    /// Context had invalid field.
+    /// Context had an invalid field.
     #[error("session context had invalid field(s)")]
     InvalidContext,
+
+    /// Sequence number in reply did not match what was expected.
+    #[error("sequence number mismatch: expected {expected}, got {actual}")]
+    SequenceNumberMismatch {
+        /// The packet sequence number expected from the server.
+        expected: u8,
+        /// The actual packet sequence number received from the server.
+        actual: u8,
+    },
+
+    // TODO: check for this if ASCII is implemented? use u8::checked_add
+    /// Sequence number overflowed in session.
+    ///
+    /// This termination is required per [section 4.1 of RFC8907].
+    ///
+    /// [section 4.1 of RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.1-13.2.1
+    #[error("sequence numberflow overflowed maximum, so session was terminated")]
+    SequenceNumberOverflow,
 }
 
 /// The type of authentication used for a given session.
@@ -127,7 +158,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     }
 
     /// Receives a packet from the client's connection.
-    async fn receive_packet<B>(&self, connection: &mut S) -> Result<Packet<B>, ClientError>
+    async fn receive_packet<B>(
+        &self,
+        connection: &mut S,
+        expected_sequence_number: u8,
+    ) -> Result<Packet<B>, ClientError>
     where
         B: PacketBody + for<'a> protocol::Deserialize<'a>,
     {
@@ -149,7 +184,15 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             Packet::deserialize_unobfuscated(buffer)?
         };
 
-        Ok(deserialize_result)
+        let actual_sequence_number = deserialize_result.header().sequence_number();
+        if actual_sequence_number == expected_sequence_number {
+            Ok(deserialize_result)
+        } else {
+            Err(ClientError::SequenceNumberMismatch {
+                expected: expected_sequence_number,
+                actual: actual_sequence_number,
+            })
+        }
     }
 
     fn make_header(&self, sequence_number: u8, minor_version: MinorVersion) -> HeaderInfo {
@@ -208,7 +251,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         context: SessionContext,
         password: &str,
         authentication_type: AuthenticationType,
-    ) -> Result<AuthResponse, ClientError> {
+    ) -> Result<AuthenticationResponse, ClientError> {
         use protocol::authentication::ReplyOwned;
 
         let start_packet = match authentication_type {
@@ -219,16 +262,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         let reply = {
             let mut inner = self.inner.lock().await;
 
-            inner.ensure_connection().await?;
-
-            // SAFETY: ensure_connection() ensures that inner.connection is non-None (or otherwise returns err, which will lead to an early exit)
-            let connection = inner.connection.as_mut().unwrap();
+            let connection = inner.connection().await?;
 
             self.write_packet(connection, start_packet).await?;
 
             // response: whether authentication succeeded
-            // TODO: check sequence number?
-            let reply = self.receive_packet::<ReplyOwned>(connection).await?;
+            let reply = self.receive_packet::<ReplyOwned>(connection, 2).await?;
 
             inner.set_internal_single_connect_status(reply.header());
             inner.post_session_cleanup(reply.body().status).await?;
@@ -236,18 +275,21 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             reply
         };
 
-        AuthStatus::try_from(reply.body().status)
-            .map(|status| AuthResponse {
+        let reply_status = AuthStatus::try_from(reply.body().status);
+        let message = reply.body().server_message.clone();
+        let data = reply.body().data.clone();
+
+        match reply_status {
+            Ok(status) => Ok(AuthenticationResponse {
                 status,
-                server_message: reply.body().server_message.clone(),
-                data: reply.body().data.clone(),
-            })
-            .map_err(|_| {
-                // data & message are the only relevant fields of an error response
-                ClientError::ProtocolError {
-                    data: reply.body().data.clone(),
-                    message: reply.body().server_message.clone(),
-                }
-            })
+                message,
+                data,
+            }),
+            Err(response::BadStatus(status)) => Err(ClientError::AuthenticationError {
+                status,
+                data,
+                message,
+            }),
+        }
     }
 }

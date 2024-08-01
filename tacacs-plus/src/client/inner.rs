@@ -55,7 +55,7 @@ pub type ConnectionFactory<S> = Box<dyn Fn() -> ConnectionFuture<S> + Send>;
 
 pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
     /// The underlying (TCP per RFC8907) connection for this client, if present.
-    pub(super) connection: Option<S>,
+    connection: Option<S>,
 
     /// A factory for opening new connections internally, so the library consumer doesn't have to.
     ///
@@ -86,14 +86,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         }
     }
 
-    pub(super) async fn ensure_connection(&mut self) -> io::Result<()> {
+    /// NOTE: This function will open a new connection with the stored factory as needed.
+    pub(super) async fn connection(&mut self) -> io::Result<&mut S> {
         // obtain new connection from factory
         if self.connection.is_none() {
             let new_conn = (self.connection_factory)().await?;
             self.connection = Some(new_conn);
         }
 
-        Ok(())
+        // SAFETY: self.connection is guaranteed to be non-None by the above check
+        let conn = self.connection.as_mut().unwrap();
+
+        Ok(conn)
     }
 
     /// NOTE: This function is separate from post_session_cleanup since it has to be done after the first reply/second packet
