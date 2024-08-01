@@ -13,7 +13,7 @@ rand = "0.8.5"
 thiserror = "1.0.63"
 tacacs-plus-protocol = { version = "0.1.0", path = "../tacacs-plus-protocol" }
 byteorder = "1.5.0"
-md-5 = { workspace = true, features = ["std"] }
+md-5 = "0.10.6"
 uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
