@@ -38,7 +38,8 @@ jobs:
       - name: Set up Rust artifact cache
         uses: actions/cache@v4
         with:
-          key: cargodeps-${{ matrix.features}}-${{ hashFiles('**/Cargo.toml') }}
+          # cache can be shared between crates since it's workspace-global, still partition by features though
+          key: cargodeps-${{ matrix.features }}-${{ hashFiles('**/Cargo.toml') }}
           # Cargo paths came from https://doc.rust-lang.org/cargo/guide/cargo-home.html#caching-the-cargo-home-in-ci
           # (we don't `cargo install` anything so I think it should be fine to ignore the other paths)
           path: |
@@ -46,7 +47,12 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target
-      - name: Build crate
-        run: cargo build --verbose $FEATURE_FLAGS
-      - name: Run tests
-        run: cargo test --verbose $FEATURE_FLAGS
+      - name: Build & test protocol crate
+        run: |
+          cargo build --package tacacs-plus-protocol --verbose $FEATURE_FLAGS
+          cargo test --package tacacs-plus-protocol --verbose $FEATURE_FLAGS
+      - name: Build & test client crate
+        if: ${{ matrix.features == 'std' }}
+        run: |
+          cargo build --package tacacs-plus --verbose
+          cargo test --package tacacs-plus --verbose

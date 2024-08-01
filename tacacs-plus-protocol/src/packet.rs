@@ -6,7 +6,6 @@ use getset::Getters;
 use md5::{Digest, Md5};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
-use super::owned::FromBorrowedBody;
 use super::{Deserialize, PacketBody, Serialize};
 use super::{DeserializeError, SerializeError};
 
@@ -282,7 +281,7 @@ impl<'raw, B: PacketBody + Deserialize<'raw>> Packet<B> {
 
     /// Converts this packet to one with a body that owns its fields.
     #[cfg(feature = "std")]
-    pub fn to_owned<'b, O: FromBorrowedBody<Borrowed<'b> = B>>(&self) -> Packet<O> {
+    pub fn to_owned<'b, O: super::owned::FromBorrowedBody<Borrowed<'b> = B>>(&self) -> Packet<O> {
         Packet {
             header: self.header.clone(),
             body: O::from_borrowed(&self.body),
