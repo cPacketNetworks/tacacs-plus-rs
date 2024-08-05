@@ -10,6 +10,37 @@ pub enum ResponseStatus {
     Failure,
 }
 
+/// A server response from an authentication session.
+#[must_use = "Authentication failure is not reported as an error, so the status field must be checked."]
+#[derive(PartialEq, Eq, Debug)]
+pub struct AuthenticationResponse {
+    /// Whether the authentication attempt passed or failed.
+    pub status: ResponseStatus,
+
+    /// The message returned by the server, intended to be displayed to the user.
+    pub message: String,
+
+    /// Extra data returned by the server.
+    pub data: Vec<u8>,
+}
+
+/// A TACACS+ server response from an authorization session.
+#[must_use = "The status of the response should be checked, since a failure is not reported as an error."]
+#[derive(PartialEq, Eq, Debug)]
+pub struct AuthorizationResponse {
+    /// Whether the authorization attempt succeeded.
+    pub status: ResponseStatus,
+
+    /// The arguments returned from the server, if any.
+    pub arguments: Vec<ArgumentOwned>,
+
+    /// A message that may be presented to a user connected to this client. (`server_msg` from RFC8907)
+    pub user_message: String,
+
+    /// Administrative console message from the server. (`data` from RFC8907)
+    pub admin_message: String,
+}
+
 #[doc(hidden)]
 pub struct BadAuthenticationStatus(pub(super) authentication::Status);
 
@@ -51,42 +82,12 @@ impl TryFrom<authorization::Status> for ResponseStatus {
 
             authorization::Status::Fail => Ok(ResponseStatus::Failure),
 
-            // treat follow status as failure like authentication case, although RFC is less clear about this
+            // treat follow status as failure like in authentication
+            // this might not be required by the RFC but is done for consistency
             #[allow(deprecated)]
             authorization::Status::Follow => Ok(ResponseStatus::Failure),
 
             bad_status => Err(BadAuthorizationStatus(bad_status)),
         }
     }
-}
-
-/// A server response from an authentication session.
-#[must_use = "Authentication failure is not reported as an error, so the status field must be checked."]
-#[derive(PartialEq, Eq, Debug)]
-pub struct AuthenticationResponse {
-    /// Whether the authentication attempt passed or failed.
-    pub status: ResponseStatus,
-
-    /// The message returned by the server, intended to be displayed to the user.
-    pub message: String,
-
-    /// Extra data returned by the server.
-    pub data: Vec<u8>,
-}
-
-/// A TACACS+ server response from an authorization session.
-#[must_use = "The status of the response should be checked, since a failure is not reported as an error."]
-#[derive(PartialEq, Eq, Debug)]
-pub struct AuthorizationResponse {
-    /// Whether the authorization attempt succeeded.
-    pub status: ResponseStatus,
-
-    /// The arguments returned from the server, if any.
-    pub arguments: Vec<ArgumentOwned>,
-
-    /// A message that may be presented to a user connected to this client. (`server_msg` from RFC8907)
-    pub user_message: String,
-
-    /// Administrative console message from the server. (`data` from RFC8907)
-    pub admin_message: String,
 }

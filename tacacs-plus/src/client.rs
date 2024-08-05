@@ -294,12 +294,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     ) -> Result<AuthorizationResponse, ClientError> {
         use authorization::ReplyOwned;
 
+        // protocol crate requires borrowed Argument<'_> type, so convert accordingly
         let borrowed_args = arguments
             .iter()
             .map(ArgumentOwned::borrowed)
             .collect::<Result<Vec<_>, _>>()?;
 
         let request_packet = Packet::new(
+            // use default minor version, since there's no reason to use v1 outside of authentication
             self.make_header(1, MinorVersion::Default),
             authorization::Request::new(
                 // TODO: allow consumer to specify auth method? we're probably not going to support any other methods though
@@ -314,6 +316,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             ),
         );
 
+        // the inner mutex is locked within a block to ensure it's only locked as long as necessary
         let reply = {
             let mut inner = self.inner.lock().await;
             let connection = inner.connection().await?;
@@ -322,6 +325,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
             let reply: Packet<ReplyOwned> = self.receive_packet(connection, 2).await?;
 
+            // update inner state based on response
             inner.set_internal_single_connect_status(reply.header());
             inner
                 .post_session_cleanup(reply.body().status == authorization::Status::Error)
@@ -330,12 +334,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
             reply
         };
 
+        let packet_status = reply.body().status;
         let user_message = reply.body().server_message.clone();
         let admin_message = reply.body().data.clone();
 
-        match ResponseStatus::try_from(reply.body().status) {
-            // TODO: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.2-3.6.2
-            // we treat FOLLOW as failure anyways though so it might be irrelevant?
+        match ResponseStatus::try_from(packet_status) {
             Ok(status) => Ok(AuthorizationResponse {
                 status,
                 arguments: reply.body().arguments.clone(),
