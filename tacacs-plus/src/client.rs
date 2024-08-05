@@ -267,20 +267,20 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         };
 
         let reply_status = ResponseStatus::try_from(reply.body().status);
-        let message = reply.body().server_message.clone();
+        let user_message = reply.body().server_message.clone();
         let data = reply.body().data.clone();
 
         match reply_status {
             Ok(status) => Ok(AuthenticationResponse {
                 status,
-                message,
+                user_message,
                 data,
             }),
             Err(response::BadAuthenticationStatus(status)) => {
                 Err(ClientError::AuthenticationError {
                     status,
                     data,
-                    message,
+                    user_message,
                 })
             }
         }

@@ -32,7 +32,7 @@ pub enum ClientError {
         data: Vec<u8>,
 
         /// The message sent by the server.
-        message: String,
+        user_message: String,
     },
 
     // TODO: more descriptive error message
