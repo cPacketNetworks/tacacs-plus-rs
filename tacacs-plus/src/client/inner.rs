@@ -5,7 +5,7 @@ use std::io;
 use std::pin::Pin;
 
 use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
-use tacacs_plus_protocol::{authentication::Status, HeaderInfo, PacketFlags};
+use tacacs_plus_protocol::{HeaderInfo, PacketFlags};
 
 /// A (pinned, boxed) future that returns a client connection or an error, as returned from a [`ConnectionFactory`].
 pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>>>>;
@@ -112,9 +112,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         }
     }
 
-    pub(super) async fn post_session_cleanup(&mut self, status: Status) -> io::Result<()> {
+    pub(super) async fn post_session_cleanup(&mut self, status_is_error: bool) -> io::Result<()> {
         // close session if server doesn't agree to SINGLE_CONNECTION negotiation, or if an error occurred (since a mutex guarantees only one session is going at a time)
-        if !self.single_connection_established || status == Status::Error {
+        if !self.single_connection_established || status_is_error {
             // SAFETY: ensure_connection should be called before this function, and guarantees inner.connection is non-None
             let mut connection = self.connection.take().unwrap();
             connection.close().await?;

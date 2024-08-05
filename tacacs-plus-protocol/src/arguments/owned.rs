@@ -1,10 +1,10 @@
 use std::borrow::ToOwned;
 use std::string::String;
 
-use super::Argument;
+use super::{Argument, InvalidArgument};
 
 /// An argument that owns its name and value.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ArgumentOwned {
     /// The name of the argument.
     pub name: String,
@@ -24,5 +24,24 @@ impl Argument<'_> {
             value: self.value.as_ref().to_owned(),
             required: self.required,
         }
+    }
+}
+
+impl ArgumentOwned {
+    /// Returns an [`Argument`](super::Argument) whose fields are borrowed from this owned argument.
+    ///
+    /// This conversion can fail if the name/value fields are not printable ASCII.
+    pub fn borrowed(&self) -> Result<Argument<'_>, InvalidArgument> {
+        Argument::new(
+            self.name
+                .as_str()
+                .try_into()
+                .map_err(|_| InvalidArgument::BadText)?,
+            self.value
+                .as_str()
+                .try_into()
+                .map_err(|_| InvalidArgument::BadText)?,
+            self.required,
+        )
     }
 }

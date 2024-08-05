@@ -16,8 +16,8 @@ RUN ./configure && make && make install
 RUN ldconfig
 
 # run TACACS+ daemon on container start on port 5555
-# the -G flag makes it run in the foreground, which prevents the container from exiting immediately
-ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
+# -G => run in foreground, -g => single-threaded
+ENTRYPOINT ["tac_plus", "-p", "5555", "-G", "-g"]
 
 EXPOSE 5555
 
@@ -30,7 +30,15 @@ key = "this shouldn't be hardcoded"
 user = someuser {
     pap = cleartext hunter2
     chap = cleartext "something different"
+
+    service = authorizeme {
+        number = 42
+        optional thing = "not important"
+    }
 }
 EOF
 
-CMD ["-C", "/srv/tac_plus/tac_plus.conf"]
+# potential flags of interest:
+# -S => allow for clients to negotiate single connection mode
+# -d => specify debug level (as bitflag values ORed together)
+CMD ["-C", "/srv/tac_plus/tac_plus.conf", "-S"]

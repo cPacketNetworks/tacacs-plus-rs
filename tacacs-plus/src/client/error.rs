@@ -2,7 +2,7 @@ use futures::io;
 use thiserror::Error;
 
 use tacacs_plus_protocol as protocol;
-use tacacs_plus_protocol::authentication;
+use tacacs_plus_protocol::{authentication, authorization};
 
 /// An error during a TACACS+ exchange.
 #[non_exhaustive]
@@ -35,6 +35,20 @@ pub enum ClientError {
         message: String,
     },
 
+    // TODO: more descriptive error message
+    /// Error when performing authorization.
+    #[error("error when performing TACACS+ authorization")]
+    AuthorizationError {
+        /// The status received from the server.
+        status: authorization::Status,
+
+        /// The message returned by the server, to be displayed to the user.
+        user_message: String,
+
+        /// The administrative log message returned from the server.
+        admin_message: String,
+    },
+
     /// Error when serializing a packet to the wire.
     #[error(transparent)]
     SerializeError(#[from] protocol::SerializeError),
@@ -46,6 +60,14 @@ pub enum ClientError {
     /// The provided authentication password's length exceeded the valid range (i.e., 0 to `u8::MAX`).
     #[error("authentication password was longer than 255 bytes")]
     PasswordTooLong,
+
+    /// Too many arguments were provided to fit in a packet.
+    #[error("only up to 255 (i.e., `u8::MAX`) arguments fit in a packet")]
+    TooManyArguments,
+
+    /// An invalid argument was provided.
+    #[error(transparent)]
+    InvalidArgument(#[from] protocol::InvalidArgument),
 
     /// Context had an invalid field.
     #[error("session context had invalid field(s)")]
