@@ -18,7 +18,7 @@ pub struct AuthenticationResponse {
     pub status: ResponseStatus,
 
     /// The message returned by the server, intended to be displayed to the user.
-    pub message: String,
+    pub user_message: String,
 
     /// Extra data returned by the server.
     pub data: Vec<u8>,
