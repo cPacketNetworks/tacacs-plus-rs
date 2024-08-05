@@ -43,8 +43,12 @@ pub enum ClientError {
     #[error("invalid packet received from server: {0}")]
     InvalidPacketReceived(#[from] protocol::DeserializeError),
 
-    /// The provided authentication password's length exceeded the valid range (i.e., 0 to `u8::MAX`).
-    #[error("authentication password was longer than 255 bytes")]
+    /// Supplied data could not be encoded into a packet.
+    #[error("packet could not be constructed from provided data")]
+    InvalidPacketData,
+
+    /// The provided authentication password's length exceeded the valid range (i.e., 0 to `u8::MAX`, less some other data stored in the same field).
+    #[error("authentication data field (including password) was longer than 255 bytes")]
     PasswordTooLong,
 
     /// Context had an invalid field.

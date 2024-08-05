@@ -156,8 +156,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         context: &'packet SessionContext,
         password: &'packet str,
     ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
+        use protocol::authentication::BadStart;
+
         Ok(Packet::new(
             // sequence number = 1 (first packet in session)
+            // also set minor version accordingly
             self.make_header(1, MinorVersion::V1),
             authentication::Start::new(
                 authentication::Action::Login,
@@ -169,8 +172,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 context.as_user_information()?,
                 Some(password.as_bytes().try_into()?),
             )
-            // SAFETY: the version, authentication type & saction fields are hard-coded to valid values so the start constructor will not fail
-            .unwrap(),
+            .map_err(|err| match err {
+                // SAFETY: the version, authentication type & saction fields are hard-coded to valid values so neither of these errors can occur
+                BadStart::AuthTypeNotSet | BadStart::IncompatibleActionAndType => unreachable!(),
+                // we have to have a catch-all case since BadStart is marked #[non_exhaustive]
+                _ => ClientError::InvalidPacketData,
+            })?,
         ))
     }
 
@@ -180,6 +187,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         password: &'packet str,
     ) -> Result<Packet<authentication::Start<'packet>>, ClientError> {
         use md5::{Digest, Md5};
+        use protocol::authentication::BadStart;
 
         // generate random PPP ID/challenge
         let ppp_id: u8 = rand::thread_rng().gen();
@@ -215,8 +223,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 context.as_user_information()?,
                 Some(data.try_into()?),
             )
-            // SAFETY: the version, authentication type & action fields are hard-coded to valid values so the start constructor will not fail
-            .unwrap(),
+            .map_err(|err| match err {
+                // SAFETY: the version, authentication type & action fields are hard-coded to valid values so the start constructor will not fail
+                BadStart::AuthTypeNotSet | BadStart::IncompatibleActionAndType => unreachable!(),
+                _ => ClientError::InvalidPacketData,
+            })?,
         ))
     }
 
