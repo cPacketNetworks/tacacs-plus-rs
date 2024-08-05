@@ -8,6 +8,9 @@ use futures::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tacacs_plus_protocol::{HeaderInfo, PacketFlags};
 
 /// A (pinned, boxed) future that returns a client connection or an error, as returned from a [`ConnectionFactory`].
+///
+/// This is roughly equivalent to the [`BoxFuture`](futures::future::BoxFuture) type in the `futures` crate, but without
+/// the lifetime parameter.
 pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>> + Send>>;
 
 /// An async factory that returns connections used by a [`Client`](super::Client).
