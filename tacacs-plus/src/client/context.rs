@@ -1,4 +1,4 @@
-use tacacs_plus_protocol::{PrivilegeLevel, UserInformation};
+use tacacs_plus_protocol::{AuthenticationMethod, PrivilegeLevel, UserInformation};
 
 use super::ClientError;
 
@@ -17,6 +17,7 @@ pub struct SessionContext {
     pub(super) port: String,
     pub(super) remote_address: String,
     pub(super) privilege_level: PrivilegeLevel,
+    authentication_method: Option<AuthenticationMethod>,
 }
 
 impl SessionContext {
@@ -34,6 +35,14 @@ impl SessionContext {
         )
         .ok_or(InvalidContext(()))
     }
+
+    /// Gets the authentication method for this context object, defaulting to [`NotSet`](tacacs_plus_protocol::AuthenticationMethod::NotSet).
+    ///
+    /// This should not be used within an authentication session.
+    pub(super) fn authentication_method(&self) -> AuthenticationMethod {
+        self.authentication_method
+            .unwrap_or(AuthenticationMethod::NotSet)
+    }
 }
 
 /// Builder for [`SessionContext`] objects.
@@ -42,6 +51,7 @@ pub struct ContextBuilder {
     port: String,
     remote_address: String,
     privilege_level: PrivilegeLevel,
+    authentication_method: Option<AuthenticationMethod>,
 }
 
 impl ContextBuilder {
@@ -52,6 +62,7 @@ impl ContextBuilder {
             port: String::from("rust_client"),
             remote_address: String::from("tacacs_plus_rs"),
             privilege_level: Default::default(),
+            authentication_method: None,
         }
     }
 
@@ -73,6 +84,14 @@ impl ContextBuilder {
         self
     }
 
+    /// Sets the authentication method of the resulting context.
+    ///
+    /// Note that this field is ignored in an authentication session.
+    pub fn auth_method(mut self, method: AuthenticationMethod) -> Self {
+        self.authentication_method = Some(method);
+        self
+    }
+
     /// Consumes this builder and turns it into a [`SessionContext`].
     pub fn build(self) -> SessionContext {
         SessionContext {
@@ -80,6 +99,7 @@ impl ContextBuilder {
             port: self.port,
             remote_address: self.remote_address,
             privilege_level: self.privilege_level,
+            authentication_method: self.authentication_method,
         }
     }
 }
