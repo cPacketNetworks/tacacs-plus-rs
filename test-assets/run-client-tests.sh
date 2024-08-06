@@ -6,8 +6,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # build server image & cache to GitHub Actions cache in CI
 # (the CI environment variable is always set while a workflow is running)
 if [ -v CI ]; then
+    # mode=max caches both Dockerfile stages, not just final one
     docker buildx build --tag tacacs-test-server \
-        # cache both Dockerfile stages, not just final one
         --cache-to type=gha,mode=max \
         --cache-from type=gha,mode=max \
         --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
