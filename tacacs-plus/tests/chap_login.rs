@@ -1,17 +1,14 @@
-use async_net::TcpStream;
-use futures::FutureExt;
+use futures::{FutureExt, TryFutureExt};
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 
 use tacacs_plus::client::{AuthenticationType, ConnectionFactory, ContextBuilder, ResponseStatus};
 use tacacs_plus::{Client, ClientError};
 use tacacs_plus_protocol::DeserializeError;
 
-#[test]
-fn chap_success() {
-    futures::executor::block_on(do_auth());
-}
-
-async fn do_auth() {
-    let factory: ConnectionFactory<_> = Box::new(|| TcpStream::connect("localhost:5555").boxed());
+#[async_std::test]
+async fn chap_success() {
+    let factory: ConnectionFactory<_> =
+        Box::new(|| async_std::net::TcpStream::connect("localhost:5555").boxed());
     let mut client = Client::new(factory, Some("very secure key that is super secret"));
 
     let context = ContextBuilder::new("someuser").build();
@@ -29,33 +26,32 @@ async fn do_auth() {
 
 #[test]
 fn chap_failure() {
-    futures::executor::block_on(fail_chap())
+    futures::executor::block_on(async {
+        let factory: ConnectionFactory<_> =
+            Box::new(|| async_net::TcpStream::connect("localhost:5555").boxed());
+        let mut client = Client::new(factory, Some("very secure key that is super secret"));
+
+        let context = ContextBuilder::new("paponly").build();
+        let response = client
+            .authenticate(context, "pass-word", AuthenticationType::Chap)
+            .await
+            .expect("couldn't complete CHAP authentication session");
+
+        assert_eq!(
+            response.status,
+            ResponseStatus::Failure,
+            "CHAP authentication shouldn't succeed against paponly user"
+        );
+    })
 }
 
-async fn fail_chap() {
-    let factory: ConnectionFactory<_> = Box::new(|| TcpStream::connect("localhost:5555").boxed());
-    let mut client = Client::new(factory, Some("very secure key that is super secret"));
-
-    let context = ContextBuilder::new("paponly").build();
-    let response = client
-        .authenticate(context, "pass-word", AuthenticationType::Chap)
-        .await
-        .expect("couldn't complete CHAP authentication session");
-
-    assert_eq!(
-        response.status,
-        ResponseStatus::Failure,
-        "CHAP authentication shouldn't succeed against paponly user"
-    );
-}
-
-#[test]
-fn key_unconfigured() {
-    futures::executor::block_on(no_key())
-}
-
-async fn no_key() {
-    let factory: ConnectionFactory<_> = Box::new(|| TcpStream::connect("localhost:5555").boxed());
+#[tokio::test]
+async fn key_unconfigured() {
+    let factory: ConnectionFactory<_> = Box::new(|| {
+        tokio::net::TcpStream::connect("localhost:5555")
+            .map_ok(TokioAsyncWriteCompatExt::compat_write)
+            .boxed()
+    });
 
     // don't configure a key
     // the type has to be annotated somewhere for generic reasons, since a bare None is ambiguous

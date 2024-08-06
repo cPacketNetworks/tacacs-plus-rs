@@ -1,4 +1,4 @@
-use async_net::TcpStream;
+use async_std::net::TcpStream;
 use futures::FutureExt;
 
 use tacacs_plus::client::ResponseStatus;
@@ -6,12 +6,8 @@ use tacacs_plus::client::{ConnectionFactory, ContextBuilder};
 use tacacs_plus::Client;
 use tacacs_plus_protocol::ArgumentOwned;
 
-#[test]
-fn authorize_success() {
-    futures::executor::block_on(do_authorization());
-}
-
-async fn do_authorization() {
+#[async_std::test]
+async fn authorize_success() {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
@@ -54,24 +50,10 @@ async fn do_authorization() {
         value: "not important".to_owned(),
         required: false
     }));
-
-    for argument in response.arguments {
-        let required_str = if argument.required {
-            "required"
-        } else {
-            "optional"
-        };
-
-        println!("{} = {} ({})", argument.name, argument.value, required_str);
-    }
 }
 
-#[test]
-fn authorize_fail() {
-    futures::executor::block_on(authorization_fail());
-}
-
-async fn authorization_fail() {
+#[async_std::test]
+async fn authorize_fail_wrong_argument_value() {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
