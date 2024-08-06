@@ -2,7 +2,8 @@ use async_net::TcpStream;
 use futures::FutureExt;
 
 use tacacs_plus::client::{AuthenticationType, ConnectionFactory, ContextBuilder, ResponseStatus};
-use tacacs_plus::Client;
+use tacacs_plus::{Client, ClientError};
+use tacacs_plus_protocol::DeserializeError;
 
 #[test]
 fn chap_success() {
@@ -61,8 +62,16 @@ async fn no_key() {
     let mut client = Client::new(factory, None::<&[u8]>);
 
     let context = ContextBuilder::new("someuser").build();
-    client
+    let error = client
         .authenticate(context, "something different", AuthenticationType::Chap)
         .await
         .expect_err("packet decoding should have failed without the right key configured");
+
+    assert!(
+        matches!(
+            error,
+            ClientError::InvalidPacketReceived(DeserializeError::IncorrectUnencryptedFlag)
+        ),
+        "got wrong error type; expected IncorrectUnencryptedFlag, but got {error:?}"
+    );
 }
