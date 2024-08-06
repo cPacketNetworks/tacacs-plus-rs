@@ -14,8 +14,8 @@ RUN ./configure && make && make install
 RUN ldconfig
 
 # run TACACS+ daemon listening on port 5555
-# -G => run in foreground, -g => single-threaded (so log messages are printed to stderr)
-ENTRYPOINT ["tac_plus", "-p", "5555", "-G", "-g"]
+# -G => run in foreground
+ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
 
 EXPOSE 5555
 
@@ -42,9 +42,17 @@ user = paponly {
 user = followme {
     opap = cleartext outbound
 }
+
+user = DEFAULT {
+    service = guest {
+        priv-lvl = 0
+        authenticated = false
+    }
+}
 EOF
 
 # potential flags of interest:
 # -S => allow for clients to negotiate single connection mode
+# -g => single-threaded (logs print to stderr; ignores -S flag)
 # -d => specify debug level (as bitflag values ORed together)
 CMD ["-C", "/srv/tac_plus/tac_plus.conf", "-S"]

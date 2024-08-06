@@ -123,7 +123,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
             // reset connection status "flags", as a new one will be opened for the next session
             self.single_connection_established = false;
             self.first_session_completed = false;
-        } else {
+        } else if !self.first_session_completed {
             // connection was not closed, so we indicate that a session was completed on this connection to ignore
             // the single connection mode flag for future sessions on this connection, as required by RFC 8907.
             // (see section 4.3: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.3-5)

@@ -13,7 +13,7 @@ use tacacs_plus_protocol as protocol;
 use tacacs_plus_protocol::Serialize;
 use tacacs_plus_protocol::{authentication, authorization};
 use tacacs_plus_protocol::{ArgumentOwned, Arguments};
-use tacacs_plus_protocol::{AuthenticationContext, AuthenticationMethod, AuthenticationService};
+use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService};
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
 

@@ -4,7 +4,7 @@ use futures::FutureExt;
 use tacacs_plus::client::ResponseStatus;
 use tacacs_plus::client::{ConnectionFactory, ContextBuilder};
 use tacacs_plus::Client;
-use tacacs_plus_protocol::ArgumentOwned;
+use tacacs_plus_protocol::{ArgumentOwned, AuthenticationMethod};
 
 #[async_std::test]
 async fn authorize_success() {
@@ -103,5 +103,43 @@ async fn authorize_fail_wrong_argument_value() {
         response.status,
         ResponseStatus::Failure,
         "authorization succeeded when it shouldn't have, full response: {response:?}"
+    );
+}
+
+#[async_std::test]
+async fn guest_authorize() {
+    let factory: ConnectionFactory<TcpStream> =
+        Box::new(|| TcpStream::connect("localhost:5555").boxed());
+    let mut client = Client::new(factory, Some("very secure key that is super secret"));
+
+    let arguments = vec![ArgumentOwned {
+        name: "service".to_owned(),
+        value: "guest".to_owned(),
+        required: true,
+    }];
+
+    let context = ContextBuilder::new("")
+        .auth_method(AuthenticationMethod::Guest)
+        .build();
+    let response = client
+        .authorize(context, arguments)
+        .await
+        .expect("couldn't complete authorization session");
+
+    assert_eq!(response.status, ResponseStatus::Success);
+    assert_eq!(
+        response.arguments,
+        [
+            ArgumentOwned {
+                name: "priv-lvl".to_owned(),
+                value: "0".to_owned(),
+                required: true
+            },
+            ArgumentOwned {
+                name: "authenticated".to_owned(),
+                value: "false".to_owned(),
+                required: true
+            }
+        ]
     );
 }
