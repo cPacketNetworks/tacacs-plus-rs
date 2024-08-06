@@ -1,4 +1,4 @@
-FROM debian:12-slim as base
+FROM debian:12-slim AS base
 
 # build dependencies for tac_plus
 # we have to build from source since the tacacs+ package was removed from repos after Debian Buster
