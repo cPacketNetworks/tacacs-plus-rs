@@ -44,12 +44,29 @@ async fn authorize_success() {
         "authorization failed, full response: {response:?}"
     );
 
-    // ensure argument was properly replaced
-    assert!(response.arguments.contains(&ArgumentOwned {
-        name: "thing".to_owned(),
-        value: "not important".to_owned(),
-        required: false
-    }));
+    // the Shrubbery daemon returns all arguments sent & set server side
+    // if any values are replaced (as is the case here)
+    assert_eq!(
+        response.arguments,
+        [
+            ArgumentOwned {
+                name: "service".to_owned(),
+                value: "authorizeme".to_owned(),
+                required: true,
+            },
+            ArgumentOwned {
+                name: "thing".to_owned(),
+                value: "not important".to_owned(),
+                required: false
+            },
+            // arguments set on server are appended to the provided list (I believe)
+            ArgumentOwned {
+                name: "number".to_owned(),
+                value: "42".to_owned(),
+                required: true,
+            },
+        ]
+    );
 }
 
 #[async_std::test]
