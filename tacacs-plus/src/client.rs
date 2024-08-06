@@ -58,9 +58,19 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// than 16 characters in length. This constructor does not check for that, but
     /// consider yourself warned.
     ///
+    /// If an incorrect secret is provided to this constructor, you might notice
+    /// [`ClientError::InvalidPacketReceived`] errors when attempting different TACACS+ operations.
+    /// Specific inner error variants in such cases could be
+    /// [`WrongBodyBufferSize`](tacacs_plus_protocol::DeserializeError::WrongBodyBufferSize) or
+    /// [`BadText`](tacacs_plus_protocol::DeserializeError::BadText).
+    ///
+    /// Additionally, if a secret is provided in this constructor but one is not configured for the remote TACACS+ server,
+    /// or vice versa, you will again see [`ClientError::InvalidPacketReceived`] errors, but rather with an inner error variant of
+    /// [`DeserializeError::IncorrectUnencryptedFlag`](tacacs_plus_protocol::DeserializeError::IncorrectUnencryptedFlag).
+    ///
     /// If no secret is provided in this constructor, the returned client does not obfuscate packets
     /// sent over the provided connection. Per [RFC8907 section 4.5], unobfuscated
-    /// packet transfer MUST NOT be used in production, so prefer to provide a secret (of the proper length)
+    /// packet transfer MUST NOT be used in production, so prefer to provide a secret (of a secure length)
     /// where possible.
     ///
     /// [RFC8907 section 4.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.5-16
