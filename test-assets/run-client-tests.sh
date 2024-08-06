@@ -13,14 +13,14 @@ if [ -v CI ]; then
     trap "docker buildx rm container" EXIT
 
     # mode=max caches both Dockerfile stages, not just final one
-    docker buildx build --builder container \
+    docker buildx build --load --builder container \
         --tag tacacs-test-server \
         --cache-to type=gha,mode=max \
         --cache-from type=gha,mode=max \
-        --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
+        --file "${REPO_ROOT}/test-assets/Dockerfile.test_server" "${REPO_ROOT}/test-assets"
 else
     # just build image normally (without caching) if running outside of CI
-    docker buildx build --tag tacacs-test-server --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
+    docker buildx build --tag tacacs-test-server --file "${REPO_ROOT}/test-assets/Dockerfile.test_server" "${REPO_ROOT}/test-assets"
 fi
 
 # run server container in background
