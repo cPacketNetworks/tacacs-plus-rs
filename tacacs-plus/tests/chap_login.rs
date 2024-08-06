@@ -24,25 +24,23 @@ async fn chap_success() {
     );
 }
 
-#[test]
-fn chap_failure() {
-    futures::executor::block_on(async {
-        let factory: ConnectionFactory<_> =
-            Box::new(|| async_net::TcpStream::connect("localhost:5555").boxed());
-        let mut client = Client::new(factory, Some("very secure key that is super secret"));
+#[async_std::test]
+async fn chap_failure() {
+    let factory: ConnectionFactory<_> =
+        Box::new(|| async_net::TcpStream::connect("localhost:5555").boxed());
+    let mut client = Client::new(factory, Some("very secure key that is super secret"));
 
-        let context = ContextBuilder::new("paponly").build();
-        let response = client
-            .authenticate(context, "pass-word", AuthenticationType::Chap)
-            .await
-            .expect("couldn't complete CHAP authentication session");
+    let context = ContextBuilder::new("paponly").build();
+    let response = client
+        .authenticate(context, "pass-word", AuthenticationType::Chap)
+        .await
+        .expect("couldn't complete CHAP authentication session");
 
-        assert_eq!(
-            response.status,
-            ResponseStatus::Failure,
-            "CHAP authentication shouldn't succeed against paponly user"
-        );
-    })
+    assert_eq!(
+        response.status,
+        ResponseStatus::Failure,
+        "CHAP authentication shouldn't succeed against paponly user"
+    );
 }
 
 #[tokio::test]
