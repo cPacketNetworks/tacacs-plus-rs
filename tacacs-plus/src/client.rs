@@ -29,6 +29,9 @@ pub use context::{ContextBuilder, SessionContext};
 mod error;
 pub use error::ClientError;
 
+// reexported for ease of access
+pub use tacacs_plus_protocol::AuthenticationMethod;
+
 /// A TACACS+ client.
 #[derive(Clone)]
 pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {

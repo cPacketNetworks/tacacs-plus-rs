@@ -2,9 +2,9 @@ use async_std::net::TcpStream;
 use futures::FutureExt;
 
 use tacacs_plus::client::ResponseStatus;
-use tacacs_plus::client::{ConnectionFactory, ContextBuilder};
+use tacacs_plus::client::{AuthenticationMethod, ConnectionFactory, ContextBuilder};
 use tacacs_plus::Client;
-use tacacs_plus_protocol::{ArgumentOwned, AuthenticationMethod};
+use tacacs_plus_protocol::ArgumentOwned;
 
 #[async_std::test]
 async fn authorize_success() {
