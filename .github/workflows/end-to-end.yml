@@ -37,15 +37,10 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target
-      # necessary for docker build cache until bug is fixed; see https://github.com/actions/runner/issues/3046
-      # (recommended in docker docs: https://docs.docker.com/build/cache/backends/gha/#authentication)
-      - name: Expose GitHub Actions runtime variables
-        uses: crazy-max/ghaction-github-runtime@v3
-      - name: Build test server Docker image
-        run: |
-          docker buildx build --tag tacacs-test-server \
-              --cache-to type=gha,mode=max \
-              --cache-from type=gha,mode=max \
-              --file Dockerfile.test_server test-assets
-      - name: Run end-to-end tests
+      # necessary for docker build caching; see https://github.com/actions/runner/issues/3046
+      # (also recommended in docker docs: https://docs.docker.com/build/cache/backends/gha/#authentication)
+      - name: Expose GitHub Actions runtime variables for Docker build caching
+        # pin to v3 rev
+        uses: crazy-max/ghaction-github-runtime@b3a9207c0e1ef41f4cf215303c976869d0c2c1c4
+      - name: Build server image & run client tests
         run: ./test-assets/run-client-tests.sh
