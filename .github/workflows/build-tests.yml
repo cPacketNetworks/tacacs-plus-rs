@@ -55,4 +55,6 @@ jobs:
         if: ${{ matrix.features == 'std' }}
         run: |
           cargo build --package tacacs-plus --verbose
-          cargo test --package tacacs-plus --verbose
+          # only test lib/doc tests; integration tests need a dedicated server
+          cargo test --package tacacs-plus --lib --verbose
+          cargo test --package tacacs-plus --doc --verbose

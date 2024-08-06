@@ -6,11 +6,12 @@ use tacacs_plus::client::{ConnectionFactory, ContextBuilder};
 use tacacs_plus::Client;
 use tacacs_plus_protocol::ArgumentOwned;
 
-fn main() {
-    futures::executor::block_on(do_authorization());
+#[test]
+fn main() -> Result<(), String> {
+    futures::executor::block_on(do_authorization())
 }
 
-async fn do_authorization() {
+async fn do_authorization() -> Result<(), String> {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
@@ -54,10 +55,12 @@ async fn do_authorization() {
 
                     println!("{} = {} ({})", argument.name, argument.value, required_str);
                 }
+
+                Ok(())
             } else {
-                eprintln!("Authorization failed. Full response: {response:?}");
+                Err(format!("Authorization failed. Full response: {response:?}"))
             }
         }
-        Err(e) => eprintln!("Error performing authorization: {e:?}"),
+        Err(e) => Err(format!("Error performing authorization: {e:?}")),
     }
 }

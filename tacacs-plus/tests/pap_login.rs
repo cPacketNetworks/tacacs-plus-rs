@@ -4,10 +4,10 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tacacs_plus::client::{AuthenticationType, ContextBuilder, ResponseStatus};
 use tacacs_plus::Client;
 
-#[tokio::main]
-async fn main() {
+#[tokio::test]
+async fn main() -> Result<(), String> {
     // NOTE: this assumes you have a TACACS+ server running already
-    // there is a Dockerfile in assets/ which spins one up with the proper configuration
+    // there is a Dockerfile in /test-assets/ in the repo which spins one up with the proper configuration
 
     let server = std::env::var("TACACS_SERVER").unwrap_or(String::from("localhost:5555"));
     let mut tac_client = Client::new(
@@ -35,11 +35,12 @@ async fn main() {
     match auth_result {
         Ok(resp) => {
             if resp.status == ResponseStatus::Success {
-                println!("Authentication successful!")
+                println!("Authentication successful!");
+                Ok(())
             } else {
-                println!("Authentication failed. Full response: {:?}", resp);
+                Err(format!("Authentication failed. Full response: {:?}", resp))
             }
         }
-        Err(e) => eprintln!("Error: {e}"),
+        Err(e) => Err(format!("Error: {e:?}")),
     }
 }

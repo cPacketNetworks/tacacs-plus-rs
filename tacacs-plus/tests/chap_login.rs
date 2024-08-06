@@ -4,11 +4,12 @@ use futures::FutureExt;
 use tacacs_plus::client::{AuthenticationType, ConnectionFactory, ContextBuilder, ResponseStatus};
 use tacacs_plus::Client;
 
-fn main() {
-    futures::executor::block_on(do_auth());
+#[test]
+fn main() -> Result<(), String> {
+    futures::executor::block_on(do_auth())
 }
 
-async fn do_auth() {
+async fn do_auth() -> Result<(), String> {
     let factory: ConnectionFactory<_> = Box::new(|| TcpStream::connect("localhost:5555").boxed());
     let mut client = Client::new(factory, Some("this shouldn't be hardcoded"));
 
@@ -20,11 +21,12 @@ async fn do_auth() {
     match response {
         Ok(resp) => {
             if resp.status == ResponseStatus::Success {
-                println!("Authentication successful!")
+                println!("Authentication successful!");
+                Ok(())
             } else {
-                println!("Authentication failed. Full response: {resp:?}");
+                Err(format!("Authentication failed. Full response: {resp:?}"))
             }
         }
-        Err(e) => eprintln!("Error: {e}"),
+        Err(e) => Err(format!("Error: {e}")),
     }
 }

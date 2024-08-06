@@ -1,0 +1,51 @@
+name: End to end tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  run-tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    # only run one build with dependencies at once (shared with build-tests.yml std features in matrix)
+    concurrency: cargodeps-std
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Update rust toolchain (stable)
+        run: rustup update stable --no-self-update
+      - name: Set up Rust artifact cache
+        uses: actions/cache@v4
+        with:
+          # share dependencies/target folder with other std-build jobs to avoid duplicate builds
+          key: cargodeps-std-${{ hashFiles('**/Cargo.toml') }}
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target
+      # necessary for docker build cache until bug is fixed; see https://github.com/actions/runner/issues/3046
+      # (recommended in docker docs: https://docs.docker.com/build/cache/backends/gha/#authentication)
+      - name: Expose GitHub Actions runtime variables
+        uses: crazy-max/ghaction-github-runtime@v3
+      - name: Build test server Docker image
+        run: |
+          docker buildx build --tag tacacs-test-server \
+              --cache-to type=gha,mode=max \
+              --cache-from type=gha,mode=max \
+              --file Dockerfile.test_server test-assets
+      - name: Run end-to-end tests
+        run: ./test-assets/run-client-tests.sh
