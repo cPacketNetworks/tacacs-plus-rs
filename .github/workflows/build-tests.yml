@@ -73,7 +73,7 @@ jobs:
           load: true
           context: ./test-assets/
           file: ./test-assets/Dockerfile.test_server
-          tags: tacacs-test-server
+          tags: localhost/tacacs-test-server
       - name: Run client tests against server
         if: ${{ matrix.features == 'std' }}
         run: ./test-assets/run-client-tests.sh
