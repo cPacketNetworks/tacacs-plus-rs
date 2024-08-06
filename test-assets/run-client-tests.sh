@@ -12,7 +12,7 @@ if [ -v CI ]; then
         --cache-from type=gha,mode=max \
         --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
 else
-    # just build image normally if running outside of CI
+    # just build image normally (without caching) if running outside of CI
     docker buildx build --tag tacacs-test-server --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
 fi
 

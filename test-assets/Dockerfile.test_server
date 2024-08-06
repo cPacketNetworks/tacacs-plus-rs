@@ -34,6 +34,14 @@ user = someuser {
         optional thing = "not important"
     }
 }
+
+user = paponly {
+    pap = cleartext pass-word
+}
+
+user = followme {
+    opap = cleartext outbound
+}
 EOF
 
 # potential flags of interest:
