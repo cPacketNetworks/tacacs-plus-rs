@@ -7,7 +7,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 if [ ! -v CI ]; then
     # build server image
     echo "Building test server Docker image..."
-    docker build --tag localhost/tacacs-test-server --file "${REPO_ROOT}/test-assets/Dockerfile.test_server" "${REPO_ROOT}/test-assets" >/dev/null
+    docker build --tag localhost/tacacs-test-server --file "${REPO_ROOT}/test-assets/Dockerfile.test_server" "${REPO_ROOT}/test-assets"
     echo "Build finished!"
 fi
 
