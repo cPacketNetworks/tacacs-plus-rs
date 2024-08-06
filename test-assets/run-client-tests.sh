@@ -6,8 +6,15 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 # build server image & cache to GitHub Actions cache in CI
 # (the CI environment variable is always set while a workflow is running)
 if [ -v CI ]; then
+    # create docker-container driver builder, since default docker driver doesn't support GitHub Actions cache export
+    docker buildx create --name container --driver docker-container
+
+    # delete builder on exit
+    trap "docker buildx rm container" EXIT
+
     # mode=max caches both Dockerfile stages, not just final one
-    docker buildx build --tag tacacs-test-server \
+    docker buildx build --builder container \
+        --tag tacacs-test-server \
         --cache-to type=gha,mode=max \
         --cache-from type=gha,mode=max \
         --file Dockerfile.test_server "${REPO_ROOT}/test-assets"
