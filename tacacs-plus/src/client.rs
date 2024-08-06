@@ -10,9 +10,9 @@ use rand::Rng;
 
 use response::AuthorizationResponse;
 use tacacs_plus_protocol as protocol;
+use tacacs_plus_protocol::Arguments;
 use tacacs_plus_protocol::Serialize;
 use tacacs_plus_protocol::{authentication, authorization};
-use tacacs_plus_protocol::{ArgumentOwned, Arguments};
 use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService};
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
 use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
@@ -30,7 +30,7 @@ mod error;
 pub use error::ClientError;
 
 // reexported for ease of access
-pub use tacacs_plus_protocol::AuthenticationMethod;
+pub use tacacs_plus_protocol::{ArgumentOwned, AuthenticationMethod};
 
 /// A TACACS+ client.
 #[derive(Clone)]
