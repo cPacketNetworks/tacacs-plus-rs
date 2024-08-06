@@ -5,28 +5,22 @@ use tacacs_plus::client::{AuthenticationType, ConnectionFactory, ContextBuilder,
 use tacacs_plus::Client;
 
 #[test]
-fn main() -> Result<(), String> {
-    futures::executor::block_on(do_auth())
+fn main() {
+    futures::executor::block_on(do_auth());
 }
 
-async fn do_auth() -> Result<(), String> {
+async fn do_auth() {
     let factory: ConnectionFactory<_> = Box::new(|| TcpStream::connect("localhost:5555").boxed());
-    let mut client = Client::new(factory, Some("this shouldn't be hardcoded"));
+    let mut client = Client::new(factory, Some("very secure key that is super secret"));
 
     let context = ContextBuilder::new("someuser").build();
     let response = client
         .authenticate(context, "something different", AuthenticationType::Chap)
-        .await;
+        .await
+        .expect("error completing CHAP authentication session");
 
-    match response {
-        Ok(resp) => {
-            if resp.status == ResponseStatus::Success {
-                println!("Authentication successful!");
-                Ok(())
-            } else {
-                Err(format!("Authentication failed. Full response: {resp:?}"))
-            }
-        }
-        Err(e) => Err(format!("Error: {e}")),
-    }
+    assert!(
+        response.status == ResponseStatus::Success,
+        "authentication failed, full response: {response:?}"
+    );
 }

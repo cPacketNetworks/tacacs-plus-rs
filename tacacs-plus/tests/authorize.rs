@@ -7,15 +7,18 @@ use tacacs_plus::Client;
 use tacacs_plus_protocol::ArgumentOwned;
 
 #[test]
-fn main() -> Result<(), String> {
-    futures::executor::block_on(do_authorization())
+fn main() {
+    futures::executor::block_on(do_authorization());
 }
 
-async fn do_authorization() -> Result<(), String> {
+async fn do_authorization() {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
-    let mut client = Client::new(connection_factory, Some("this shouldn't be hardcoded"));
+    let mut client = Client::new(
+        connection_factory,
+        Some("very secure key that is super secret"),
+    );
 
     let arguments = vec![
         ArgumentOwned {
@@ -39,28 +42,23 @@ async fn do_authorization() -> Result<(), String> {
     ];
 
     let context = ContextBuilder::new("someuser").build();
-    let result = client.authorize(context, arguments).await;
+    let response = client
+        .authorize(context, arguments)
+        .await
+        .expect("error when completing authorization session");
 
-    match result {
-        Ok(response) => {
-            if response.status == ResponseStatus::Success {
-                println!("Authorization succeeded! Received arguments:");
+    assert!(
+        response.status == ResponseStatus::Success,
+        "authorization failed, full response: {response:?}"
+    );
 
-                for argument in response.arguments {
-                    let required_str = if argument.required {
-                        "required"
-                    } else {
-                        "optional"
-                    };
+    for argument in response.arguments {
+        let required_str = if argument.required {
+            "required"
+        } else {
+            "optional"
+        };
 
-                    println!("{} = {} ({})", argument.name, argument.value, required_str);
-                }
-
-                Ok(())
-            } else {
-                Err(format!("Authorization failed. Full response: {response:?}"))
-            }
-        }
-        Err(e) => Err(format!("Error performing authorization: {e:?}")),
+        println!("{} = {} ({})", argument.name, argument.value, required_str);
     }
 }

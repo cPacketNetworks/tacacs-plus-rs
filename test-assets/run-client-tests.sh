@@ -19,7 +19,7 @@ fi
 # run server container in background
 docker run --rm --detach --publish 5555:5555 --name tacacs-server tacacs-test-server
 
-# stop container on exit, including when a test fails
+# stop container on exit, including if/when a test fails
 trap "docker stop tacacs-server" EXIT
 
 # run all integration tests against server

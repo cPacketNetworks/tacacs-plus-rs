@@ -5,9 +5,9 @@ use tacacs_plus::client::{AuthenticationType, ContextBuilder, ResponseStatus};
 use tacacs_plus::Client;
 
 #[tokio::test]
-async fn main() -> Result<(), String> {
+async fn main() {
     // NOTE: this assumes you have a TACACS+ server running already
-    // there is a Dockerfile in /test-assets/ in the repo which spins one up with the proper configuration
+    // test-assets/run-client-tests.sh in the repo root will set that up for you assuming you have Docker installed
 
     let server = std::env::var("TACACS_SERVER").unwrap_or(String::from("localhost:5555"));
     let mut tac_client = Client::new(
@@ -23,24 +23,18 @@ async fn main() -> Result<(), String> {
                     .map(TokioAsyncWriteCompatExt::compat_write)
             })
         }),
-        Some("this shouldn't be hardcoded"),
+        Some("very secure key that is super secret"),
     );
 
     let context = ContextBuilder::new("someuser").build();
 
-    let auth_result = tac_client
+    let response = tac_client
         .authenticate(context, "hunter2", AuthenticationType::Pap)
-        .await;
+        .await
+        .expect("error completing authentication session");
 
-    match auth_result {
-        Ok(resp) => {
-            if resp.status == ResponseStatus::Success {
-                println!("Authentication successful!");
-                Ok(())
-            } else {
-                Err(format!("Authentication failed. Full response: {:?}", resp))
-            }
-        }
-        Err(e) => Err(format!("Error: {e:?}")),
-    }
+    assert!(
+        response.status == ResponseStatus::Success,
+        "authentication failed, full response: {response:?}"
+    );
 }
