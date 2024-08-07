@@ -29,7 +29,7 @@ pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>> + Send
 /// ```
 /// use futures::io::{Cursor, Result};
 ///
-/// use tacacs_plus::client::{ConnectionFactory, ConnectionFuture};
+/// use tacacs_plus::{ConnectionFactory, ConnectionFuture};
 ///
 /// // function that returns a connection (in this case just a Cursor)
 /// fn function_factory() -> ConnectionFuture<Cursor<Vec<u8>>> {
