@@ -2,9 +2,9 @@ use futures::{FutureExt, TryFutureExt};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::client::ConnectionFactory;
-use tacacs_plus::client::{AuthenticationType, ContextBuilder, ResponseStatus};
 use tacacs_plus::Client;
+use tacacs_plus::ConnectionFactory;
+use tacacs_plus::{AuthenticationType, ContextBuilder, ResponseStatus};
 
 #[tokio::test]
 async fn pap_success() {

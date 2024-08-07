@@ -1,9 +1,9 @@
 use async_std::net::TcpStream;
 use futures::FutureExt;
 
-use tacacs_plus::client::ResponseStatus;
-use tacacs_plus::client::{AuthenticationMethod, ConnectionFactory, ContextBuilder};
 use tacacs_plus::Client;
+use tacacs_plus::ResponseStatus;
+use tacacs_plus::{AuthenticationMethod, ConnectionFactory, ContextBuilder};
 use tacacs_plus_protocol::ArgumentOwned;
 
 #[async_std::test]

@@ -1,7 +1,7 @@
 use futures::{FutureExt, TryFutureExt};
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::client::{AuthenticationType, ConnectionFactory, ContextBuilder, ResponseStatus};
+use tacacs_plus::{AuthenticationType, ConnectionFactory, ContextBuilder, ResponseStatus};
 use tacacs_plus::{Client, ClientError};
 use tacacs_plus_protocol::DeserializeError;
 
