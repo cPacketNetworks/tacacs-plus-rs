@@ -24,8 +24,8 @@ touch $TMPDIR/accounting.log
 echo "Running server container in background"
 # TODO: revert after debugging
 # docker run --rm --detach --publish 5555:5555 --volume $TMPDIR/accounting.log:/tmp/accounting.log --name tacacs-server localhost/tacacs-test-server >/dev/null
-# debug flags: PARSE | ACCT | CONFIG
-docker run --rm --detach --publish 5555:5555 --volume $TMPDIR/accounting.log:/tmp/accounting.log --name tacacs-server localhost/tacacs-test-server -C /srv/tac_plus/tac_plus.conf -g -d 194 >/dev/null
+# debug flags: ACCT
+docker run --rm --detach --publish 5555:5555 --name tacacs-server localhost/tacacs-test-server -C /srv/tac_plus/tac_plus.conf -g -d 64 >/dev/null
 
 # stop container on exit, including if/when a test fails
 # TODO: revert after debugging
@@ -36,6 +36,7 @@ trap "docker logs tacacs-server; echo 'Stopping server container'; docker stop t
 echo "Running tests..."
 cargo test --package tacacs-plus --test '*' --no-fail-fast
 
-# verify accounting was done properly based on file contents
+# copy accounting file out of container & verify contents
 # TODO: more specific validation?
+docker cp tacacs-server:/tmp/accounting.log $TMPDIR/accounting.log
 test $(wc -l $TMPDIR/accounting.log | awk '{print $1}') -eq 3
