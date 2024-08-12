@@ -16,7 +16,7 @@ md-5 = "0.10.6"
 uuid = { version = "1.10.0", features = ["v4"] }
 
 [dev-dependencies]
-tokio = { version = "1.39.1", features = ["rt", "net", "macros"] }
+tokio = { version = "1.39.1", features = ["rt", "net", "time", "macros"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
 async-net = "2.0.0"
 async-std = { version = "1.12.0", features = ["attributes"] }

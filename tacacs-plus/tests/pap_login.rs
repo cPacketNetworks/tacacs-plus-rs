@@ -42,6 +42,7 @@ async fn pap_success() {
     );
 }
 
+// TODO: this doesn't actually test follow; I don't think the shrubbery daemon implements it
 #[tokio::test]
 async fn pap_follow_failure() {
     let factory: ConnectionFactory<_> = Box::new(|| {

@@ -21,6 +21,7 @@ pub struct Task<C> {
     id: String,
 
     // TODO: this shouldn't be able to change during a task right?
+    /// The context associated with this task.
     context: SessionContext,
 
     /// When this task was created, i.e., when it was started.
@@ -37,6 +38,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         }
     }
 
+    // TODO: do on construction?
     /// Sends a start accounting record to the TACACS+ server.
     ///
     /// This method should only be called once per task.
@@ -44,31 +46,26 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         &self,
         mut arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
-        // TODO: is unwrap_or_default sane here? I would hope it's a pretty safe bet that a clock is set after the epoch
-        let start_time_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
         // prepend a couple of informational arguments specified in RFC 8907 section 8.3
-        let mut full_arguments = vec![
-            Argument {
-                name: "task_id".to_owned(),
-                value: self.id.clone(),
-                required: true,
-            },
-            Argument {
+        let mut full_arguments = vec![Argument {
+            name: "task_id".to_owned(),
+            value: self.id.clone(),
+            required: true,
+        }];
+        if let Ok(start_time_epoch) = self.start_time.duration_since(UNIX_EPOCH) {
+            full_arguments.push(Argument {
                 name: "start_time".to_owned(),
-                value: start_time_epoch.to_string(),
+                value: start_time_epoch.as_secs().to_string(),
                 required: true,
-            },
-        ];
+            });
+        }
         full_arguments.append(&mut arguments);
 
         // perform accounting request with task info/arguments
         self.make_request(Flags::StartRecord, full_arguments).await
     }
 
+    // TODO: asref<[arg]> instead of vec?
     /// Sends an update to the TACACS+ server about this task with the provided arguments.
     ///
     /// Certain arguments may be added internally, such as `task_id` and `elapsed_time` from [RFC8907 section 8.3].
@@ -78,23 +75,18 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         &self,
         mut arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
-        let elapsed_time_secs = SystemTime::now()
-            .duration_since(self.start_time)
-            .unwrap_or_default()
-            .as_secs();
-
-        let mut full_arguments = vec![
-            Argument {
-                name: "task_id".to_string(),
-                value: self.id.clone(),
-                required: true,
-            },
-            Argument {
+        let mut full_arguments = vec![Argument {
+            name: "task_id".to_string(),
+            value: self.id.clone(),
+            required: true,
+        }];
+        if let Ok(elapsed_time) = SystemTime::now().duration_since(self.start_time) {
+            full_arguments.push(Argument {
                 name: "elapsed_time".to_string(),
-                value: elapsed_time_secs.to_string(),
+                value: elapsed_time.as_secs().to_string(),
                 required: true,
-            },
-        ];
+            });
+        }
         full_arguments.append(&mut arguments);
 
         self.make_request(Flags::WatchdogUpdate, full_arguments)
@@ -110,23 +102,20 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         self,
         mut arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
-        let stop_time_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let mut full_arguments = vec![Argument {
+            name: "task_id".to_string(),
+            value: self.id.clone(),
+            required: true,
+        }];
 
-        let mut full_arguments = vec![
-            Argument {
-                name: "task_id".to_string(),
-                value: self.id.clone(),
-                required: true,
-            },
-            Argument {
+        if let Ok(timestamp) = SystemTime::now().duration_since(UNIX_EPOCH) {
+            full_arguments.push(Argument {
                 name: "stop_time".to_string(),
-                value: stop_time_epoch.to_string(),
+                value: timestamp.as_secs().to_string(),
                 required: true,
-            },
-        ];
+            })
+        }
+
         full_arguments.append(&mut arguments);
 
         self.make_request(Flags::StopRecord, full_arguments).await

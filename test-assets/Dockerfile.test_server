@@ -24,6 +24,7 @@ FROM base AS configured
 # basic TACACS+ daemon configuration
 COPY <<EOF /srv/tac_plus/tac_plus.conf
 key = "very secure key that is super secret"
+accounting file = /tmp/accounting.log
 
 user = someuser {
     pap = cleartext hunter2
