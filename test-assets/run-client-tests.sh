@@ -22,10 +22,15 @@ touch $TMPDIR/accounting.log
 
 # run server container in background
 echo "Running server container in background"
-docker run --rm --detach --publish 5555:5555 --volume $TMPDIR/accounting.log:/tmp/accounting.log --name tacacs-server localhost/tacacs-test-server >/dev/null
+# TODO: revert after debugging
+# docker run --rm --detach --publish 5555:5555 --volume $TMPDIR/accounting.log:/tmp/accounting.log --name tacacs-server localhost/tacacs-test-server >/dev/null
+# debug flags: PARSE | ACCT | CONFIG
+docker run --rm --detach --publish 5555:5555 --volume $TMPDIR/accounting.log:/tmp/accounting.log --name tacacs-server localhost/tacacs-test-server -C /srv/tac_plus/tac_plus.conf -g -d 194 >/dev/null
 
 # stop container on exit, including if/when a test fails
-trap "echo 'Stopping server container'; docker stop tacacs-server >/dev/null" EXIT
+# TODO: revert after debugging
+# trap "echo 'Stopping server container'; docker stop tacacs-server >/dev/null" EXIT
+trap "docker logs tacacs-server; echo 'Stopping server container'; docker stop tacacs-server >/dev/null" EXIT
 
 # run all integration tests against server
 echo "Running tests..."
