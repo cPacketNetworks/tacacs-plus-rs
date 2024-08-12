@@ -381,19 +381,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// such as `task_id` and `start_time`.
     ///
     /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
-    pub async fn create_task(
+    pub async fn create_task<A: AsRef<[Argument]>>(
         &self,
         context: SessionContext,
-        arguments: Vec<Argument>,
-        // TODO: tuple or struct? struct would introduce generics elsewhere
+        arguments: A,
     ) -> Result<(Task<&Self>, AccountingResponse), ClientError> {
-        // make task object
-        let task = Task::new(context, self);
-
-        // send first packet of session
-        let response = task.start(arguments).await?;
-
-        // return task itself
-        Ok((task, response))
+        Task::start(self, context, arguments).await
     }
 }

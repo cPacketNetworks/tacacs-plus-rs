@@ -29,51 +29,52 @@ pub struct Task<C> {
 }
 
 impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
-    pub(super) fn new(context: SessionContext, client: &'a Client<S>) -> Self {
-        Self {
+    /// Sends a start accounting record to the TACACS+ server, returning the resulting associated [`Task`].
+    ///
+    /// This method should only be called once per task.
+    pub(super) async fn start<A: AsRef<[Argument]>>(
+        client: &'a Client<S>,
+        context: SessionContext,
+        arguments: A,
+    ) -> Result<(Self, AccountingResponse), ClientError> {
+        let task = Self {
             client,
             id: uuid::Uuid::new_v4().to_string(),
             context,
             start_time: SystemTime::now(),
-        }
-    }
+        };
 
-    // TODO: do on construction?
-    /// Sends a start accounting record to the TACACS+ server.
-    ///
-    /// This method should only be called once per task.
-    pub(super) async fn start(
-        &self,
-        mut arguments: Vec<Argument>,
-    ) -> Result<AccountingResponse, ClientError> {
         // prepend a couple of informational arguments specified in RFC 8907 section 8.3
         let mut full_arguments = vec![Argument {
             name: "task_id".to_owned(),
-            value: self.id.clone(),
+            value: task.id.clone(),
             required: true,
         }];
-        if let Ok(start_time_epoch) = self.start_time.duration_since(UNIX_EPOCH) {
+        if let Ok(start_time_epoch) = task.start_time.duration_since(UNIX_EPOCH) {
             full_arguments.push(Argument {
                 name: "start_time".to_owned(),
                 value: start_time_epoch.as_secs().to_string(),
                 required: true,
             });
         }
-        full_arguments.append(&mut arguments);
+        full_arguments.extend_from_slice(arguments.as_ref());
 
         // perform accounting request with task info/arguments
-        self.make_request(Flags::StartRecord, full_arguments).await
+        let response = task
+            .make_request(Flags::StartRecord, full_arguments)
+            .await?;
+
+        Ok((task, response))
     }
 
-    // TODO: asref<[arg]> instead of vec?
     /// Sends an update to the TACACS+ server about this task with the provided arguments.
     ///
     /// Certain arguments may be added internally, such as `task_id` and `elapsed_time` from [RFC8907 section 8.3].
     ///
     /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
-    pub async fn update(
+    pub async fn update<A: AsRef<[Argument]>>(
         &self,
-        mut arguments: Vec<Argument>,
+        arguments: A,
     ) -> Result<AccountingResponse, ClientError> {
         let mut full_arguments = vec![Argument {
             name: "task_id".to_string(),
@@ -87,7 +88,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
                 required: true,
             });
         }
-        full_arguments.append(&mut arguments);
+        full_arguments.extend_from_slice(arguments.as_ref());
 
         self.make_request(Flags::WatchdogUpdate, full_arguments)
             .await
@@ -98,9 +99,9 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
     /// Since this should only be done once, this consumes the task.
     ///
     /// Certain arguments may also be set internally, such as `stop_time` and `task_id`.
-    pub async fn stop(
+    pub async fn stop<A: AsRef<[Argument]>>(
         self,
-        mut arguments: Vec<Argument>,
+        arguments: A,
     ) -> Result<AccountingResponse, ClientError> {
         let mut full_arguments = vec![Argument {
             name: "task_id".to_string(),
@@ -116,7 +117,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
             })
         }
 
-        full_arguments.append(&mut arguments);
+        full_arguments.extend_from_slice(arguments.as_ref());
 
         self.make_request(Flags::StopRecord, full_arguments).await
     }
