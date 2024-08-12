@@ -11,7 +11,7 @@ async fn authorize_success() {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
-    let mut client = Client::new(
+    let client = Client::new(
         connection_factory,
         Some("very secure key that is super secret"),
     );
@@ -74,7 +74,7 @@ async fn authorize_fail_wrong_argument_value() {
     let connection_factory: ConnectionFactory<_> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
 
-    let mut client = Client::new(
+    let client = Client::new(
         connection_factory,
         Some("very secure key that is super secret"),
     );
@@ -110,7 +110,7 @@ async fn authorize_fail_wrong_argument_value() {
 async fn guest_authorize() {
     let factory: ConnectionFactory<TcpStream> =
         Box::new(|| TcpStream::connect("localhost:5555").boxed());
-    let mut client = Client::new(factory, Some("very secure key that is super secret"));
+    let client = Client::new(factory, Some("very secure key that is super secret"));
 
     let arguments = vec![ArgumentOwned {
         name: "service".to_owned(),

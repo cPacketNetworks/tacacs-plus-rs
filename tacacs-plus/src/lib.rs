@@ -253,7 +253,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
     /// Authenticates against a TACACS+ server with a username and password using the specified protocol.
     pub async fn authenticate(
-        &mut self,
+        &self,
         context: SessionContext,
         password: &str,
         authentication_type: AuthenticationType,
@@ -306,7 +306,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
     /// Performs TACACS+ authorization against the server with the provided arguments.
     pub async fn authorize(
-        &mut self,
+        &self,
         context: SessionContext,
         arguments: Vec<Argument>,
     ) -> Result<AuthorizationResponse, ClientError> {

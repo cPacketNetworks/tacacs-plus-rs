@@ -9,7 +9,7 @@ use tacacs_plus_protocol::DeserializeError;
 async fn chap_success() {
     let factory: ConnectionFactory<_> =
         Box::new(|| async_std::net::TcpStream::connect("localhost:5555").boxed());
-    let mut client = Client::new(factory, Some("very secure key that is super secret"));
+    let client = Client::new(factory, Some("very secure key that is super secret"));
 
     let context = ContextBuilder::new("someuser").build();
     let response = client
@@ -28,7 +28,7 @@ async fn chap_success() {
 async fn chap_failure() {
     let factory: ConnectionFactory<_> =
         Box::new(|| async_net::TcpStream::connect("localhost:5555").boxed());
-    let mut client = Client::new(factory, Some("very secure key that is super secret"));
+    let client = Client::new(factory, Some("very secure key that is super secret"));
 
     let context = ContextBuilder::new("paponly").build();
     let response = client
@@ -53,7 +53,7 @@ async fn key_unconfigured() {
 
     // don't configure a key
     // the type has to be annotated somewhere for generic reasons, since a bare None is ambiguous
-    let mut client = Client::new(factory, None::<&[u8]>);
+    let client = Client::new(factory, None::<&[u8]>);
 
     let context = ContextBuilder::new("someuser").build();
     let error = client

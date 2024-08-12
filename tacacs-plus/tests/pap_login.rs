@@ -12,7 +12,7 @@ async fn pap_success() {
     // test-assets/run-client-tests.sh in the repo root will set that up for you assuming you have Docker installed
 
     let server = std::env::var("TACACS_SERVER").unwrap_or(String::from("localhost:5555"));
-    let mut tac_client = Client::new(
+    let tac_client = Client::new(
         Box::new(move || {
             // closures can also capture external variables
             let server = server.clone();
@@ -50,7 +50,7 @@ async fn pap_follow_failure() {
             .boxed()
     });
 
-    let mut client = Client::new(factory, Some("very secure key that is super secret"));
+    let client = Client::new(factory, Some("very secure key that is super secret"));
 
     let context = ContextBuilder::new("followme").build();
     let response = client
