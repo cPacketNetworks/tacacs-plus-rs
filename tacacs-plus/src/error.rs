@@ -2,7 +2,7 @@ use futures::io;
 use thiserror::Error;
 
 use tacacs_plus_protocol as protocol;
-use tacacs_plus_protocol::{authentication, authorization};
+use tacacs_plus_protocol::{accounting, authentication, authorization};
 
 /// An error during a TACACS+ exchange.
 #[non_exhaustive]
@@ -46,6 +46,19 @@ pub enum ClientError {
         user_message: String,
 
         /// The administrative log message returned from the server.
+        admin_message: String,
+    },
+
+    /// Error when performing accounting.
+    #[error("error when performing TACACS+ accounting")]
+    AccountingError {
+        /// The status returned by the server.
+        status: accounting::Status,
+
+        /// The message that can be displayed to the user connected to the client.
+        user_message: String,
+
+        /// An administrative log message from the server.
         admin_message: String,
     },
 

@@ -1,5 +1,10 @@
+use std::marker::Unpin;
+
+use futures::{AsyncRead, AsyncWrite};
 use tacacs_plus_protocol::ArgumentOwned;
 use tacacs_plus_protocol::{authentication, authorization};
+
+use super::task::Task;
 
 /// The final status returned by a server during a TACACS+ session.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -38,6 +43,15 @@ pub struct AuthorizationResponse {
     pub user_message: String,
 
     /// Administrative console message from the server. (`data` from RFC8907)
+    pub admin_message: String,
+}
+
+/// The response from a successful TACACS+ accounting operation.
+pub struct AccountingResponse {
+    /// The message that can be displayed to the user, if any.
+    pub user_message: String,
+
+    /// An administrative log message.
     pub admin_message: String,
 }
 
