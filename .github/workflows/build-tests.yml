@@ -76,5 +76,5 @@ jobs:
       - name: Run client tests against server
         if: ${{ matrix.features == 'std' }}
         env:
-          TMPDIR: ${{ runner.temp }}/client-tests
+          TMPDIR: ${{ runner.temp }}
         run: ./test-assets/run-client-tests.sh
