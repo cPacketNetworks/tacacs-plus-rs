@@ -1,10 +1,5 @@
-use std::marker::Unpin;
-
-use futures::{AsyncRead, AsyncWrite};
 use tacacs_plus_protocol::ArgumentOwned;
 use tacacs_plus_protocol::{authentication, authorization};
-
-use super::task::Task;
 
 /// The final status returned by a server during a TACACS+ session.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

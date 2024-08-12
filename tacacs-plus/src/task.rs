@@ -14,10 +14,17 @@ use super::{Argument, Client, ClientError, SessionContext};
 
 /// An ongoing task whose status is tracked via TACACS+ accounting.
 pub struct Task<C> {
+    /// The client associated with this task.
     client: C,
+
+    /// The unique ID for this task.
     id: String,
+
     // TODO: this shouldn't be able to change during a task right?
     context: SessionContext,
+
+    /// When this task was created, i.e., when it was started.
+    start_time: SystemTime,
 }
 
 impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
@@ -26,15 +33,19 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
             client,
             id: uuid::Uuid::new_v4().to_string(),
             context,
+            start_time: SystemTime::now(),
         }
     }
 
+    /// Sends a start accounting record to the TACACS+ server.
+    ///
+    /// This method should only be called once per task.
     pub(super) async fn start(
         &self,
         mut arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
         // TODO: is unwrap_or_default sane here? I would hope it's a pretty safe bet that a clock is set after the epoch
-        let start_time = SystemTime::now()
+        let start_time_epoch = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
@@ -48,27 +59,82 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
             },
             Argument {
                 name: "start_time".to_owned(),
-                value: start_time.to_string(),
+                value: start_time_epoch.to_string(),
                 required: true,
             },
         ];
         full_arguments.append(&mut arguments);
 
         // perform accounting request with task info/arguments
-        self.make_request(full_arguments).await
+        self.make_request(Flags::StartRecord, full_arguments).await
     }
 
-    pub async fn update(&self, arguments: Vec<Argument>) -> Result<(), ClientError> {
-        todo!()
+    /// Sends an update to the TACACS+ server about this task with the provided arguments.
+    ///
+    /// Certain arguments may be added internally, such as `task_id` and `elapsed_time` from [RFC8907 section 8.3].
+    ///
+    /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
+    pub async fn update(
+        &self,
+        mut arguments: Vec<Argument>,
+    ) -> Result<AccountingResponse, ClientError> {
+        let elapsed_time_secs = SystemTime::now()
+            .duration_since(self.start_time)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut full_arguments = vec![
+            Argument {
+                name: "task_id".to_string(),
+                value: self.id.clone(),
+                required: true,
+            },
+            Argument {
+                name: "elapsed_time".to_string(),
+                value: elapsed_time_secs.to_string(),
+                required: true,
+            },
+        ];
+        full_arguments.append(&mut arguments);
+
+        self.make_request(Flags::WatchdogUpdate, full_arguments)
+            .await
     }
 
-    pub async fn stop(&self, arguments: Vec<Argument>) -> Result<(), ClientError> {
-        // TODO: set end time arg
-        todo!()
+    /// Signals to the TACACS+ server that this task has completed.
+    ///
+    /// Since this should only be done once, this consumes the task.
+    ///
+    /// Certain arguments may also be set internally, such as `stop_time` and `task_id`.
+    pub async fn stop(
+        self,
+        mut arguments: Vec<Argument>,
+    ) -> Result<AccountingResponse, ClientError> {
+        let stop_time_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        let mut full_arguments = vec![
+            Argument {
+                name: "task_id".to_string(),
+                value: self.id.clone(),
+                required: true,
+            },
+            Argument {
+                name: "stop_time".to_string(),
+                value: stop_time_epoch.to_string(),
+                required: true,
+            },
+        ];
+        full_arguments.append(&mut arguments);
+
+        self.make_request(Flags::StopRecord, full_arguments).await
     }
 
     async fn make_request(
         &self,
+        flags: Flags,
         arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
         // borrow arguments as required by protocol crate
@@ -81,11 +147,12 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         let request_packet = Packet::new(
             self.client.make_header(1, MinorVersion::Default),
             Request::new(
-                Flags::StartRecord,
+                flags,
                 self.context.authentication_method(),
                 AuthenticationContext {
                     privilege_level: self.context.privilege_level,
                     authentication_type: AuthenticationType::NotSet,
+                    // TODO: should we allow externally setting this?
                     service: AuthenticationService::Login,
                 },
                 self.context.as_user_information()?,
