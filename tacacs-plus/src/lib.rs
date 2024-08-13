@@ -314,13 +314,17 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         }
     }
 
-    /// Creates a new task to track via the TACACS+ accounting mechanism.
+    /// Starts tracking a task via the TACACS+ accounting mechanism.
     ///
-    /// Certain accounting arguments specified in [RFC8907 section 8.3] may already be set internally,
-    /// such as `task_id` and `start_time`.
+    /// The `task_id` and `start_time` arguments specified in [RFC8907 section 8.3] are set internally in addition
+    /// to the provided arguments.
+    ///
+    /// This function only sends a start record to a TACACS+ server; the [`update()`](AccountingTask::update) and
+    /// [`stop()`](AccountingTask::stop) methods on the returned [`AccountingTask`] should be used for sending
+    /// additional accounting records.
     ///
     /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
-    pub async fn create_task<A: AsRef<[Argument]>>(
+    pub async fn account_begin<A: AsRef<[Argument]>>(
         &self,
         context: SessionContext,
         arguments: A,

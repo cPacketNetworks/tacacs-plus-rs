@@ -26,6 +26,7 @@ const STOP_TIME: &str = "stop_time";
 const ELAPSED_TIME: &str = "elapsed_time";
 
 /// An ongoing task whose status is tracked via TACACS+ accounting.
+#[must_use = "A task should eventually be marked as finished by calling the `stop()` method."]
 pub struct AccountingTask<C> {
     /// The client associated with this task.
     client: C,

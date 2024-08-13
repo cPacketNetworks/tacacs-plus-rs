@@ -32,7 +32,7 @@ async fn account_start_update_stop() {
     };
 
     let (task, start_response) = client
-        .create_task(context, start_arguments)
+        .account_begin(context, start_arguments)
         .await
         .expect("task creation should have succeeded");
     assert_eq!(start_response, empty_response);
