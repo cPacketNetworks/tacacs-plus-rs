@@ -1,5 +1,5 @@
 use std::marker::Unpin;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use futures::{AsyncRead, AsyncWrite};
 use tacacs_plus_protocol::accounting::{Flags, ReplyOwned, Request, Status};
@@ -12,8 +12,21 @@ use tacacs_plus_protocol::{
 use super::response::AccountingResponse;
 use super::{Argument, Client, ClientError, SessionContext};
 
+// Arguments specified in RFC8907 section 8.3.
+/// Task ID, used for grouping together records from the same task.
+const TASK_ID: &str = "task_id";
+
+/// The time this task started as a Unix timestamp (seconds since the epoch).
+const START_TIME: &str = "start_time";
+
+/// The time this task stopped as a Unix timestamp.
+const STOP_TIME: &str = "stop_time";
+
+/// The time this task has taken so far, in seconds.
+const ELAPSED_TIME: &str = "elapsed_time";
+
 /// An ongoing task whose status is tracked via TACACS+ accounting.
-pub struct Task<C> {
+pub struct AccountingTask<C> {
     /// The client associated with this task.
     client: C,
 
@@ -25,11 +38,23 @@ pub struct Task<C> {
     context: SessionContext,
 
     /// When this task was created, i.e., when it was started.
-    start_time: SystemTime,
+    start_time: Instant,
 }
 
-impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
+/// Gets the Unix timestamp (in seconds) as a string, returning an error if
+/// the system clock is set before the Unix epoch.
+fn get_unix_timestamp_string() -> Result<String, SystemTimeError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+}
+
+impl<'a, S: AsyncRead + AsyncWrite + Unpin> AccountingTask<&'a Client<S>> {
     /// Sends a start accounting record to the TACACS+ server, returning the resulting associated [`Task`].
+    ///
+    /// The `task_id` and `start_time` arguments from [RFC8907 section 8.3] are added internally.
+    /// Note that setting `start_time` requires the system clock to be set after the Unix epoch; otherwise,
+    /// an error is returned.
     ///
     /// This method should only be called once per task.
     pub(super) async fn start<A: AsRef<[Argument]>>(
@@ -41,22 +66,22 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
             client,
             id: uuid::Uuid::new_v4().to_string(),
             context,
-            start_time: SystemTime::now(),
+            start_time: Instant::now(),
         };
 
         // prepend a couple of informational arguments specified in RFC 8907 section 8.3
-        let mut full_arguments = vec![Argument {
-            name: "task_id".to_owned(),
-            value: task.id.clone(),
-            required: true,
-        }];
-        if let Ok(start_time_epoch) = task.start_time.duration_since(UNIX_EPOCH) {
-            full_arguments.push(Argument {
-                name: "start_time".to_owned(),
-                value: start_time_epoch.as_secs().to_string(),
+        let mut full_arguments = vec![
+            Argument {
+                name: TASK_ID.to_owned(),
+                value: task.id.clone(),
                 required: true,
-            });
-        }
+            },
+            Argument {
+                name: START_TIME.to_owned(),
+                value: get_unix_timestamp_string()?,
+                required: true,
+            },
+        ];
         full_arguments.extend_from_slice(arguments.as_ref());
 
         // perform accounting request with task info/arguments
@@ -69,25 +94,26 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
 
     /// Sends an update to the TACACS+ server about this task with the provided arguments.
     ///
-    /// Certain arguments may be added internally, such as `task_id` and `elapsed_time` from [RFC8907 section 8.3].
+    /// The `task_id` and `elapsed_time` arguments from [RFC8907 section 8.3] are added internally.
     ///
     /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
     pub async fn update<A: AsRef<[Argument]>>(
         &self,
         arguments: A,
     ) -> Result<AccountingResponse, ClientError> {
-        let mut full_arguments = vec![Argument {
-            name: "task_id".to_string(),
-            value: self.id.clone(),
-            required: true,
-        }];
-        if let Ok(elapsed_time) = SystemTime::now().duration_since(self.start_time) {
-            full_arguments.push(Argument {
-                name: "elapsed_time".to_string(),
-                value: elapsed_time.as_secs().to_string(),
+        let elapsed_secs = Instant::now().duration_since(self.start_time).as_secs();
+        let mut full_arguments = vec![
+            Argument {
+                name: TASK_ID.to_string(),
+                value: self.id.clone(),
                 required: true,
-            });
-        }
+            },
+            Argument {
+                name: ELAPSED_TIME.to_string(),
+                value: elapsed_secs.to_string(),
+                required: true,
+            },
+        ];
         full_arguments.extend_from_slice(arguments.as_ref());
 
         self.make_request(Flags::WatchdogUpdate, full_arguments)
@@ -103,20 +129,18 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         self,
         arguments: A,
     ) -> Result<AccountingResponse, ClientError> {
-        let mut full_arguments = vec![Argument {
-            name: "task_id".to_string(),
-            value: self.id.clone(),
-            required: true,
-        }];
-
-        if let Ok(timestamp) = SystemTime::now().duration_since(UNIX_EPOCH) {
-            full_arguments.push(Argument {
-                name: "stop_time".to_string(),
-                value: timestamp.as_secs().to_string(),
+        let mut full_arguments = vec![
+            Argument {
+                name: TASK_ID.to_string(),
+                value: self.id.clone(),
                 required: true,
-            })
-        }
-
+            },
+            Argument {
+                name: STOP_TIME.to_string(),
+                value: get_unix_timestamp_string()?,
+                required: true,
+            },
+        ];
         full_arguments.extend_from_slice(arguments.as_ref());
 
         self.make_request(Flags::StopRecord, full_arguments).await
@@ -127,7 +151,7 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> Task<&'a Client<S>> {
         flags: Flags,
         arguments: Vec<Argument>,
     ) -> Result<AccountingResponse, ClientError> {
-        // borrow arguments as required by protocol crate
+        // convert arguments to borrowed variants for use in protocol crate
         let borrowed_arguments = arguments
             .iter()
             .map(Argument::borrowed)

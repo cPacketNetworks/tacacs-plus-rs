@@ -35,7 +35,7 @@ mod error;
 pub use error::ClientError;
 
 mod task;
-pub use task::Task;
+pub use task::AccountingTask;
 
 // reexported for ease of access
 pub use tacacs_plus_protocol as protocol;
@@ -385,7 +385,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         &self,
         context: SessionContext,
         arguments: A,
-    ) -> Result<(Task<&Self>, AccountingResponse), ClientError> {
-        Task::start(self, context, arguments).await
+    ) -> Result<(AccountingTask<&Self>, AccountingResponse), ClientError> {
+        AccountingTask::start(self, context, arguments).await
     }
 }

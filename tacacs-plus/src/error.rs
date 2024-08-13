@@ -106,6 +106,11 @@ pub enum ClientError {
     /// [section 4.1 of RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.1-13.2.1
     #[error("sequence numberflow overflowed maximum, so session was terminated")]
     SequenceNumberOverflow,
+
+    /// The system time was set before the Unix epoch, which is problematic for generating
+    /// timestamps during accounting.
+    #[error("system time was set before Unix epoch")]
+    SystemTimeBeforeEpoch(#[from] std::time::SystemTimeError),
 }
 
 // authentication data being too long is a direct result of the password being too long
