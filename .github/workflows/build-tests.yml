@@ -27,9 +27,6 @@ jobs:
     # allow for cache to be shared between jobs
     concurrency: cargodeps-${{ matrix.features }}
 
-    env:
-      FEATURE_FLAGS: ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,6 +45,8 @@ jobs:
             ~/.cargo/git/db/
             target
       - name: Build & test protocol crate
+        env:
+          FEATURE_FLAGS: ${{ matrix.features == 'no_std' && '--no-default-features' || '' }}
         run: |
           cargo build --package tacacs-plus-protocol --verbose $FEATURE_FLAGS
           cargo test --package tacacs-plus-protocol --verbose $FEATURE_FLAGS
@@ -72,8 +71,9 @@ jobs:
           cache-to: type=gha,mode=max
           load: true
           context: ./test-assets/
-          file: ./test-assets/Dockerfile.test_server
           tags: localhost/tacacs-test-server
       - name: Run client tests against server
         if: ${{ matrix.features == 'std' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: ./test-assets/run-client-tests.sh

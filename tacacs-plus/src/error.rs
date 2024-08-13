@@ -2,7 +2,7 @@ use futures::io;
 use thiserror::Error;
 
 use tacacs_plus_protocol as protocol;
-use tacacs_plus_protocol::{authentication, authorization};
+use tacacs_plus_protocol::{accounting, authentication, authorization};
 
 /// An error during a TACACS+ exchange.
 #[non_exhaustive]
@@ -46,6 +46,19 @@ pub enum ClientError {
         user_message: String,
 
         /// The administrative log message returned from the server.
+        admin_message: String,
+    },
+
+    /// Error when performing accounting.
+    #[error("error when performing TACACS+ accounting")]
+    AccountingError {
+        /// The status returned by the server.
+        status: accounting::Status,
+
+        /// The message that can be displayed to the user connected to the client.
+        user_message: String,
+
+        /// An administrative log message from the server.
         admin_message: String,
     },
 
@@ -93,6 +106,11 @@ pub enum ClientError {
     /// [section 4.1 of RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.1-13.2.1
     #[error("sequence numberflow overflowed maximum, so session was terminated")]
     SequenceNumberOverflow,
+
+    /// The system time was set before the Unix epoch, which is problematic for generating
+    /// timestamps during accounting.
+    #[error("system time was set before Unix epoch")]
+    SystemTimeBeforeEpoch(#[from] std::time::SystemTimeError),
 }
 
 // authentication data being too long is a direct result of the password being too long

@@ -12,7 +12,7 @@ pub enum ResponseStatus {
 
 /// A server response from an authentication session.
 #[must_use = "Authentication failure is not reported as an error, so the status field must be checked."]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct AuthenticationResponse {
     /// Whether the authentication attempt passed or failed.
     pub status: ResponseStatus,
@@ -26,7 +26,7 @@ pub struct AuthenticationResponse {
 
 /// A TACACS+ server response from an authorization session.
 #[must_use = "The status of the response should be checked, since a failure is not reported as an error."]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct AuthorizationResponse {
     /// Whether the authorization attempt succeeded.
     pub status: ResponseStatus,
@@ -38,6 +38,16 @@ pub struct AuthorizationResponse {
     pub user_message: String,
 
     /// Administrative console message from the server. (`data` from RFC8907)
+    pub admin_message: String,
+}
+
+/// The response from a successful TACACS+ accounting operation.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct AccountingResponse {
+    /// The message that can be displayed to the user, if any.
+    pub user_message: String,
+
+    /// An administrative log message.
     pub admin_message: String,
 }
 

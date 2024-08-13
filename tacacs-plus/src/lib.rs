@@ -7,31 +7,32 @@
 
 use std::sync::Arc;
 
-use byteorder::{ByteOrder, NetworkEndian};
 use futures::lock::Mutex;
-use futures::{AsyncRead, AsyncReadExt};
-use futures::{AsyncWrite, AsyncWriteExt};
+use futures::{AsyncRead, AsyncWrite};
 use rand::Rng;
 
-use response::AuthorizationResponse;
 use tacacs_plus_protocol::Arguments;
-use tacacs_plus_protocol::Serialize;
 use tacacs_plus_protocol::{authentication, authorization};
 use tacacs_plus_protocol::{AuthenticationContext, AuthenticationService};
 use tacacs_plus_protocol::{HeaderInfo, MajorVersion, MinorVersion, Version};
-use tacacs_plus_protocol::{Packet, PacketBody, PacketFlags};
+use tacacs_plus_protocol::{Packet, PacketFlags};
 
 mod inner;
 pub use inner::{ConnectionFactory, ConnectionFuture};
 
 mod response;
-pub use response::{AuthenticationResponse, ResponseStatus};
+pub use response::{
+    AccountingResponse, AuthenticationResponse, AuthorizationResponse, ResponseStatus,
+};
 
 mod context;
 pub use context::{ContextBuilder, SessionContext};
 
 mod error;
 pub use error::ClientError;
+
+mod task;
+pub use task::AccountingTask;
 
 // reexported for ease of access
 pub use tacacs_plus_protocol as protocol;
@@ -91,63 +92,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         Self {
             inner: Arc::new(Mutex::new(inner)),
             secret: secret.map(|s| s.as_ref().to_owned()),
-        }
-    }
-
-    async fn write_packet<B: PacketBody + Serialize>(
-        &self,
-        connection: &mut S,
-        packet: Packet<B>,
-    ) -> Result<(), ClientError> {
-        // allocate zero-filled buffer large enough to hold packet
-        let mut packet_buffer = vec![0; packet.wire_size()];
-
-        // obfuscate packet if we have a secret key
-        if let Some(secret_key) = &self.secret {
-            packet.serialize(secret_key, &mut packet_buffer)?;
-        } else {
-            packet.serialize_unobfuscated(&mut packet_buffer)?;
-        }
-
-        connection.write_all(&packet_buffer).await?;
-        connection.flush().await.map_err(Into::into)
-    }
-
-    /// Receives a packet from the client's connection.
-    async fn receive_packet<B>(
-        &self,
-        connection: &mut S,
-        expected_sequence_number: u8,
-    ) -> Result<Packet<B>, ClientError>
-    where
-        B: PacketBody + for<'a> protocol::Deserialize<'a>,
-    {
-        let mut buffer = vec![0; HeaderInfo::HEADER_SIZE_BYTES];
-        let buffer = &mut buffer;
-        connection.read_exact(buffer).await?;
-
-        // read rest of body based on length reported in header
-        let body_length = NetworkEndian::read_u32(&buffer[8..12]);
-        buffer.resize(HeaderInfo::HEADER_SIZE_BYTES + body_length as usize, 0);
-        connection
-            .read_exact(&mut buffer[HeaderInfo::HEADER_SIZE_BYTES..])
-            .await?;
-
-        // unobfuscate packet as necessary
-        let deserialize_result: Packet<B> = if let Some(secret_key) = &self.secret {
-            Packet::deserialize(secret_key, buffer)?
-        } else {
-            Packet::deserialize_unobfuscated(buffer)?
-        };
-
-        let actual_sequence_number = deserialize_result.header().sequence_number();
-        if actual_sequence_number == expected_sequence_number {
-            Ok(deserialize_result)
-        } else {
-            Err(ClientError::SequenceNumberMismatch {
-                expected: expected_sequence_number,
-                actual: actual_sequence_number,
-            })
         }
     }
 
@@ -267,14 +211,13 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // block expression is used here to ensure that the connection mutex is only locked during communication
         let reply = {
+            let secret_key = self.secret.as_deref();
+
             let mut inner = self.inner.lock().await;
-
-            let connection = inner.connection().await?;
-
-            self.write_packet(connection, start_packet).await?;
+            inner.send_packet(start_packet, secret_key).await?;
 
             // response: whether authentication succeeded
-            let reply = self.receive_packet::<ReplyOwned>(connection, 2).await?;
+            let reply = inner.receive_packet::<ReplyOwned>(secret_key, 2).await?;
 
             inner.set_internal_single_connect_status(reply.header());
             inner
@@ -326,6 +269,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 AuthenticationContext {
                     privilege_level: context.privilege_level,
                     authentication_type: protocol::AuthenticationType::NotSet,
+                    // TODO: allow this to be specified as well? for guest it should probably be none
                     service: AuthenticationService::Login,
                 },
                 context.as_user_information()?,
@@ -335,12 +279,12 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
 
         // the inner mutex is locked within a block to ensure it's only locked as long as necessary
         let reply = {
+            let secret_key = self.secret.as_deref();
+
             let mut inner = self.inner.lock().await;
-            let connection = inner.connection().await?;
+            inner.send_packet(request_packet, secret_key).await?;
 
-            self.write_packet(connection, request_packet).await?;
-
-            let reply: Packet<ReplyOwned> = self.receive_packet(connection, 2).await?;
+            let reply: Packet<ReplyOwned> = inner.receive_packet(secret_key, 2).await?;
 
             // update inner state based on response
             inner.set_internal_single_connect_status(reply.header());
@@ -368,5 +312,23 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                 admin_message,
             }),
         }
+    }
+
+    /// Starts tracking a task via the TACACS+ accounting mechanism.
+    ///
+    /// The `task_id` and `start_time` arguments specified in [RFC8907 section 8.3] are set internally in addition
+    /// to the provided arguments.
+    ///
+    /// This function only sends a start record to a TACACS+ server; the [`update()`](AccountingTask::update) and
+    /// [`stop()`](AccountingTask::stop) methods on the returned [`AccountingTask`] should be used for sending
+    /// additional accounting records.
+    ///
+    /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
+    pub async fn account_begin<A: AsRef<[Argument]>>(
+        &self,
+        context: SessionContext,
+        arguments: A,
+    ) -> Result<(AccountingTask<&Self>, AccountingResponse), ClientError> {
+        AccountingTask::start(self, context, arguments).await
     }
 }
