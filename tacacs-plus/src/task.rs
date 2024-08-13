@@ -37,7 +37,7 @@ pub struct AccountingTask<C> {
     /// The context associated with this task.
     context: SessionContext,
 
-    /// When this task was created, i.e., when it was started.
+    /// When this task was created/started.
     start_time: Instant,
 }
 
@@ -124,7 +124,9 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> AccountingTask<&'a Client<S>> {
     ///
     /// Since this should only be done once, this consumes the task.
     ///
-    /// Certain arguments may also be set internally, such as `stop_time` and `task_id`.
+    /// The `stop_time` and `task_id` arguments from [RFC8907 section 8.3] are also added internally.
+    ///
+    /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
     pub async fn stop<A: AsRef<[Argument]>>(
         self,
         arguments: A,
@@ -175,12 +177,12 @@ impl<'a, S: AsyncRead + AsyncWrite + Unpin> AccountingTask<&'a Client<S>> {
         );
 
         let reply = {
+            let secret_key = self.client.secret.as_deref();
+
             let mut inner = self.client.inner.lock().await;
-            let connection = inner.connection().await?;
+            inner.send_packet(request_packet, secret_key).await?;
 
-            self.client.write_packet(connection, request_packet).await?;
-
-            let reply: Packet<ReplyOwned> = self.client.receive_packet(connection, 2).await?;
+            let reply: Packet<ReplyOwned> = inner.receive_packet(secret_key, 2).await?;
 
             // update inner state based on response
             inner.set_internal_single_connect_status(reply.header());
