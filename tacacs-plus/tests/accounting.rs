@@ -5,7 +5,7 @@ use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
 use tacacs_plus::Argument;
-use tacacs_plus::{Client, ContextBuilder};
+use tacacs_plus::{AccountingResponse, Client, ContextBuilder};
 
 #[tokio::test]
 async fn account_start_update_stop() {
@@ -25,10 +25,17 @@ async fn account_start_update_stop() {
         required: true,
     }];
 
-    let (task, _) = client
+    // the shrubbery TACACS+ daemon returns empty responses on success
+    let empty_response = AccountingResponse {
+        user_message: String::new(),
+        admin_message: String::new(),
+    };
+
+    let (task, start_response) = client
         .create_task(context, start_arguments)
         .await
         .expect("task creation should have succeeded");
+    assert_eq!(start_response, empty_response);
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -39,13 +46,17 @@ async fn account_start_update_stop() {
         value: "".to_owned(),
         required: false,
     }];
-    task.update(update_args)
+    let update_response = task
+        .update(update_args)
         .await
         .expect("task update should have succeeded");
+    assert_eq!(update_response, empty_response);
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    task.stop(Vec::new())
+    let stop_response = task
+        .stop(Vec::new())
         .await
         .expect("stopping task should have succeeded");
+    assert_eq!(stop_response, empty_response);
 }

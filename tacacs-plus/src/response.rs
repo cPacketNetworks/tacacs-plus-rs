@@ -42,6 +42,7 @@ pub struct AuthorizationResponse {
 }
 
 /// The response from a successful TACACS+ accounting operation.
+#[derive(Debug, PartialEq, Eq)]
 pub struct AccountingResponse {
     /// The message that can be displayed to the user, if any.
     pub user_message: String,
