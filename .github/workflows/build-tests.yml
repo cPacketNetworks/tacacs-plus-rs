@@ -71,7 +71,6 @@ jobs:
           cache-to: type=gha,mode=max
           load: true
           context: ./test-assets/
-          file: ./test-assets/Dockerfile.test_server
           tags: localhost/tacacs-test-server
       - name: Run client tests against server
         if: ${{ matrix.features == 'std' }}
