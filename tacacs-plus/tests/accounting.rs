@@ -7,15 +7,19 @@ use tokio_util::compat::TokioAsyncWriteCompatExt;
 use tacacs_plus::Argument;
 use tacacs_plus::{AccountingResponse, Client, ContextBuilder};
 
+mod common;
+
 #[tokio::test]
 async fn account_start_update_stop() {
+    let address = common::get_server_address();
+
     let client = Client::new(
-        Box::new(|| {
-            TcpStream::connect("localhost:5555")
+        Box::new(move || {
+            TcpStream::connect(address.clone())
                 .map_ok(TokioAsyncWriteCompatExt::compat_write)
                 .boxed()
         }),
-        Some("very secure key that is super secret"),
+        Some(common::SECRET_KEY),
     );
 
     let context = ContextBuilder::new("account").build();

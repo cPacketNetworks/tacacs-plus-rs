@@ -5,11 +5,14 @@ use tacacs_plus::{AuthenticationType, ConnectionFactory, ContextBuilder, Respons
 use tacacs_plus::{Client, ClientError};
 use tacacs_plus_protocol::DeserializeError;
 
+mod common;
+
 #[async_std::test]
 async fn chap_success() {
+    let address = common::get_server_address();
     let factory: ConnectionFactory<_> =
-        Box::new(|| async_std::net::TcpStream::connect("localhost:5555").boxed());
-    let client = Client::new(factory, Some("very secure key that is super secret"));
+        Box::new(move || async_std::net::TcpStream::connect(address.clone()).boxed());
+    let client = Client::new(factory, Some(common::SECRET_KEY));
 
     let context = ContextBuilder::new("someuser").build();
     let response = client
@@ -26,9 +29,10 @@ async fn chap_success() {
 
 #[async_std::test]
 async fn chap_failure() {
+    let address = common::get_server_address();
     let factory: ConnectionFactory<_> =
-        Box::new(|| async_net::TcpStream::connect("localhost:5555").boxed());
-    let client = Client::new(factory, Some("very secure key that is super secret"));
+        Box::new(move || async_net::TcpStream::connect(address.clone()).boxed());
+    let client = Client::new(factory, Some(common::SECRET_KEY));
 
     let context = ContextBuilder::new("paponly").build();
     let response = client
@@ -45,8 +49,9 @@ async fn chap_failure() {
 
 #[tokio::test]
 async fn key_unconfigured() {
-    let factory: ConnectionFactory<_> = Box::new(|| {
-        tokio::net::TcpStream::connect("localhost:5555")
+    let address = common::get_server_address();
+    let factory: ConnectionFactory<_> = Box::new(move || {
+        tokio::net::TcpStream::connect(address.clone())
             .map_ok(TokioAsyncWriteCompatExt::compat_write)
             .boxed()
     });

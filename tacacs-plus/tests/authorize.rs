@@ -6,15 +6,15 @@ use tacacs_plus::ResponseStatus;
 use tacacs_plus::{AuthenticationMethod, ConnectionFactory, ContextBuilder};
 use tacacs_plus_protocol::ArgumentOwned;
 
+mod common;
+
 #[async_std::test]
 async fn authorize_success() {
+    let address = common::get_server_address();
     let connection_factory: ConnectionFactory<_> =
-        Box::new(|| TcpStream::connect("localhost:5555").boxed());
+        Box::new(move || TcpStream::connect(address.clone()).boxed());
 
-    let client = Client::new(
-        connection_factory,
-        Some("very secure key that is super secret"),
-    );
+    let client = Client::new(connection_factory, Some(common::SECRET_KEY));
 
     let arguments = vec![
         ArgumentOwned {
@@ -71,13 +71,11 @@ async fn authorize_success() {
 
 #[async_std::test]
 async fn authorize_fail_wrong_argument_value() {
+    let address = common::get_server_address();
     let connection_factory: ConnectionFactory<_> =
-        Box::new(|| TcpStream::connect("localhost:5555").boxed());
+        Box::new(move || TcpStream::connect(address.clone()).boxed());
 
-    let client = Client::new(
-        connection_factory,
-        Some("very secure key that is super secret"),
-    );
+    let client = Client::new(connection_factory, Some(common::SECRET_KEY));
 
     let arguments = vec![
         ArgumentOwned {
@@ -108,9 +106,10 @@ async fn authorize_fail_wrong_argument_value() {
 
 #[async_std::test]
 async fn guest_authorize() {
+    let address = common::get_server_address();
     let factory: ConnectionFactory<TcpStream> =
-        Box::new(|| TcpStream::connect("localhost:5555").boxed());
-    let client = Client::new(factory, Some("very secure key that is super secret"));
+        Box::new(move || TcpStream::connect(address.clone()).boxed());
+    let client = Client::new(factory, Some(common::SECRET_KEY));
 
     let arguments = vec![ArgumentOwned {
         name: "service".to_owned(),
