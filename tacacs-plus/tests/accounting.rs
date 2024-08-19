@@ -48,7 +48,7 @@ async fn account_start_update_stop() {
     // the semantics of accounting packet flags changed between the TACACS+ draft & RFC8907
     let update_args = vec![Argument::new(
         FieldText::try_from("custom2").unwrap(),
-        // TODO: comment on what default is
+        // default FieldText is just the empty string
         FieldText::default(),
         false,
     )
