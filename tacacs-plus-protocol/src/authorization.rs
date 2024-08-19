@@ -162,11 +162,11 @@ pub struct Reply<'packet> {
     status: Status,
 
     /// Gets the message sent by the server, to be displayed to the user.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     server_message: FieldText<'packet>,
 
     /// Gets the administrative log message returned from the server.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     data: FieldText<'packet>,
 
     // this field not publicly exposed on purpose

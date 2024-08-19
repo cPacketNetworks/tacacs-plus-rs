@@ -1,4 +1,4 @@
-use getset::CopyGetters;
+use getset::{CopyGetters, Getters};
 
 use crate::FieldText;
 use crate::MinorVersion;
@@ -187,18 +187,18 @@ impl AuthenticationContext {
 }
 
 /// Some information about the user connected to a TACACS+ client.
-#[derive(Debug, PartialEq, Eq, CopyGetters)]
+#[derive(Debug, PartialEq, Eq, Getters, CopyGetters)]
 pub struct UserInformation<'info> {
     /// The user performing the action that is connected to the client.
     #[getset(get_copy = "pub")]
     user: &'info str,
 
     /// The port the user is connected to.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     port: FieldText<'info>,
 
     /// The remote address that the user is connecting from.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     remote_address: FieldText<'info>,
 }
 

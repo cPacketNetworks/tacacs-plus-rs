@@ -5,7 +5,7 @@ use std::vec::Vec;
 use super::{Reply, Status};
 use crate::owned::FromBorrowedBody;
 use crate::sealed::Sealed;
-use crate::ArgumentOwned;
+use crate::Argument;
 
 /// An authorization reply packet with owned fields.
 pub struct ReplyOwned {
@@ -19,7 +19,7 @@ pub struct ReplyOwned {
     pub data: String,
 
     /// The arguments sent by the server.
-    pub arguments: Vec<ArgumentOwned>,
+    pub arguments: Vec<Argument<'static>>,
 }
 
 impl Sealed for ReplyOwned {}
@@ -30,7 +30,7 @@ impl FromBorrowedBody for ReplyOwned {
     fn from_borrowed(borrowed: &Self::Borrowed<'_>) -> Self {
         let arguments_vec = borrowed
             .iter_arguments()
-            .map(|arg| arg.to_owned())
+            .map(Argument::into_owned)
             .collect();
 
         ReplyOwned {

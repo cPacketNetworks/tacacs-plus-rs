@@ -2,6 +2,12 @@
 
 use core::fmt;
 
+mod inner;
+use inner::FieldTextInner;
+
+#[cfg(test)]
+mod tests;
+
 /// A wrapper for `&str` that is checked to be printable ASCII, which is
 /// defined as not containing control characters in [RFC8907 section 3.7].
 ///
@@ -38,9 +44,16 @@ use core::fmt;
 /// ```
 ///
 /// [RFC8907 section 3.7]: https://www.rfc-editor.org/rfc/rfc8907.html#section-3.7
-#[repr(transparent)]
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub struct FieldText<'string>(&'string str);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+pub struct FieldText<'string>(FieldTextInner<'string>);
+
+impl FieldText<'_> {
+    /// Converts this [`FieldText`] to one that owns its underlying data.
+    #[cfg(feature = "std")]
+    pub fn into_owned<'out>(self) -> FieldText<'out> {
+        FieldText(self.0.into_owned())
+    }
+}
 
 impl<'string> FieldText<'string> {
     /// Gets the length of the underlying `&str`.
@@ -65,14 +78,16 @@ impl<'string> FieldText<'string> {
 
     fn is_printable_ascii(string: &str) -> bool {
         // all characters must be ASCII printable (i.e., not control characers)
-        string.is_ascii() && string.chars().all(|c| !c.is_ascii_control())
+        string
+            .chars()
+            .all(|c| c.is_ascii() && !c.is_ascii_control())
     }
 
     /// Asserts a string is ASCII, converting it to an [`FieldText`] or panicking if it is not actually ASCII.
     #[cfg(test)]
     pub(crate) fn assert(string: &str) -> FieldText<'_> {
         if Self::is_printable_ascii(string) {
-            FieldText(string)
+            FieldText(FieldTextInner::Borrowed(string))
         } else {
             panic!("non-ASCII string passed to force_ascii");
         }
@@ -81,7 +96,7 @@ impl<'string> FieldText<'string> {
 
 impl AsRef<str> for FieldText<'_> {
     fn as_ref(&self) -> &str {
-        self.0
+        &self.0
     }
 }
 
@@ -90,7 +105,7 @@ impl<'string> TryFrom<&'string str> for FieldText<'string> {
 
     fn try_from(value: &'string str) -> Result<Self, Self::Error> {
         if Self::is_printable_ascii(value) {
-            Ok(Self(value))
+            Ok(Self(FieldTextInner::Borrowed(value)))
         } else {
             Err(value)
         }
@@ -110,10 +125,16 @@ impl<'bytes> TryFrom<&'bytes [u8]> for FieldText<'bytes> {
     }
 }
 
-// boilerplate impls, mostly for tests and also lets us #[derive(Debug)] for packet component structs
-impl fmt::Debug for FieldText<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+#[cfg(feature = "std")]
+impl TryFrom<std::string::String> for FieldText<'_> {
+    type Error = std::string::String;
+
+    fn try_from(value: std::string::String) -> Result<Self, Self::Error> {
+        if Self::is_printable_ascii(&value) {
+            Ok(Self(FieldTextInner::Owned(value)))
+        } else {
+            Err(value)
+        }
     }
 }
 

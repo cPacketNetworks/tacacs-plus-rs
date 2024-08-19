@@ -141,7 +141,7 @@ fn deserialize_both_delims_equals_first() {
         Ok(Argument {
             name: FieldText::assert("name"),
             value: FieldText::assert("1*2"),
-            required: true
+            mandatory: true
         })
     );
 }
@@ -153,26 +153,7 @@ fn deserialize_both_delims_star_first() {
         Ok(Argument {
             name: FieldText::assert("optional"),
             value: FieldText::assert("and=stuff"),
-            required: false
+            mandatory: false
         })
-    );
-}
-
-#[cfg(feature = "std")]
-#[test]
-fn argument_to_owned_impl() {
-    use std::string::String;
-
-    let argument_unowned =
-        Argument::new(FieldText::assert("name"), FieldText::assert("value"), true)
-            .expect("argument should have been valid");
-
-    assert_eq!(
-        argument_unowned.to_owned(),
-        ArgumentOwned {
-            name: String::from("name"),
-            value: String::from("value"),
-            required: true
-        }
     );
 }

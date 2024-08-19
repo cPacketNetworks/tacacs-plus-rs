@@ -2,7 +2,6 @@ use super::DeserializeError;
 use super::PacketType;
 use super::{sealed::Sealed, Deserialize, PacketBody};
 
-#[cfg(feature = "std")]
 /// Converts a reference-based packet to a packet that owns its fields.
 ///
 /// A [`Borrow`](std::borrow::Borrow) impl for the different packet types would be nontrivial, if even possible,

@@ -1,4 +1,4 @@
-use tacacs_plus_protocol::ArgumentOwned;
+use tacacs_plus_protocol::Argument;
 use tacacs_plus_protocol::{authentication, authorization};
 
 /// The final status returned by a server during a TACACS+ session.
@@ -32,7 +32,7 @@ pub struct AuthorizationResponse {
     pub status: ResponseStatus,
 
     /// The arguments returned from the server, if any.
-    pub arguments: Vec<ArgumentOwned>,
+    pub arguments: Vec<Argument<'static>>,
 
     /// A message that may be presented to a user connected to this client. (`server_msg` from RFC8907)
     pub user_message: String,

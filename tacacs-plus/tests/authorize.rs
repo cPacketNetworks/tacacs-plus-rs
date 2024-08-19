@@ -1,10 +1,9 @@
 use async_std::net::TcpStream;
 use futures::FutureExt;
 
+use tacacs_plus::Argument;
 use tacacs_plus::Client;
-use tacacs_plus::ResponseStatus;
-use tacacs_plus::{AuthenticationMethod, ConnectionFactory, ContextBuilder};
-use tacacs_plus_protocol::ArgumentOwned;
+use tacacs_plus::{AuthenticationMethod, ConnectionFactory, ContextBuilder, ResponseStatus};
 
 mod common;
 
@@ -17,19 +16,21 @@ async fn authorize_success() {
     let client = Client::new(connection_factory, Some(common::SECRET_KEY));
 
     let arguments = vec![
-        ArgumentOwned {
-            name: "service".to_owned(),
-            value: "authorizeme".to_owned(),
-            required: true,
-        },
-        ArgumentOwned {
-            name: "thing".to_owned(),
+        Argument::new(
+            "service".try_into().unwrap(),
+            "authorizeme".try_into().unwrap(),
+            true,
+        )
+        .unwrap(),
+        Argument::new(
+            "thing".try_into().unwrap(),
             // the shrubbery TACACS+ daemon replaces optional arguments whose values are different
             // from the server config with their configured values
             // if this argument is instead changed to required, that doesn't happen
-            value: "this will be replaced".to_owned(),
-            required: false,
-        },
+            "this will be replaced".try_into().unwrap(),
+            false,
+        )
+        .unwrap(),
     ];
 
     let context = ContextBuilder::new("someuser").build();
@@ -49,22 +50,20 @@ async fn authorize_success() {
     assert_eq!(
         response.arguments,
         [
-            ArgumentOwned {
-                name: "service".to_owned(),
-                value: "authorizeme".to_owned(),
-                required: true,
-            },
-            ArgumentOwned {
-                name: "thing".to_owned(),
-                value: "not important".to_owned(),
-                required: false
-            },
+            Argument::new(
+                "service".try_into().unwrap(),
+                "authorizeme".try_into().unwrap(),
+                true
+            )
+            .unwrap(),
+            Argument::new(
+                "thing".try_into().unwrap(),
+                "not important".try_into().unwrap(),
+                false
+            )
+            .unwrap(),
             // arguments set on server are appended to the provided list (I believe)
-            ArgumentOwned {
-                name: "number".to_owned(),
-                value: "42".to_owned(),
-                required: true,
-            },
+            Argument::new("number".try_into().unwrap(), "42".try_into().unwrap(), true).unwrap()
         ]
     );
 }
@@ -78,17 +77,14 @@ async fn authorize_fail_wrong_argument_value() {
     let client = Client::new(connection_factory, Some(common::SECRET_KEY));
 
     let arguments = vec![
-        ArgumentOwned {
-            name: "service".to_owned(),
-            value: "authorizeme".to_owned(),
-            required: true,
-        },
+        Argument::new(
+            "service".try_into().unwrap(),
+            "authorizeme".try_into().unwrap(),
+            true,
+        )
+        .unwrap(),
         // the Shrubbery TACACS+ daemon denies authorization requests where mandatory arguments don't match their configured values
-        ArgumentOwned {
-            name: "number".to_owned(),
-            value: "3".to_owned(),
-            required: true,
-        },
+        Argument::new("number".try_into().unwrap(), "3".try_into().unwrap(), true).unwrap(),
     ];
 
     let context = ContextBuilder::new("someuser").build();
@@ -111,11 +107,12 @@ async fn guest_authorize() {
         Box::new(move || TcpStream::connect(address.clone()).boxed());
     let client = Client::new(factory, Some(common::SECRET_KEY));
 
-    let arguments = vec![ArgumentOwned {
-        name: "service".to_owned(),
-        value: "guest".to_owned(),
-        required: true,
-    }];
+    let arguments = vec![Argument::new(
+        "service".try_into().unwrap(),
+        "guest".try_into().unwrap(),
+        true,
+    )
+    .unwrap()];
 
     let context = ContextBuilder::new("")
         .auth_method(AuthenticationMethod::Guest)
@@ -129,16 +126,18 @@ async fn guest_authorize() {
     assert_eq!(
         response.arguments,
         [
-            ArgumentOwned {
-                name: "priv-lvl".to_owned(),
-                value: "0".to_owned(),
-                required: true
-            },
-            ArgumentOwned {
-                name: "authenticated".to_owned(),
-                value: "false".to_owned(),
-                required: true
-            }
+            Argument::new(
+                "priv-lvl".try_into().unwrap(),
+                "0".try_into().unwrap(),
+                true
+            )
+            .unwrap(),
+            Argument::new(
+                "authenticated".try_into().unwrap(),
+                "false".try_into().unwrap(),
+                true
+            )
+            .unwrap()
         ]
     );
 }

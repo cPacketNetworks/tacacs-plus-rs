@@ -2,7 +2,7 @@
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
-use getset::{CopyGetters, Getters};
+use getset::Getters;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
@@ -198,18 +198,18 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// An accounting reply packet received from a TACACS+ server.
-#[derive(PartialEq, Eq, Debug, Getters, CopyGetters)]
+#[derive(PartialEq, Eq, Debug, Getters)]
 pub struct Reply<'packet> {
     /// Gets the status of an accounting reply.
     #[getset(get = "pub")]
     status: Status,
 
     /// Gets the server message, which may be presented to a user connected to a client.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     server_message: FieldText<'packet>,
 
     /// Gets the administrative/log data received from the server.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     data: FieldText<'packet>,
 }
 

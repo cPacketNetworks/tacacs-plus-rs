@@ -29,7 +29,7 @@ fn serialize_user_information() {
     let port = FieldText::assert("tty0");
     let remote_address = FieldText::assert("127.72.12.99");
 
-    let user_info = UserInformation::new(user, port, remote_address)
+    let user_info = UserInformation::new(user, port.clone(), remote_address.clone())
         .expect("user information construction should have succeeded");
 
     let mut buffer = [0xff; 40];

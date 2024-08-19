@@ -281,7 +281,7 @@ pub struct Reply<'packet> {
     status: Status,
 
     /// Returns the message meant to be displayed to the user.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     server_message: FieldText<'packet>,
 
     /// Returns the authentication data for processing by the client.

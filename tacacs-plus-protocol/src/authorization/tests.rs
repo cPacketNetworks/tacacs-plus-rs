@@ -270,8 +270,8 @@ fn deserialize_reply_two_arguments() {
     assert_eq!(arguments_iter.len(), 2);
 
     // check actual arguments
-    assert_eq!(arguments_iter.next(), Some(expected_arguments[0]));
-    assert_eq!(arguments_iter.next(), Some(expected_arguments[1]));
+    assert_eq!(arguments_iter.next().as_ref(), Some(&expected_arguments[0]));
+    assert_eq!(arguments_iter.next().as_ref(), Some(&expected_arguments[1]));
 
     // check ExactSizeIterator impl again, ensuring size_hint and therefore len() return the remaining length
     assert_eq!(arguments_iter.len(), 0);
@@ -436,11 +436,6 @@ fn deserialize_obfuscated_reply_packet() {
 #[cfg(feature = "std")]
 #[test]
 fn full_unobfuscated_reply_packet_to_owned() {
-    use std::string::String;
-    use std::vec;
-
-    use crate::ArgumentOwned;
-
     let mut raw_packet = array_vec!([u8; 60] =>
         // HEADER
         0xc << 4, // version - major only version, minor v0
@@ -503,10 +498,11 @@ fn full_unobfuscated_reply_packet_to_owned() {
     assert_eq!(owned_body.data, "ten chars!");
     assert_eq!(
         owned_body.arguments,
-        vec![ArgumentOwned {
-            name: String::from("service"),
-            value: String::from("owned"),
-            required: true
-        }]
+        [Argument::new(
+            FieldText::assert("service"),
+            FieldText::assert("owned"),
+            true
+        )
+        .unwrap()]
     );
 }

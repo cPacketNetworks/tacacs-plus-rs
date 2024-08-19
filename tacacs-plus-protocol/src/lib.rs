@@ -24,9 +24,6 @@ pub use packet::{Packet, PacketFlags, PacketType};
 mod arguments;
 pub use arguments::{Argument, Arguments, InvalidArgument};
 
-#[cfg(feature = "std")]
-pub use arguments::ArgumentOwned;
-
 mod fields;
 pub use fields::*;
 

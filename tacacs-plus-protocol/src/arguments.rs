@@ -9,26 +9,20 @@ use crate::FieldText;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "std")]
-mod owned;
-
-#[cfg(feature = "std")]
-pub use owned::ArgumentOwned;
-
 /// An argument in the TACACS+ protocol, which exists for extensibility.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, CopyGetters)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, CopyGetters)]
 pub struct Argument<'data> {
     /// Gets the name of the argument.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     name: FieldText<'data>,
 
     /// Gets the value of the argument.
-    #[getset(get_copy = "pub")]
+    #[getset(get = "pub")]
     value: FieldText<'data>,
 
     /// Whether this argument is required to be processed or not.
     #[getset(get_copy = "pub")]
-    required: bool,
+    mandatory: bool,
 }
 
 /// Error to determine
@@ -75,7 +69,7 @@ impl From<InvalidArgument> for DeserializeError {
 
 impl<'data> Argument<'data> {
     /// The delimiter used for a required argument.
-    const REQUIRED_DELIMITER: char = '=';
+    const MANDATORY_DELIMITER: char = '=';
 
     /// The delimiter used for an optional argument.
     const OPTIONAL_DELIMITER: char = '*';
@@ -84,14 +78,14 @@ impl<'data> Argument<'data> {
     pub fn new(
         name: FieldText<'data>,
         value: FieldText<'data>,
-        required: bool,
+        mandatory: bool,
     ) -> Result<Self, InvalidArgument> {
-        // NOTE: since both name/value are `FieldText`s, we don't have to check if they are ascii as in `check_encoding`
+        // NOTE: since both name/value are already `FieldText`s, we don't have to check if they are ASCII
 
         if name.is_empty() {
             // name must be nonempty (?)
             Err(InvalidArgument::EmptyName)
-        } else if name.contains_any(&[Self::REQUIRED_DELIMITER, Self::OPTIONAL_DELIMITER]) {
+        } else if name.contains_any(&[Self::MANDATORY_DELIMITER, Self::OPTIONAL_DELIMITER]) {
             // "An argument name MUST NOT contain either of the separators." [RFC 8907]
             Err(InvalidArgument::NameContainsDelimiter)
         } else if u8::try_from(name.len() + 1 + value.len()).is_err() {
@@ -101,8 +95,18 @@ impl<'data> Argument<'data> {
             Ok(Argument {
                 name,
                 value,
-                required,
+                mandatory,
             })
+        }
+    }
+
+    /// Converts this `Argument` to one which owns its fields.
+    #[cfg(feature = "std")]
+    pub fn into_owned<'out>(self) -> Argument<'out> {
+        Argument {
+            name: self.name.into_owned(),
+            value: self.value.into_owned(),
+            mandatory: self.mandatory,
         }
     }
 
@@ -129,8 +133,8 @@ impl<'data> Argument<'data> {
             buffer[..delimiter_index].copy_from_slice(self.name.as_bytes());
 
             // choose delimiter based on whether argument is required
-            buffer[delimiter_index] = if self.required {
-                Self::REQUIRED_DELIMITER
+            buffer[delimiter_index] = if self.mandatory {
+                Self::MANDATORY_DELIMITER
             } else {
                 Self::OPTIONAL_DELIMITER
             } as u8;
@@ -159,7 +163,7 @@ impl<'data> Argument<'data> {
         .ok_or(InvalidArgument::NoDelimiter)?;
 
         // at this point, delimiter_index was non-None and must contain one of {*, =}
-        let required = buffer[delimiter_index] == Self::REQUIRED_DELIMITER as u8;
+        let required = buffer[delimiter_index] == Self::MANDATORY_DELIMITER as u8;
 
         // ensure name/value are valid text values per RFC 8907 (i.e., fully printable ASCII)
         let name = FieldText::try_from(&buffer[..delimiter_index])

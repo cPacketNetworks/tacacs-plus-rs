@@ -36,7 +36,7 @@ pub use task::AccountingTask;
 
 // reexported for ease of access
 pub use tacacs_plus_protocol as protocol;
-pub use tacacs_plus_protocol::{ArgumentOwned as Argument, AuthenticationMethod};
+pub use tacacs_plus_protocol::{Argument, AuthenticationMethod, FieldText};
 
 /// A TACACS+ client.
 #[derive(Clone)]
@@ -251,15 +251,9 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     pub async fn authorize(
         &self,
         context: SessionContext,
-        arguments: Vec<Argument>,
+        arguments: Vec<Argument<'_>>,
     ) -> Result<AuthorizationResponse, ClientError> {
         use authorization::ReplyOwned;
-
-        // protocol crate requires borrowed Argument<'_> type, so convert accordingly
-        let borrowed_args = arguments
-            .iter()
-            .map(Argument::borrowed)
-            .collect::<Result<Vec<_>, _>>()?;
 
         let request_packet = Packet::new(
             // use default minor version, since there's no reason to use v1 outside of authentication
@@ -273,7 +267,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
                     service: AuthenticationService::Login,
                 },
                 context.as_user_information()?,
-                Arguments::new(&borrowed_args).ok_or(ClientError::TooManyArguments)?,
+                Arguments::new(&arguments).ok_or(ClientError::TooManyArguments)?,
             ),
         );
 
@@ -324,7 +318,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     /// additional accounting records.
     ///
     /// [RFC8907 section 8.3]: https://www.rfc-editor.org/rfc/rfc8907.html#name-accounting-arguments
-    pub async fn account_begin<A: AsRef<[Argument]>>(
+    pub async fn account_begin<'args, A: AsRef<[Argument<'args>]>>(
         &self,
         context: SessionContext,
         arguments: A,

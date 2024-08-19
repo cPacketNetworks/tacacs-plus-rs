@@ -4,8 +4,8 @@ use futures::{FutureExt, TryFutureExt};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-use tacacs_plus::Argument;
 use tacacs_plus::{AccountingResponse, Client, ContextBuilder};
+use tacacs_plus::{Argument, FieldText};
 
 mod common;
 
@@ -23,11 +23,12 @@ async fn account_start_update_stop() {
     );
 
     let context = ContextBuilder::new("account").build();
-    let start_arguments = vec![Argument {
-        name: "custom".to_owned(),
-        value: "something".to_owned(),
-        required: true,
-    }];
+    let start_arguments = vec![Argument::new(
+        FieldText::try_from("custom").unwrap(),
+        FieldText::try_from("something").unwrap(),
+        true,
+    )
+    .unwrap()];
 
     // the shrubbery TACACS+ daemon returns empty responses on success
     let empty_response = AccountingResponse {
@@ -45,11 +46,13 @@ async fn account_start_update_stop() {
 
     // NOTE: the shrubbery TACACS+ daemon doesn't actually handle this properly; it shows up as a start rather than an update
     // the semantics of accounting packet flags changed between the TACACS+ draft & RFC8907
-    let update_args = vec![Argument {
-        name: "custom2".to_owned(),
-        value: "".to_owned(),
-        required: false,
-    }];
+    let update_args = vec![Argument::new(
+        FieldText::try_from("custom2").unwrap(),
+        // TODO: comment on what default is
+        FieldText::default(),
+        false,
+    )
+    .unwrap()];
     let update_response = task
         .update(update_args)
         .await
