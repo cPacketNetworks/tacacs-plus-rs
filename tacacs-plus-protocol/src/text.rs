@@ -138,6 +138,18 @@ impl TryFrom<std::string::String> for FieldText<'_> {
     }
 }
 
+impl PartialEq<&str> for FieldText<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl PartialEq<FieldText<'_>> for &str {
+    fn eq(&self, other: &FieldText<'_>) -> bool {
+        *self == other.0
+    }
+}
+
 impl fmt::Display for FieldText<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)

@@ -53,6 +53,19 @@ impl PartialEq for FieldTextInner<'_> {
     }
 }
 
+// also allow comparisons to &strs
+impl PartialEq<&str> for FieldTextInner<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_ref() == *other
+    }
+}
+
+impl PartialEq<FieldTextInner<'_>> for &str {
+    fn eq(&self, other: &FieldTextInner<'_>) -> bool {
+        self == &other.as_ref()
+    }
+}
+
 impl Default for FieldTextInner<'_> {
     fn default() -> Self {
         Self::Borrowed("")
