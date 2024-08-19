@@ -1,7 +1,9 @@
 use core::fmt;
 use core::ops::Deref;
 
-/// Effectively a `Cow<'_, str>` that works in a no_std context.
+/// Effectively a `Cow<'_, str>` that works in a no_std context, and
+/// also allows for conversion between borrowed/owned in-place (which
+/// `Cow` cannot do).
 #[derive(Debug, Clone, Eq, PartialOrd, Ord, Hash)]
 pub(super) enum FieldTextInner<'data> {
     Borrowed(&'data str),
@@ -11,9 +13,10 @@ pub(super) enum FieldTextInner<'data> {
 }
 
 impl FieldTextInner<'_> {
-    // a lifetime parameter is necessary since the compiler can't infer from just self
+    /// Extends the lifetime of a `FieldTextInner` by converting it to a variant
+    /// that owns its internal data.
     #[cfg(feature = "std")]
-    pub(super) fn into_owned<'out>(self) -> FieldTextInner<'out> {
+    pub(super) fn into_owned(self) -> FieldTextInner<'static> {
         use std::borrow::ToOwned;
 
         match self {
@@ -24,7 +27,7 @@ impl FieldTextInner<'_> {
 }
 
 // FieldTextInner is effectively a smart pointer now, so we implement Deref
-impl<'a> Deref for FieldTextInner<'a> {
+impl Deref for FieldTextInner<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -62,7 +65,7 @@ impl PartialEq<&str> for FieldTextInner<'_> {
 
 impl PartialEq<FieldTextInner<'_>> for &str {
     fn eq(&self, other: &FieldTextInner<'_>) -> bool {
-        self == &other.as_ref()
+        *self == other.as_ref()
     }
 }
 

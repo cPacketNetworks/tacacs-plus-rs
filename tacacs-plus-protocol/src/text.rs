@@ -48,9 +48,10 @@ mod tests;
 pub struct FieldText<'string>(FieldTextInner<'string>);
 
 impl FieldText<'_> {
-    /// Converts this [`FieldText`] to one that owns its underlying data.
+    /// Converts this [`FieldText`] to one that owns its underlying data,
+    /// extending its lifetime to `'static`.
     #[cfg(feature = "std")]
-    pub fn into_owned<'out>(self) -> FieldText<'out> {
+    pub fn into_owned(self) -> FieldText<'static> {
         FieldText(self.0.into_owned())
     }
 }
@@ -89,7 +90,7 @@ impl<'string> FieldText<'string> {
         if Self::is_printable_ascii(string) {
             FieldText(FieldTextInner::Borrowed(string))
         } else {
-            panic!("non-ASCII string passed to force_ascii");
+            panic!("non-ASCII string passed to `FieldText::assert()`");
         }
     }
 }
@@ -152,6 +153,6 @@ impl PartialEq<FieldText<'_>> for &str {
 
 impl fmt::Display for FieldText<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        <_ as fmt::Display>::fmt(&self.0, f)
     }
 }
