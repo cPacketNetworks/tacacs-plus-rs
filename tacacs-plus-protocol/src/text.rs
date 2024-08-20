@@ -1,6 +1,7 @@
 //! Convenience type for enforcing valid ASCII printable strings.
 
 use core::fmt;
+use core::str::FromStr;
 
 mod inner;
 use inner::FieldTextInner;
@@ -110,6 +111,17 @@ impl<'string> TryFrom<&'string str> for FieldText<'string> {
         } else {
             Err(value)
         }
+    }
+}
+
+// std-gated since we can't keep a reference to the &str internally without a lifetime parameter on FromStr
+#[cfg(feature = "std")]
+impl FromStr for FieldText<'static> {
+    type Err = std::string::String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use std::borrow::ToOwned;
+        s.to_owned().try_into()
     }
 }
 
