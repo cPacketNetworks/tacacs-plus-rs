@@ -30,7 +30,7 @@ you!
 
 * All code MUST be formatted with rustfmt
 * All code MUST be checked by rust-lang/rust-clippy 
-* Code SHOULD conform to the emerging guidelines of the RustStyle Guidelines 
+* Code SHOULD conform to the emerging [Rust Style Guidelines][Rust Style Guide]
 
 ### Additional guidellines:
 
@@ -47,3 +47,4 @@ struct RequestContext<'request> {}
 
 [DCO]: https://developercertificate.org/
 [RFC-2119]: https://datatracker.ietf.org/doc/html/rfc2119
+[Rust Style Guide]: https://doc.rust-lang.org/stable/style-guide/index.html
