@@ -1,7 +1,7 @@
 use core::fmt;
 use core::iter::zip;
 
-use getset::CopyGetters;
+use getset::{CopyGetters, Getters};
 
 use super::{DeserializeError, SerializeError};
 use crate::FieldText;
@@ -10,7 +10,7 @@ use crate::FieldText;
 mod tests;
 
 /// An argument in the TACACS+ protocol, which exists for extensibility.
-#[derive(Clone, Default, PartialEq, Eq, Debug, CopyGetters)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, Getters, CopyGetters)]
 pub struct Argument<'data> {
     /// Gets the name of the argument.
     #[getset(get = "pub")]

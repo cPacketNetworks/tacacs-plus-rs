@@ -1,7 +1,7 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
 use byteorder::{ByteOrder, NetworkEndian};
-use getset::{CopyGetters, Getters};
+use getset::Getters;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
 use super::{
@@ -155,7 +155,7 @@ struct ArgumentsInfo<'raw> {
 }
 
 /// The body of an authorization reply packet.
-#[derive(Getters, CopyGetters, Debug)]
+#[derive(Getters, Debug)]
 pub struct Reply<'packet> {
     /// Gets the status returned in an authorization exchange.
     #[getset(get = "pub")]
