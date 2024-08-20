@@ -248,6 +248,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     }
 
     /// Performs TACACS+ authorization against the server with the provided arguments.
+    ///
+    /// A merged `Vec` of all of the sent and received arguments is returned, with values replaced from
+    /// the server as necessary. No guarantees are made for the replacement of several arguments with
+    /// the same name, however, since even RFC8907 doesn't specify how to handle that case.
     pub async fn authorize(
         &self,
         context: SessionContext,
@@ -294,12 +298,22 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         let admin_message = reply.body().data.clone();
 
         match ResponseStatus::try_from(packet_status) {
-            Ok(status) => Ok(AuthorizationResponse {
-                status,
-                arguments: reply.body().arguments.clone(),
-                user_message,
-                admin_message,
-            }),
+            Ok(status) => {
+                let owned_arguments = arguments.into_iter().map(Argument::into_owned).collect();
+
+                let merged_arguments = merge_authorization_arguments(
+                    packet_status == authorization::Status::PassReplace,
+                    owned_arguments,
+                    reply.body().arguments.clone(),
+                );
+
+                Ok(AuthorizationResponse {
+                    status,
+                    arguments: merged_arguments,
+                    user_message,
+                    admin_message,
+                })
+            }
             Err(response::BadAuthorizationStatus(status)) => Err(ClientError::AuthorizationError {
                 status,
                 user_message,
@@ -325,4 +339,30 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     ) -> Result<(AccountingTask<&Self>, AccountingResponse), ClientError> {
         AccountingTask::start(self, context, arguments).await
     }
+}
+
+/// Merges the sent & received arguments within a successful authorization session.
+///
+/// Note that this assumes there are no duplicate arguments, as even RFC8907 is unclear
+/// on how to handle that case.
+fn merge_authorization_arguments(
+    replacing: bool,
+    mut sent_arguments: Vec<Argument<'static>>,
+    mut received_arguments: Vec<Argument<'static>>,
+) -> Vec<Argument<'static>> {
+    if replacing {
+        for received in received_arguments.into_iter() {
+            if let Some(sent) = sent_arguments
+                .iter_mut()
+                .find(|arg| arg.name() == received.name())
+            {
+                sent.set_value(received.value().clone());
+            } else {
+                sent_arguments.push(received);
+            }
+        }
+    } else {
+        sent_arguments.append(&mut received_arguments);
+    }
+    sent_arguments
 }

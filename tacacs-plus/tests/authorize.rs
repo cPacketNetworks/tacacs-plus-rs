@@ -127,6 +127,12 @@ async fn guest_authorize() {
         response.arguments,
         [
             Argument::new(
+                "service".try_into().unwrap(),
+                "guest".try_into().unwrap(),
+                true
+            )
+            .unwrap(),
+            Argument::new(
                 "priv-lvl".try_into().unwrap(),
                 "0".try_into().unwrap(),
                 true
