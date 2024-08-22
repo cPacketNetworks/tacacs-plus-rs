@@ -66,11 +66,11 @@ async fn key_unconfigured() {
         .await
         .expect_err("packet decoding should have failed without the right key configured");
 
-    assert!(
-        matches!(
-            error,
-            ClientError::InvalidPacketReceived(DeserializeError::IncorrectUnencryptedFlag)
-        ),
-        "got wrong error type; expected IncorrectUnencryptedFlag, but got {error:?}"
-    );
+    match error {
+        // shrubbery response (ignores flag)
+        ClientError::InvalidPacketReceived(DeserializeError::IncorrectUnencryptedFlag) => {}
+        // TACACS+ NG response (throws error by default if unencrypted flag set)
+        ClientError::IOError(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}
+        other => panic!("got wrong error type: {other:?}"),
+    }
 }

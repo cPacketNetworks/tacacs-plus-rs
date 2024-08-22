@@ -1,4 +1,4 @@
-FROM debian:12-slim AS base
+FROM debian:12-slim AS shrubbery-base
 
 # build dependencies for tac_plus
 # we have to build from source since the tacacs+ package was removed from repos after Debian Buster
@@ -19,7 +19,7 @@ ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
 
 EXPOSE 5555
 
-FROM base AS configured
+FROM shrubbery-base AS shrubbery-configured
 
 # basic TACACS+ daemon configuration
 COPY <<EOF /srv/tac_plus/tac_plus.conf
@@ -53,3 +53,98 @@ EOF
 # -g => single-threaded (logs print to stderr; ignores -S flag)
 # -d => specify debug level (as bitflag values ORed together)
 CMD ["-C", "/srv/tac_plus/tac_plus.conf", "-S"]
+
+
+FROM debian:12-slim AS ng-base
+
+RUN --mount=type=cache,target=/var/cache/apt,id=ng-apt \
+    apt-get update && apt-get install -y \
+    # tools
+    git gcc make \
+    # library dependencies
+    libc-dev libssl-dev libpcre2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/MarcJHuber/event-driven-servers.git /opt/event-driven-servers
+
+WORKDIR /opt/event-driven-servers
+RUN ./configure
+RUN make && make install
+
+ENTRYPOINT ["tac_plus-ng"]
+
+FROM ng-base AS ng-configured
+
+COPY <<EOF /srv/tac_plus-ng/tacacs.conf
+id = spawnd {
+    listen { port = 5556 }
+}
+
+id = tac_plus-ng {
+    log acctlog { destination = /tmp/accounting.log }
+    accounting log = acctlog
+
+    profile authorizeme {
+        script {
+            set number = 42
+            optional thing = "not important"
+            permit
+        }
+    }
+
+    profile guest {
+        script {
+            set priv-lvl = 0
+            set authenticated = false
+            permit
+        }
+    }
+
+    # to allow empty username guest authorization to work
+    rewrite emptyGuest {
+        rewrite /^$/ guest
+    }
+
+    device everything {
+        key = "very secure key that is super secret"
+        address = 0.0.0.0/0
+
+        script { rewrite user = emptyGuest }
+    }
+
+    user guest {
+        rewritten-only
+    }
+
+    user someuser {
+        password pap = clear hunter2
+        password chap = clear "something different"
+    }
+
+    user paponly {
+        password pap = clear pass-word
+    }
+
+    ruleset {
+        rule profile-assignment {
+            enabled = yes
+            script {
+                if (service == guest) {
+                    profile = guest
+                }
+
+                if (service == authorizeme) {
+                    profile = authorizeme
+                }
+
+                permit
+            }
+        }
+    }
+}
+EOF
+
+# validate config
+RUN tac_plus-ng -P /srv/tac_plus-ng/tacacs.conf
+
+CMD ["/srv/tac_plus-ng/tacacs.conf"]
