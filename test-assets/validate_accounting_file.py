@@ -38,7 +38,8 @@ if __name__ == "__main__":
     accounting_file_path = sys.argv[1]
 
     with open(accounting_file_path) as file:
-        records = [[field.strip() for field in line.split("\t")] for line in file]
+        # replace is due to TACACS+ NG not handling tab separators between arguments properly
+        records = [[field.strip() for field in line.replace("\\011", "\t").split("\t")] for line in file]
 
     assert len(records) == EXPECTED_FILE_LINES
 

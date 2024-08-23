@@ -75,13 +75,20 @@ ENTRYPOINT ["tac_plus-ng"]
 
 FROM ng-base AS ng-configured
 
-COPY <<EOF /srv/tac_plus-ng/tacacs.conf
+# single quotes around EOF prevent parameter expansion (${VARIABLE}) which we need for the accounting format to work properly
+# see https://www.gnu.org/software/bash/manual/bash.html#Here-Documents for more info
+COPY <<'EOF' /srv/tac_plus-ng/tacacs.conf
 id = spawnd {
     listen { port = 5556 }
 }
 
 id = tac_plus-ng {
-    log acctlog { destination = /tmp/accounting.log }
+    log acctlog {
+        destination = /tmp/accounting.log
+        # match shrubbery format
+        # service is included separately from args since args omits it for some reason
+        accounting format = "%b %d %H:%M:%S\t${device.address}\t${user}\t${device.port}\t${client}\t${accttype}\t${args,\t}\n"
+    }
     accounting log = acctlog
 
     profile authorizeme {
