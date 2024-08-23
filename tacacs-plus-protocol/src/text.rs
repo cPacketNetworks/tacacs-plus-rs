@@ -1,7 +1,6 @@
 //! Convenience type for enforcing valid ASCII printable strings.
 
 use core::fmt;
-use core::str::FromStr;
 
 mod inner;
 use inner::FieldTextInner;
@@ -32,7 +31,7 @@ mod tests;
 /// Conversions from `&[u8]`:
 ///
 /// ```
-/// use tacacs_plus_protocol::FieldText;
+/// # use tacacs_plus_protocol::FieldText;
 ///
 /// let valid_slice = b"this is (almost) a string";
 /// assert!(FieldText::try_from(valid_slice.as_slice()).is_ok());
@@ -44,11 +43,60 @@ mod tests;
 /// assert!(FieldText::try_from(invalid_utf8.as_slice()).is_err());
 /// ```
 ///
+/// If the `std` feature is enabled, the `FieldText::from_string_lossy()` constructor
+/// is also available in case a `.try_into().unwrap()` is undesirable:
+///
+/// ```
+/// # use tacacs_plus_protocol::FieldText;
+/// # #[cfg(feature = "std")] {
+/// let already_valid = "all ASCII!";
+/// let valid_text = FieldText::from_string_lossy(String::from(already_valid));
+/// assert_eq!(valid_text, already_valid);
+///
+/// let unicode_fun = "\tsome chars and ✨emojis✨";
+/// let escaped_text = FieldText::from_string_lossy(String::from(unicode_fun));
+/// assert_eq!(escaped_text, "\\tsome chars and \\u{2728}emojis\\u{2728}");
+///
+/// // now that escaped_text is valid ASCII, a .try_into().unwrap() should be guaranteed
+/// // not to panic with the escaped string
+/// let _: FieldText<'_> = escaped_text.as_ref().try_into().unwrap();
+/// # }
+/// ```
+///
 /// [RFC8907 section 3.7]: https://www.rfc-editor.org/rfc/rfc8907.html#section-3.7
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
 pub struct FieldText<'string>(FieldTextInner<'string>);
 
 impl FieldText<'_> {
+    /// Creates a [`FieldText`] from a `String`, escaping any non-printable-ASCII
+    /// characters as necessary.
+    #[cfg(feature = "std")]
+    pub fn from_string_lossy(string: std::string::String) -> FieldText<'static> {
+        use std::string::String;
+
+        // if a string is already printable ASCII, we don't have to do any escaping
+        if is_printable_ascii(&string) {
+            FieldText(FieldTextInner::Owned(string))
+        } else {
+            let escaped =
+                string
+                    .chars()
+                    .fold(String::with_capacity(string.len()), |mut result, c| {
+                        if char_is_printable_ascii(c) {
+                            result.push(c);
+                        } else {
+                            // we don't just use String::escape_default() since that also escapes quotes, which are
+                            // valid within a FieldText
+                            result.extend(c.escape_default());
+                        }
+
+                        result
+                    });
+
+            FieldText(FieldTextInner::Owned(escaped))
+        }
+    }
+
     /// Converts this [`FieldText`] to one that owns its underlying data,
     /// extending its lifetime to `'static`.
     #[cfg(feature = "std")]
@@ -78,22 +126,24 @@ impl<'string> FieldText<'string> {
         self.0.contains(characters)
     }
 
-    fn is_printable_ascii(string: &str) -> bool {
-        // all characters must be ASCII printable (i.e., not control characers)
-        string
-            .chars()
-            .all(|c| c.is_ascii() && !c.is_ascii_control())
-    }
-
     /// Asserts a string is ASCII, converting it to an [`FieldText`] or panicking if it is not actually ASCII.
     #[cfg(test)]
     pub(crate) fn assert(string: &str) -> FieldText<'_> {
-        if Self::is_printable_ascii(string) {
+        if is_printable_ascii(string) {
             FieldText(FieldTextInner::Borrowed(string))
         } else {
             panic!("non-ASCII string passed to `FieldText::assert()`");
         }
     }
+}
+
+fn is_printable_ascii(string: &str) -> bool {
+    // all characters must be ASCII printable (i.e., not control characers)
+    string.chars().all(char_is_printable_ascii)
+}
+
+fn char_is_printable_ascii(c: char) -> bool {
+    c.is_ascii() && !c.is_ascii_control()
 }
 
 impl AsRef<str> for FieldText<'_> {
@@ -106,7 +156,7 @@ impl<'string> TryFrom<&'string str> for FieldText<'string> {
     type Error = &'string str;
 
     fn try_from(value: &'string str) -> Result<Self, Self::Error> {
-        if Self::is_printable_ascii(value) {
+        if is_printable_ascii(value) {
             Ok(Self(FieldTextInner::Borrowed(value)))
         } else {
             Err(value)
@@ -116,7 +166,7 @@ impl<'string> TryFrom<&'string str> for FieldText<'string> {
 
 // std-gated since we can't keep a reference to the &str internally without a lifetime parameter on FromStr
 #[cfg(feature = "std")]
-impl FromStr for FieldText<'static> {
+impl std::str::FromStr for FieldText<'static> {
     type Err = std::string::String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -143,7 +193,7 @@ impl TryFrom<std::string::String> for FieldText<'_> {
     type Error = std::string::String;
 
     fn try_from(value: std::string::String) -> Result<Self, Self::Error> {
-        if Self::is_printable_ascii(&value) {
+        if is_printable_ascii(&value) {
             Ok(Self(FieldTextInner::Owned(value)))
         } else {
             Err(value)
