@@ -79,7 +79,7 @@ FROM ng-base AS ng-configured
 # see https://www.gnu.org/software/bash/manual/bash.html#Here-Documents for more info
 COPY <<'EOF' /srv/tac_plus-ng/tacacs.conf
 id = spawnd {
-    listen { port = 5556 }
+    listen { port = 5555 }
 }
 
 id = tac_plus-ng {
