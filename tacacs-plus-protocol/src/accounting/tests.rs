@@ -259,7 +259,7 @@ fn serialize_request_packet_obfuscated() {
     let session_id = 234897234;
     let header = HeaderInfo::new(Default::default(), 1, PacketFlags::all(), session_id);
 
-    let packet = Packet::new(header.clone(), body);
+    let packet = Packet::new(header, body);
 
     let key = b"supersecurekey";
     let mut buffer = [0xff; 70];

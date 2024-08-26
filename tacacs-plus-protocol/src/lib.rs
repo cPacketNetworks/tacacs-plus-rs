@@ -230,7 +230,7 @@ impl fmt::Display for MinorVersion {
 }
 
 /// The full protocol version.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, CopyGetters)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, CopyGetters)]
 #[getset(get_copy = "pub")]
 pub struct Version {
     /// The major TACACS+ version.

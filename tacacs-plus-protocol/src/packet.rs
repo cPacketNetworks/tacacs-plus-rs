@@ -1,3 +1,4 @@
+use core::fmt;
 use core::iter::zip;
 
 use bitflags::bitflags;
@@ -17,7 +18,7 @@ mod tests;
 
 /// Flags to indicate information about packets or the client/server.
 #[repr(transparent)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct PacketFlags(u8);
 
 bitflags! {
@@ -34,9 +35,23 @@ bitflags! {
     }
 }
 
+impl fmt::Display for PacketFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            write!(f, "no flags set")
+        } else {
+            for (name, _) in self.iter_names() {
+                write!(f, "{name} ")?;
+            }
+
+            Ok(())
+        }
+    }
+}
+
 /// The type of a protocol packet.
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, TryFromPrimitive)]
 pub enum PacketType {
     /// Authentication packet.
     Authentication = 0x1,
@@ -48,6 +63,20 @@ pub enum PacketType {
     Accounting = 0x3,
 }
 
+impl fmt::Display for PacketType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Authentication => "authentication",
+                Self::Authorization => "authorization",
+                Self::Accounting => "accounting",
+            }
+        )
+    }
+}
+
 #[doc(hidden)]
 impl From<TryFromPrimitiveError<PacketType>> for DeserializeError {
     fn from(value: TryFromPrimitiveError<PacketType>) -> Self {
@@ -56,14 +85,13 @@ impl From<TryFromPrimitiveError<PacketType>> for DeserializeError {
 }
 
 /// A full TACACS+ protocol packet.
-#[derive(Getters, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Getters)]
+#[getset(get = "pub")]
 pub struct Packet<B> {
-    /// Gets some of the header information associated with a packet.
-    #[getset(get = "pub")]
+    /// Some of the header information associated with a packet.
     header: HeaderInfo,
 
-    /// Gets the body of the packet.
-    #[getset(get = "pub")]
+    /// The body of the packet.
     body: B,
 }
 
@@ -141,7 +169,6 @@ fn xor_slices(output: &mut [u8], pseudo_pad: &[u8]) {
 }
 
 // The Serialize trait is not meant to be exposed publicly, but we still use it internally for serializing packet bodies so we silence the lint here
-#[allow(private_bounds)]
 impl<B: PacketBody + Serialize> Packet<B> {
     /// Calculates the size of this packet as encoded into its binary format.
     pub fn wire_size(&self) -> usize {
@@ -283,7 +310,7 @@ impl<'raw, B: PacketBody + Deserialize<'raw>> Packet<B> {
     #[cfg(feature = "std")]
     pub fn to_owned<'b, O: super::owned::FromBorrowedBody<Borrowed<'b> = B>>(&self) -> Packet<O> {
         Packet {
-            header: self.header.clone(),
+            header: self.header,
             body: O::from_borrowed(&self.body),
         }
     }

@@ -5,7 +5,7 @@ use super::{PacketFlags, PacketType};
 use crate::{DeserializeError, SerializeError, Version};
 
 /// Information included in a TACACS+ packet header.
-#[derive(PartialEq, Eq, Debug, Clone, CopyGetters, MutGetters)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, CopyGetters, MutGetters)]
 pub struct HeaderInfo {
     #[getset(get_copy = "pub", get_mut = "pub(super)")]
     /// The protocol major and minor version.
