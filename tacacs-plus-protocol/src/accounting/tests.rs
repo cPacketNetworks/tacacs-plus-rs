@@ -203,7 +203,7 @@ fn deserialize_full_reply_packet() {
     raw_packet.extend_from_slice(b"fifteen letters"); // data
 
     let expected_header = HeaderInfo::new(
-        Version(MajorVersion::RFC8907, MinorVersion::V1),
+        Version::new(MajorVersion::RFC8907, MinorVersion::V1),
         2,
         PacketFlags::all(),
         session_id,

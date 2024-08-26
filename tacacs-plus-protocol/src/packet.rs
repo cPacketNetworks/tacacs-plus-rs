@@ -80,7 +80,7 @@ impl<B: PacketBody> Packet<B> {
     pub fn new(mut header: HeaderInfo, body: B) -> Self {
         // update minor version to what is required by the body, if applicable
         if let Some(minor) = body.required_minor_version() {
-            header.version_mut().1 = minor;
+            header.version_mut().minor = minor;
         }
 
         Self { header, body }

@@ -119,7 +119,7 @@ fn serialize_full_start_packet() {
     let session_id = 123457;
     let header = HeaderInfo::new(
         // note that minor version 1 is required for PAP
-        Version(MajorVersion::RFC8907, MinorVersion::V1),
+        Version::new(MajorVersion::RFC8907, MinorVersion::V1),
         1,
         PacketFlags::SINGLE_CONNECTION,
         session_id,
@@ -315,7 +315,7 @@ fn deserialize_reply_full_packet() {
     raw_packet.extend_from_slice(&[1, 1, 2, 3, 5, 8, 13]); // data
 
     let expected_header = HeaderInfo::new(
-        Version(MajorVersion::RFC8907, MinorVersion::V1),
+        Version::new(MajorVersion::RFC8907, MinorVersion::V1),
         4,
         PacketFlags::UNENCRYPTED,
         session_id,
@@ -460,7 +460,7 @@ fn serialize_continue_only_data_field() {
 fn serialize_continue_full_packet() {
     let session_id = 856473784;
     let header = HeaderInfo::new(
-        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        Version::new(MajorVersion::RFC8907, MinorVersion::Default),
         49,
         PacketFlags::SINGLE_CONNECTION,
         session_id,

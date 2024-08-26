@@ -119,7 +119,7 @@ fn serialize_request_one_argument() {
 fn serialize_full_request_packet() {
     let session_id: u32 = 578263403;
     let header = HeaderInfo::new(
-        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        Version::new(MajorVersion::RFC8907, MinorVersion::Default),
         1,
         PacketFlags::UNENCRYPTED,
         session_id,
@@ -314,7 +314,7 @@ fn deserialize_full_reply_packet() {
         Argument::new(FieldText::assert("service"), FieldText::assert("nah"), true).unwrap();
 
     let expected_header = HeaderInfo::new(
-        Version(MajorVersion::RFC8907, MinorVersion::Default),
+        Version::new(MajorVersion::RFC8907, MinorVersion::Default),
         4,
         PacketFlags::UNENCRYPTED | PacketFlags::SINGLE_CONNECTION,
         92837492,
