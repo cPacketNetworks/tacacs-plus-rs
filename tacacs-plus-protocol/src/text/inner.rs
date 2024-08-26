@@ -4,7 +4,7 @@ use core::ops::Deref;
 /// Effectively a `Cow<'_, str>` that works in a no_std context, and
 /// also allows for conversion between borrowed/owned in-place (which
 /// `Cow` cannot do).
-#[derive(Debug, Clone, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Eq, Ord, Hash)]
 pub(super) enum FieldTextInner<'data> {
     Borrowed(&'data str),
 
@@ -66,6 +66,12 @@ impl PartialEq<&str> for FieldTextInner<'_> {
 impl PartialEq<FieldTextInner<'_>> for &str {
     fn eq(&self, other: &FieldTextInner<'_>) -> bool {
         *self == other.as_ref()
+    }
+}
+
+impl PartialOrd for FieldTextInner<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.as_ref().cmp(other.as_ref()))
     }
 }
 
