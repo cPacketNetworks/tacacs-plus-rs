@@ -1,5 +1,6 @@
 //! The non-thread-safe internals of a client.
 
+use std::fmt;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -58,7 +59,7 @@ pub type ConnectionFuture<S> = Pin<Box<dyn Future<Output = io::Result<S>> + Send
 /// ```
 pub type ConnectionFactory<S> = Box<dyn Fn() -> ConnectionFuture<S> + Send>;
 
-pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
+pub(super) struct ClientInner<S> {
     /// The underlying (TCP per RFC8907) connection for this client, if present.
     connection: Option<S>,
 
@@ -79,6 +80,19 @@ pub(super) struct ClientInner<S: AsyncRead + AsyncWrite + Unpin> {
     ///
     /// [RFC8907 section 4.3]: https://www.rfc-editor.org/rfc/rfc8907.html#section-4.3-5
     single_connection_established: bool,
+}
+
+impl<S: fmt::Debug> fmt::Debug for ClientInner<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ClientInner")
+            .field("connection", &self.connection)
+            .field("first_session_completed", &self.first_session_completed)
+            .field(
+                "single_connection_established",
+                &self.single_connection_established,
+            )
+            .finish_non_exhaustive()
+    }
 }
 
 impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {

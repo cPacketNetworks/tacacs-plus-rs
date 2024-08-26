@@ -5,6 +5,7 @@
 #![cfg_attr(feature = "docsrs", feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 
+use std::fmt;
 use std::sync::Arc;
 
 use futures::lock::Mutex;
@@ -40,7 +41,7 @@ pub use tacacs_plus_protocol::{Argument, AuthenticationMethod, FieldText};
 
 /// A TACACS+ client.
 #[derive(Clone)]
-pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
+pub struct Client<S> {
     /// The underlying TCP connection of the client.
     inner: Arc<Mutex<inner::ClientInner<S>>>,
 
@@ -53,6 +54,7 @@ pub struct Client<S: AsyncRead + AsyncWrite + Unpin> {
 /// More of these might be added in the future, but the variants here are
 /// the only currently supported authentication types with a [`Client`].
 #[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AuthenticationType {
     /// Authentication via the Password Authentication Protocol (PAP).
     Pap,
@@ -338,6 +340,21 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
         arguments: A,
     ) -> Result<(AccountingTask<&Self>, AccountingResponse), ClientError> {
         AccountingTask::start(self, context, arguments).await
+    }
+}
+
+impl<S: fmt::Debug> fmt::Debug for Client<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // adapted from std mutex impl
+        let inner_debug = match self.inner.try_lock() {
+            Some(inner) => format!("{inner:?}"),
+            None => String::from("(locked)"),
+        };
+
+        // we explicitly omit the secret here to avoid exposing it
+        f.debug_struct("Client")
+            .field("inner", &inner_debug)
+            .finish_non_exhaustive()
     }
 }
 

@@ -11,7 +11,7 @@ impl From<InvalidContext> for ClientError {
 }
 
 /// Some information associated with all sessions, regardless of the action.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct SessionContext {
     pub(super) user: String,
     pub(super) port: String,
@@ -46,6 +46,7 @@ impl SessionContext {
 }
 
 /// Builder for [`SessionContext`] objects.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ContextBuilder {
     user: String,
     port: String,
@@ -54,6 +55,7 @@ pub struct ContextBuilder {
     authentication_method: Option<AuthenticationMethod>,
 }
 
+// TODO: don't consume builder at each step
 impl ContextBuilder {
     /// Creates a new builder with default values for the various fields.
     pub fn new(user: &str) -> Self {
