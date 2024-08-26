@@ -71,8 +71,8 @@ jobs:
           cache-to: type=gha,mode=max
           load: true
           context: ./test-assets/
-          target: shrubbery-configured
-          tags: localhost/shrubbery-test-server
+          target: tacacs-shrubbery-configured
+          tags: localhost/tacacs-shrubbery-server
       - name: Build test server image (TACACS+ NG)
         if: ${{ matrix.features == 'std' }}
         uses: docker/build-push-action@v6
@@ -81,8 +81,8 @@ jobs:
           cache-to: type=gha,mode=max
           load: true
           context: ./test-assets/
-          target: ng-configured
-          tags: localhost/ng-test-server
+          target: tacacs-ng-configured
+          tags: localhost/tacacs-ng-server
       - name: Run client tests against server
         if: ${{ matrix.features == 'std' }}
         env:

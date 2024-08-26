@@ -8,8 +8,8 @@ docker=${docker:-docker}
 if [ ! -v CI ]; then
     # build server image
     echo "Building test server Docker images..."
-    $docker build --tag localhost/shrubbery-test-server --target shrubbery-configured "${REPO_ROOT}/test-assets"
-    $docker build --tag localhost/ng-test-server --target ng-configured "${REPO_ROOT}/test-assets"
+    $docker build --tag localhost/tacacs-shrubbery-server --target tacacs-shrubbery-configured "${REPO_ROOT}/test-assets"
+    $docker build --tag localhost/tacacs-ng-server --target tacacs-ng-configured "${REPO_ROOT}/test-assets"
     echo "Build finished!"
 fi
 
@@ -49,5 +49,5 @@ test_against_server_image() {
 
 trap "stop_running_containers" EXIT
 
-test_against_server_image localhost/shrubbery-test-server
-test_against_server_image localhost/ng-test-server
+test_against_server_image localhost/tacacs-shrubbery-server
+test_against_server_image localhost/tacacs-ng-server

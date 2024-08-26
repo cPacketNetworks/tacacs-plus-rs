@@ -1,4 +1,6 @@
-FROM debian:12-slim AS shrubbery-base
+FROM debian:12-slim AS base
+
+FROM base AS tacacs-shrubbery-base
 
 # build dependencies for tac_plus
 # we have to build from source since the tacacs+ package was removed from repos after Debian Buster
@@ -19,7 +21,7 @@ ENTRYPOINT ["tac_plus", "-p", "5555", "-G"]
 
 EXPOSE 5555
 
-FROM shrubbery-base AS shrubbery-configured
+FROM tacacs-shrubbery-base AS tacacs-shrubbery-configured
 
 # basic TACACS+ daemon configuration
 COPY <<EOF /srv/tac_plus/tac_plus.conf
@@ -55,10 +57,9 @@ EOF
 CMD ["-C", "/srv/tac_plus/tac_plus.conf", "-S"]
 
 
-FROM debian:12-slim AS ng-base
+FROM base AS tacacs-ng-base
 
-RUN --mount=type=cache,target=/var/cache/apt,id=ng-apt \
-    apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     # tools
     git gcc make \
     # library dependencies
@@ -68,12 +69,11 @@ RUN --mount=type=cache,target=/var/cache/apt,id=ng-apt \
 RUN git clone https://github.com/MarcJHuber/event-driven-servers.git /opt/event-driven-servers
 
 WORKDIR /opt/event-driven-servers
-RUN ./configure
-RUN make && make install
+RUN ./configure && make && make install
 
 ENTRYPOINT ["tac_plus-ng"]
 
-FROM ng-base AS ng-configured
+FROM tacacs-ng-base AS tacacs-ng-configured
 
 # single quotes around EOF prevent parameter expansion (${VARIABLE}) which we need for the accounting format to work properly
 # see https://www.gnu.org/software/bash/manual/bash.html#Here-Documents for more info
@@ -85,8 +85,7 @@ id = spawnd {
 id = tac_plus-ng {
     log acctlog {
         destination = /tmp/accounting.log
-        # match shrubbery format
-        # service is included separately from args since args omits it for some reason
+        # match shrubbery log format (besides argument separator, since \t turns into an octal escape)
         accounting format = "%b %d %H:%M:%S\t${device.address}\t${user}\t${device.port}\t${client}\t${accttype}\t${args,\t}\n"
     }
     accounting log = acctlog
