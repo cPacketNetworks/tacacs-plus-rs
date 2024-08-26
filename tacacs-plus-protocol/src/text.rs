@@ -53,9 +53,9 @@ mod tests;
 /// let valid_text = FieldText::from_string_lossy(String::from(already_valid));
 /// assert_eq!(valid_text, already_valid);
 ///
-/// let unicode_fun = "\tsome chars and ✨emojis✨";
+/// let unicode_fun = "\tsome chars and ✨emojis✨ (and a quote: ')";
 /// let escaped_text = FieldText::from_string_lossy(String::from(unicode_fun));
-/// assert_eq!(escaped_text, "\\tsome chars and \\u{2728}emojis\\u{2728}");
+/// assert_eq!(escaped_text, "\\tsome chars and \\u{2728}emojis\\u{2728} (and a quote: ')");
 ///
 /// // now that escaped_text is valid ASCII, a .try_into().unwrap() should be guaranteed
 /// // not to panic with the escaped string
@@ -74,27 +74,21 @@ impl FieldText<'_> {
     pub fn from_string_lossy(string: std::string::String) -> FieldText<'static> {
         use std::string::String;
 
-        // if a string is already printable ASCII, we don't have to do any escaping
-        if is_printable_ascii(&string) {
-            FieldText(FieldTextInner::Owned(string))
-        } else {
-            let escaped =
-                string
-                    .chars()
-                    .fold(String::with_capacity(string.len()), |mut result, c| {
-                        if char_is_printable_ascii(c) {
-                            result.push(c);
-                        } else {
-                            // we don't just use String::escape_default() since that also escapes quotes, which are
-                            // valid within a FieldText
-                            result.extend(c.escape_default());
-                        }
+        // we don't just use String::escape_default() + ToString since that also escapes quotes,
+        // which we don't want since they're already valid ASCII
+        let escaped = string
+            .chars()
+            .fold(String::with_capacity(string.len()), |mut result, c| {
+                if char_is_printable_ascii(c) {
+                    result.push(c);
+                } else {
+                    result.extend(c.escape_default());
+                }
 
-                        result
-                    });
+                result
+            });
 
-            FieldText(FieldTextInner::Owned(escaped))
-        }
+        FieldText(FieldTextInner::Owned(escaped))
     }
 
     /// Converts this [`FieldText`] to one that owns its underlying data,
