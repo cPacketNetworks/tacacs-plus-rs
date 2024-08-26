@@ -1,5 +1,7 @@
 //! Authorization features/packets of the TACACS+ protocol.
 
+use core::fmt;
+
 use byteorder::{ByteOrder, NetworkEndian};
 use getset::Getters;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
@@ -20,6 +22,7 @@ mod owned;
 pub use owned::ReplyOwned;
 
 /// An authorization request packet body, including arguments.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Request<'packet> {
     /// Method used to authenticate to TACACS+ client.
     method: AuthenticationMethod,
@@ -114,7 +117,7 @@ impl Serialize for Request<'_> {
 
 /// The status of an authorization operation, as returned by the server.
 #[repr(u8)]
-#[derive(PartialEq, Eq, Debug, Clone, Copy, TryFromPrimitive)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, TryFromPrimitive)]
 pub enum Status {
     /// Authorization passed; server may have additional arguments for the client.
     PassAdd = 0x01,
@@ -129,13 +132,33 @@ pub enum Status {
     Error = 0x11,
 
     /// Forward authorization request to an alternative daemon.
-    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
+    ///
+    /// Note that redirection was deprecated in [RFC8907 (section 10.5.5)], and SHOULD
+    /// be deprecated by clients.
+    ///
+    /// [RFC8907 (section 10.5.5)]: https://www.rfc-editor.org/rfc/rfc8907.html#name-redirection-mechanism
     Follow = 0x21,
 }
 
 impl Status {
     /// The wire size of an authorization reply status in bytes.
     const WIRE_SIZE: usize = 1;
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::PassAdd => "pass, arguments added",
+                Self::PassReplace => "pass, arguments replaced",
+                Self::Fail => "fail",
+                Self::Error => "server-side error",
+                Self::Follow => "redirect to alternative daemon",
+            }
+        )
+    }
 }
 
 // Implementation detail for num_enum, which is why it's hidden
@@ -147,7 +170,7 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// Information about a reply packet's arguments.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ArgumentsInfo<'raw> {
     argument_count: u8,
     argument_lengths: &'raw [u8],
@@ -155,7 +178,7 @@ struct ArgumentsInfo<'raw> {
 }
 
 /// The body of an authorization reply packet.
-#[derive(Getters, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Getters)]
 pub struct Reply<'packet> {
     /// Gets the status returned in an authorization exchange.
     #[getset(get = "pub")]
@@ -182,6 +205,7 @@ struct ReplyFieldLengths {
 }
 
 /// An iterator over the arguments in an authorization reply packet.
+#[derive(Debug, Clone)]
 pub struct ArgumentsIterator<'iter> {
     /// Argument information, including argument count.
     arguments_info: &'iter ArgumentsInfo<'iter>,
@@ -303,8 +327,6 @@ impl PacketBody for Reply<'_> {
     const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 1 + 4;
 }
 
-// Hidden from docs as this is not meant for external use
-#[doc(hidden)]
 impl<'raw> Deserialize<'raw> for Reply<'raw> {
     fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
         let ReplyFieldLengths {

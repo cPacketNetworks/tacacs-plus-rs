@@ -10,7 +10,7 @@ use crate::FieldText;
 mod tests;
 
 /// An argument in the TACACS+ protocol, which exists for extensibility.
-#[derive(Clone, Default, PartialEq, Eq, Debug, Getters, CopyGetters, Setters)]
+#[derive(Clone, Default, PartialEq, Eq, Debug, Hash, Getters, CopyGetters, Setters)]
 #[getset(set = "pub")]
 pub struct Argument<'data> {
     /// The name of the argument.
@@ -24,6 +24,22 @@ pub struct Argument<'data> {
     /// Whether processing this argument is mandatory.
     #[getset(get_copy = "pub")]
     mandatory: bool,
+}
+
+impl fmt::Display for Argument<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} = {} ({})",
+            self.name,
+            self.value,
+            if self.mandatory {
+                "mandatory"
+            } else {
+                "optional"
+            }
+        )
+    }
 }
 
 /// Error to determine
@@ -178,7 +194,7 @@ impl<'data> Argument<'data> {
 }
 
 /// A set of arguments known to be of valid length for use in a TACACS+ packet.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arguments<'args>(&'args [Argument<'args>]);
 
 impl<'args> Arguments<'args> {

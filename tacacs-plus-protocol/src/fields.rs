@@ -11,7 +11,7 @@ mod tests;
 
 /// The method used to authenticate to the TACACS+ client.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum AuthenticationMethod {
     /// Unknown.
     NotSet = 0x00,
@@ -50,6 +50,28 @@ pub enum AuthenticationMethod {
 impl AuthenticationMethod {
     /// The number of bytes an `AuthenticationMethod` occupies on the wire.
     pub(super) const WIRE_SIZE: usize = 1;
+}
+
+impl fmt::Display for AuthenticationMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::NotSet => "not set",
+                Self::None => "none",
+                Self::Kerberos5 => "Kerberos 5",
+                Self::Line => "terminal line",
+                Self::Enable => "enable",
+                Self::Local => "local user database",
+                Self::TacacsPlus => "TACACS+",
+                Self::Guest => "guest authentication",
+                Self::Radius => "RADIUS",
+                Self::Kerberos4 => "Kerberos 4",
+                Self::RCommand => "r-command",
+            }
+        )
+    }
 }
 
 /// A privilege level for authentication. Limited to the range 0-15, inclusive.

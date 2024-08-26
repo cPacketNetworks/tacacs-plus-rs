@@ -8,6 +8,7 @@ use crate::sealed::Sealed;
 use crate::Argument;
 
 /// An authorization reply packet with owned fields.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReplyOwned {
     /// The status returned by the TACACS+ server.
     pub status: Status,
