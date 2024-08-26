@@ -2,6 +2,7 @@
 
 use bitflags::bitflags;
 use byteorder::{ByteOrder, NetworkEndian};
+use core::fmt;
 use getset::Getters;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 
@@ -30,7 +31,7 @@ bitflags! {
 }
 
 /// Valid flag combinations for a TACACS+ account REQUEST packet.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Flags {
     /// Start of a task.
     StartRecord,
@@ -43,6 +44,21 @@ pub enum Flags {
 
     /// Update on long-running task, including updated/new argument values.
     WatchdogUpdate,
+}
+
+impl fmt::Display for Flags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::StartRecord => "start of record",
+                Self::StopRecord => "end of record",
+                Self::WatchdogUpdate => "update with new information",
+                Self::WatchdogNoUpdate => "update with no new information",
+            }
+        )
+    }
 }
 
 impl From<Flags> for RawFlags {
@@ -62,6 +78,7 @@ impl Flags {
 }
 
 /// An accounting request packet, used to start, stop, or provide progress on a running job.
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct Request<'packet> {
     /// Flags to indicate what kind of accounting record this packet includes.
     flags: Flags,
@@ -172,7 +189,7 @@ impl Serialize for Request<'_> {
 
 /// The server's reply status in an accounting session.
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, TryFromPrimitive)]
 pub enum Status {
     /// Task logging succeeded.
     Success = 0x01,
@@ -181,13 +198,30 @@ pub enum Status {
     Error = 0x02,
 
     /// Forward accounting request to an alternative daemon.
-    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
+    ///
+    /// Note that the forwarding mechanism was deprecated in [RFC8907].
+    ///
+    /// [RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-1-5.3
     Follow = 0x21,
 }
 
 impl Status {
     /// The number of bytes an accounting reply status occupies on the wire.
     pub(super) const WIRE_SIZE: usize = 1;
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Success => "success",
+                Self::Error => "error",
+                Self::Follow => "follow",
+            }
+        )
+    }
 }
 
 #[doc(hidden)]
@@ -198,7 +232,7 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// An accounting reply packet received from a TACACS+ server.
-#[derive(PartialEq, Eq, Debug, Getters)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Getters)]
 pub struct Reply<'packet> {
     /// Gets the status of an accounting reply.
     #[getset(get = "pub")]
@@ -267,8 +301,6 @@ impl PacketBody for Reply<'_> {
     const REQUIRED_FIELDS_LENGTH: usize = Status::WIRE_SIZE + 4;
 }
 
-// hide in docs, since this isn't meant to be used externally
-#[doc(hidden)]
 impl<'raw> Deserialize<'raw> for Reply<'raw> {
     fn deserialize_from_buffer(buffer: &'raw [u8]) -> Result<Self, DeserializeError> {
         let extracted_lengths = Self::extract_field_lengths(buffer)?;

@@ -1,5 +1,4 @@
-use std::borrow::ToOwned;
-use std::string::String;
+use std::string::{String, ToString};
 use std::vec::Vec;
 
 use super::{Reply, Status};
@@ -36,8 +35,8 @@ impl FromBorrowedBody for ReplyOwned {
 
         ReplyOwned {
             status: borrowed.status,
-            server_message: borrowed.server_message.as_ref().to_owned(),
-            data: borrowed.data.as_ref().to_owned(),
+            server_message: borrowed.server_message.to_string(),
+            data: borrowed.data.to_string(),
             arguments: arguments_vec,
         }
     }
