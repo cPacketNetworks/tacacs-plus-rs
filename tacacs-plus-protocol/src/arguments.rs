@@ -17,7 +17,7 @@ pub struct Argument<'data> {
     #[getset(get = "pub")]
     name: FieldText<'data>,
 
-    /// Ts the value of the argument.
+    /// The value of the argument.
     #[getset(get = "pub")]
     value: FieldText<'data>,
 

@@ -8,6 +8,7 @@ use crate::owned::FromBorrowedBody;
 use crate::sealed::Sealed;
 
 /// An authentication reply packet with owned fields.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReplyOwned {
     /// The status, as returned by the server.
     pub status: Status,

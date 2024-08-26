@@ -1,6 +1,6 @@
 use core::fmt;
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, Hash)]
 enum PacketDataInner<'data> {
     Borrowed(&'data [u8]),
 
@@ -8,13 +8,26 @@ enum PacketDataInner<'data> {
     Owned(std::vec::Vec<u8>),
 }
 
+impl PartialOrd for PacketDataInner<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.as_ref().cmp(other.as_ref()))
+    }
+}
+
 /// Supplementary authentication data included in an authentication start packet.
-#[derive(PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PacketData<'data>(PacketDataInner<'data>);
 
-impl fmt::Debug for PacketData<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("PacketData").field(&self.as_bytes()).finish()
+impl PacketData<'_> {
+    /// Creates an empty [`PacketData`].
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+impl Default for PacketData<'_> {
+    fn default() -> Self {
+        Self(PacketDataInner::Borrowed(&[]))
     }
 }
 
@@ -30,9 +43,6 @@ impl fmt::Display for DataTooLong {
         )
     }
 }
-
-#[cfg(feature = "std")]
-impl std::error::Error for DataTooLong {}
 
 impl<'data> TryFrom<&'data [u8]> for PacketData<'data> {
     type Error = DataTooLong;

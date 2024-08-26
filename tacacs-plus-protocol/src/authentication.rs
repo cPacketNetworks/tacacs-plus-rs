@@ -27,7 +27,7 @@ pub use owned::ReplyOwned;
 
 /// The authentication action, as indicated upon initiation of an authentication session.
 #[repr(u8)]
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum Action {
     /// Login request.
     Login = 0x01,
@@ -36,7 +36,10 @@ pub enum Action {
     ChangePassword = 0x02,
 
     /// Outbound authentication request.
-    #[deprecated = "Outbound authentication should not be used due to its security implications, according to RFC-8907."]
+    ///
+    /// Note that outbound authentication should not be used due to its security implications, according to [RFC8907 section 10.5.3].
+    ///
+    /// [RFC8907 section 10.5.3]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.3-4
     SendAuth = 0x04,
 }
 
@@ -47,7 +50,7 @@ impl Action {
 
 /// The authentication status, as returned by a TACACS+ server.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive)]
 pub enum Status {
     /// Authentication succeeded.
     Pass = 0x01,
@@ -71,7 +74,11 @@ pub enum Status {
     Error = 0x07,
 
     /// Forward authentication request to an alternative daemon.
-    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
+    ///
+    /// Note that [RFC8907 section 10.5.5] deprecated this status, saying that it SHOULD
+    /// be treated as an authentication failure.
+    ///
+    /// [RFC8907 section 10.5.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.5-1
     Follow = 0x21,
 }
 
@@ -88,7 +95,7 @@ impl From<TryFromPrimitiveError<Status>> for DeserializeError {
 }
 
 /// An authentication start packet, used to initiate an authentication session.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Start<'packet> {
     action: Action,
     authentication: AuthenticationContext,
@@ -161,8 +168,6 @@ impl<'packet> Start<'packet> {
             (AuthenticationType::Ascii, Action::Login | Action::ChangePassword) => true,
 
             // ASCII authentication can't be used with sendauth option
-            // (also marked as deprecated but we allow this internally)
-            #[allow(deprecated)]
             (AuthenticationType::Ascii, Action::SendAuth) => false,
 
             // change password is not valid for any other authentication types
@@ -256,25 +261,37 @@ impl Serialize for Start<'_> {
     }
 }
 
-/// Flags received in an authentication reply packet.
-#[repr(transparent)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct ReplyFlags(u8);
+bitflags! {
+    /// Flags received in an authentication reply packet.
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+    #[repr(transparent)]
+    pub struct ReplyFlags: u8 {
+        /// Indicates the client MUST NOT display user input.
+        const NO_ECHO = 0b00000001;
+    }
+}
 
 impl ReplyFlags {
     /// Number of bytes reply flags occupy on the wire.
     const WIRE_SIZE: usize = 1;
 }
 
-bitflags! {
-    impl ReplyFlags: u8 {
-        /// Indicates the client MUST NOT display user input.
-        const NO_ECHO = 0b00000001;
+impl fmt::Display for ReplyFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            write!(f, "no flags set")
+        } else {
+            for (name, _) in self.iter_names() {
+                write!(f, "{name} ")?;
+            }
+
+            Ok(())
+        }
     }
 }
 
 /// An authentication reply packet received from a server.
-#[derive(Debug, PartialEq, Getters, CopyGetters)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Getters, CopyGetters)]
 pub struct Reply<'packet> {
     /// Gets the status of this authentication exchange, as returned from the server.
     #[getset(get = "pub")]
@@ -379,18 +396,32 @@ impl<'raw> Deserialize<'raw> for Reply<'raw> {
     }
 }
 
-/// Flags to send as part of an authentication continue packet.
-#[derive(Debug)]
-pub struct ContinueFlags(u8);
-
 bitflags! {
-    impl ContinueFlags: u8 {
+    /// Flags to send as part of an authentication continue packet.
+    #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+    #[repr(transparent)]
+    pub struct ContinueFlags: u8 {
         /// Indicates the client is prematurely aborting the authentication session.
         const ABORT = 0b00000001;
     }
 }
 
+impl fmt::Display for ContinueFlags {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            write!(f, "no flags set")
+        } else {
+            for (name, _) in self.iter_names() {
+                write!(f, "{name} ")?;
+            }
+
+            Ok(())
+        }
+    }
+}
+
 /// A continue packet potentially sent as part of an authentication session.
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct Continue<'packet> {
     user_message: Option<&'packet [u8]>,
     data: Option<&'packet [u8]>,
