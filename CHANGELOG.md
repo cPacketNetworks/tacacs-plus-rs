@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Added
 
-- CI tests are also run against [TACACS+ NG], an actively maintained TACACS+ server implementation
+- CI tests are also run against [TACACS+ NG], an actively maintained TACACS+ server implementation (#30)
 
 [TACACS+ NG]: https://projects.pro-bono-publico.de/event-driven-servers/doc/tac_plus-ng.html
 
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Added
 
-- `FieldText::from_string_lossy()` constructor that automatically escapes any non-printable-ASCII characters
+- `FieldText::from_string_lossy()` constructor that automatically escapes any non-printable-ASCII characters (#31)
 
 ## [0.2.2] - 2024-08-20
 
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Fixed
 
-- Argument values are now properly merged between request & response packets, per [RFC8907 section 6.1]
+- Argument values are now properly merged between request & response packets, per [RFC8907 section 6.1] (#27)
 
 [RFC8907 section 6.1]: https://www.rfc-editor.org/rfc/rfc8907.html#section-6.1-18
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Added
 
-- `FromStr` implementation for `FieldText` (std-only)
+- `FromStr` implementation for `FieldText` (std-only) (#26)
 
 ## [0.2.1] - 2024-08-20
 
@@ -85,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Removed
 
-- `ArgumentOwned` type, with the `Argument` type being expanded to fill the same purpose
+- `ArgumentOwned` type, with the `Argument` type being expanded to fill the same purpose (#20)
 - `Copy` implementation for `FieldText`, as it no longer makes sense due to implementation changes
 
 ## [0.1.0] - 2024-08-07
@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - TACACS+ `Client` capable of PAP/CHAP authentication as well as authorization
-- Client tests against the [Shrubbery TACACS+ daemon] for authentication/authorization
+- Client tests against the [Shrubbery TACACS+ daemon] for authentication/authorization (#13)
 
 [Shrubbery TACACS+ daemon]: https://shrubbery.net/tac_plus/
 
