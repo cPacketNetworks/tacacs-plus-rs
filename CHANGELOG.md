@@ -13,8 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - CI tests are also run against [TACACS+ NG], an actively maintained TACACS+ server implementation (#30)
+- `InvalidText` type, for `FieldText` construction errors
 
 [TACACS+ NG]: https://projects.pro-bono-publico.de/event-driven-servers/doc/tac_plus-ng.html
+
+#### Changed
+
+- `FieldText`'s `TryFrom` implementation error types were changed to `InvalidText`
 
 ### tacacs-plus-protocol
 
