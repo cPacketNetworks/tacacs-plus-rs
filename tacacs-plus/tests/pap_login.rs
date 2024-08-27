@@ -24,7 +24,7 @@ async fn pap_success() {
         Some(common::SECRET_KEY),
     );
 
-    let context = ContextBuilder::new("someuser").build();
+    let context = ContextBuilder::new("someuser".to_owned()).build();
 
     let response = tac_client
         .authenticate(context, "hunter2", AuthenticationType::Pap)

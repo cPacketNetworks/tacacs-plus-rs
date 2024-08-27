@@ -33,7 +33,7 @@ async fn authorize_success() {
         .unwrap(),
     ];
 
-    let context = ContextBuilder::new("someuser").build();
+    let context = ContextBuilder::new("someuser".to_owned()).build();
     let response = client
         .authorize(context, arguments)
         .await
@@ -87,7 +87,7 @@ async fn authorize_fail_wrong_argument_value() {
         Argument::new("number".try_into().unwrap(), "3".try_into().unwrap(), true).unwrap(),
     ];
 
-    let context = ContextBuilder::new("someuser").build();
+    let context = ContextBuilder::new("someuser".to_owned()).build();
     let response = client
         .authorize(context, arguments)
         .await
@@ -114,7 +114,7 @@ async fn guest_authorize() {
     )
     .unwrap()];
 
-    let context = ContextBuilder::new("")
+    let context = ContextBuilder::new(String::new())
         .auth_method(AuthenticationMethod::Guest)
         .build();
     let response = client
