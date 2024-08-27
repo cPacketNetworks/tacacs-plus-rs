@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI tests are also run against [TACACS+ NG], an actively maintained TACACS+ server implementation (#30)
 
+#### Changed
+
+- `ContextBuilder` methods now take references instead of consuming the builder (#34)
+- `ContextBuilder::new()` takes a `String` instead of an `&str`
+
 [TACACS+ NG]: https://projects.pro-bono-publico.de/event-driven-servers/doc/tac_plus-ng.html
 
 ### tacacs-plus-protocol
