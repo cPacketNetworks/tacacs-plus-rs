@@ -264,12 +264,16 @@ impl fmt::Display for Version {
 
 impl PartialOrd for Version {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         // compare major versions, then tiebreak with minor versions
-        Some(
-            self.major
-                .cmp(&other.major)
-                .then(self.minor.cmp(&other.minor)),
-        )
+        self.major
+            .cmp(&other.major)
+            .then(self.minor.cmp(&other.minor))
     }
 }
 
