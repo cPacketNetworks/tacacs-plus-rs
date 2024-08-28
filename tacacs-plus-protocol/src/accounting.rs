@@ -198,7 +198,7 @@ pub enum Status {
     Error = 0x02,
 
     /// Forward accounting request to an alternative daemon.
-    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }
 
