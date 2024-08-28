@@ -272,7 +272,7 @@ impl ReplyFlags {
     const WIRE_SIZE: usize = 1;
 }
 
-bitflags_display_impl! { ReplyFlags }
+crate::util::bitflags_display_impl!(ReplyFlags);
 
 /// An authentication reply packet received from a server.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Getters, CopyGetters)]
@@ -390,7 +390,7 @@ bitflags! {
     }
 }
 
-bitflags_display_impl! { ContinueFlags }
+crate::util::bitflags_display_impl!(ContinueFlags);
 
 /// A continue packet potentially sent as part of an authentication session.
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]

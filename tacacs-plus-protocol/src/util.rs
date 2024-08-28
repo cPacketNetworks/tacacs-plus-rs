@@ -24,6 +24,8 @@ macro_rules! bitflags_display_impl {
     };
 }
 
+pub(crate) use bitflags_display_impl;
+
 // testing display implementations without allocation is difficult
 #[cfg(all(test, feature = "std"))]
 mod tests {
