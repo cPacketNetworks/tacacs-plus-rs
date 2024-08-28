@@ -13,6 +13,9 @@ extern crate std;
 
 use core::{fmt, num::TryFromIntError};
 
+#[macro_use]
+mod util;
+
 pub mod accounting;
 pub mod authentication;
 pub mod authorization;

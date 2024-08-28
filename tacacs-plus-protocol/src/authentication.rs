@@ -271,19 +271,7 @@ impl ReplyFlags {
     const WIRE_SIZE: usize = 1;
 }
 
-impl fmt::Display for ReplyFlags {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_empty() {
-            write!(f, "no flags set")
-        } else {
-            for (name, _) in self.iter_names() {
-                write!(f, "{name} ")?;
-            }
-
-            Ok(())
-        }
-    }
-}
+bitflags_display_impl! { ReplyFlags }
 
 /// An authentication reply packet received from a server.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Getters, CopyGetters)]
@@ -401,19 +389,7 @@ bitflags! {
     }
 }
 
-impl fmt::Display for ContinueFlags {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.is_empty() {
-            write!(f, "no flags set")
-        } else {
-            for (name, _) in self.iter_names() {
-                write!(f, "{name} ")?;
-            }
-
-            Ok(())
-        }
-    }
-}
+bitflags_display_impl! { ContinueFlags }
 
 /// A continue packet potentially sent as part of an authentication session.
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
