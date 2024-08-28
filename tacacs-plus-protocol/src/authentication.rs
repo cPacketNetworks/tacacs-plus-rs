@@ -36,7 +36,10 @@ pub enum Action {
     ChangePassword = 0x02,
 
     /// Outbound authentication request.
-    #[deprecated = "Outbound authentication should not be used due to its security implications, according to RFC-8907."]
+    ///
+    /// Note that outbound authentication should not be used due to its security implications, according to [RFC8907 section 10.5.3].
+    ///
+    /// [RFC8907 section 10.5.3]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.3-4
     SendAuth = 0x04,
 }
 
@@ -161,8 +164,6 @@ impl<'packet> Start<'packet> {
             (AuthenticationType::Ascii, Action::Login | Action::ChangePassword) => true,
 
             // ASCII authentication can't be used with sendauth option
-            // (also marked as deprecated but we allow this internally)
-            #[allow(deprecated)]
             (AuthenticationType::Ascii, Action::SendAuth) => false,
 
             // change password is not valid for any other authentication types

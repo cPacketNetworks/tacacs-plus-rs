@@ -225,7 +225,7 @@ impl fmt::Display for MinorVersion {
             f,
             "{}",
             match self {
-                Self::Default => "default (0)",
+                Self::Default => "default",
                 Self::V1 => "1",
             }
         )
