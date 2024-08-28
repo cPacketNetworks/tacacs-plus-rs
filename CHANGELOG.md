@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - CI tests are also run against [TACACS+ NG], an actively maintained TACACS+ server implementation (#30)
-- `InvalidText` type, for `FieldText` construction errors
 
 #### Changed
 
@@ -22,15 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [TACACS+ NG]: https://projects.pro-bono-publico.de/event-driven-servers/doc/tac_plus-ng.html
 
-#### Changed
-
-- `FieldText`'s `TryFrom` & `FromStr` implementation error types were changed to `InvalidText`
-
 ### tacacs-plus-protocol
 
 #### Added
 
 - `FieldText::from_string_lossy()` constructor that automatically escapes any non-printable-ASCII characters (#31)
+- `InvalidText` type, for `FieldText` construction errors
+
+#### Changed
+
+- `FieldText`'s `TryFrom` & `FromStr` implementation error types were changed to `InvalidText` (#35)
 
 ## [0.2.2] - 2024-08-20
 
