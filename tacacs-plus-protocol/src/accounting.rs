@@ -198,10 +198,7 @@ pub enum Status {
     Error = 0x02,
 
     /// Forward accounting request to an alternative daemon.
-    ///
-    /// Note that the forwarding mechanism was deprecated in [RFC8907].
-    ///
-    /// [RFC8907]: https://www.rfc-editor.org/rfc/rfc8907.html#section-1-5.3
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
 }
 
@@ -218,6 +215,7 @@ impl fmt::Display for Status {
             match self {
                 Self::Success => "success",
                 Self::Error => "error",
+                #[allow(deprecated)]
                 Self::Follow => "follow",
             }
         )

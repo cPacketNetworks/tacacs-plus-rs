@@ -36,10 +36,7 @@ pub enum Action {
     ChangePassword = 0x02,
 
     /// Outbound authentication request.
-    ///
-    /// Note that outbound authentication should not be used due to its security implications, according to [RFC8907 section 10.5.3].
-    ///
-    /// [RFC8907 section 10.5.3]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.3-4
+    #[deprecated = "Outbound authentication should not be used due to its security implications, according to RFC-8907."]
     SendAuth = 0x04,
 }
 
@@ -74,11 +71,7 @@ pub enum Status {
     Error = 0x07,
 
     /// Forward authentication request to an alternative daemon.
-    ///
-    /// Note that [RFC8907 section 10.5.5] deprecated this status, saying that it SHOULD
-    /// be treated as an authentication failure.
-    ///
-    /// [RFC8907 section 10.5.5]: https://www.rfc-editor.org/rfc/rfc8907.html#section-10.5.5-1
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC-8907."]
     Follow = 0x21,
 }
 
@@ -168,6 +161,8 @@ impl<'packet> Start<'packet> {
             (AuthenticationType::Ascii, Action::Login | Action::ChangePassword) => true,
 
             // ASCII authentication can't be used with sendauth option
+            // (also marked as deprecated but we allow this internally)
+            #[allow(deprecated)]
             (AuthenticationType::Ascii, Action::SendAuth) => false,
 
             // change password is not valid for any other authentication types

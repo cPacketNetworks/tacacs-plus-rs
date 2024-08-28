@@ -132,11 +132,7 @@ pub enum Status {
     Error = 0x11,
 
     /// Forward authorization request to an alternative daemon.
-    ///
-    /// Note that redirection was deprecated in [RFC8907 (section 10.5.5)], and SHOULD
-    /// be deprecated by clients.
-    ///
-    /// [RFC8907 (section 10.5.5)]: https://www.rfc-editor.org/rfc/rfc8907.html#name-redirection-mechanism
+    #[deprecated = "Forwarding to an alternative daemon was deprecated in RFC 8907."]
     Follow = 0x21,
 }
 
@@ -155,6 +151,7 @@ impl fmt::Display for Status {
                 Self::PassReplace => "pass, arguments replaced",
                 Self::Fail => "fail",
                 Self::Error => "server-side error",
+                #[allow(deprecated)]
                 Self::Follow => "redirect to alternative daemon",
             }
         )
