@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Changed
 
-- `FieldText`'s `TryFrom` implementation error types were changed to `InvalidText`
+- `FieldText`'s `TryFrom` & `FromStr` implementation error types were changed to `InvalidText`
 
 ### tacacs-plus-protocol
 
