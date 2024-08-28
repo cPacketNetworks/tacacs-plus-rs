@@ -28,17 +28,8 @@ pub struct Argument<'data> {
 
 impl fmt::Display for Argument<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} = {} ({})",
-            self.name,
-            self.value,
-            if self.mandatory {
-                "mandatory"
-            } else {
-                "optional"
-            }
-        )
+        // just write as encoded form (name + delimiter + value)
+        write!(f, "{}{}{}", self.name, self.delimiter(), self.value)
     }
 }
 
@@ -150,11 +141,7 @@ impl<'data> Argument<'data> {
             buffer[..delimiter_index].copy_from_slice(self.name.as_bytes());
 
             // choose delimiter based on whether argument is required
-            buffer[delimiter_index] = if self.mandatory {
-                Self::MANDATORY_DELIMITER
-            } else {
-                Self::OPTIONAL_DELIMITER
-            } as u8;
+            buffer[delimiter_index] = self.delimiter() as u8;
 
             // value goes just after delimiter
             buffer[delimiter_index + 1..encoded_len].copy_from_slice(self.value.as_bytes());
@@ -162,6 +149,16 @@ impl<'data> Argument<'data> {
             Ok(encoded_len)
         } else {
             Err(SerializeError::NotEnoughSpace)
+        }
+    }
+
+    /// Returns the delimiter that will be used for this argument when it's encoded on the wire,
+    /// based on whether it's mandatory or not.
+    fn delimiter(&self) -> char {
+        if self.mandatory {
+            Self::MANDATORY_DELIMITER
+        } else {
+            Self::OPTIONAL_DELIMITER
         }
     }
 
