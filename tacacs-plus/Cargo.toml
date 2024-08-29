@@ -1,6 +1,6 @@
 [package]
 name = "tacacs-plus"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 
 [features]
@@ -10,7 +10,7 @@ docsrs = []
 futures = "0.3.30"
 rand = "0.8.5"
 thiserror = "1.0.63"
-tacacs-plus-protocol = { version = "0.2.2", path = "../tacacs-plus-protocol" }
+tacacs-plus-protocol = { version = "0.3.0", path = "../tacacs-plus-protocol" }
 byteorder = "1.5.0"
 md-5 = "0.10.6"
 uuid = { version = "1.10.0", features = ["v4"] }
