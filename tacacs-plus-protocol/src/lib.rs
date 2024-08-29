@@ -31,7 +31,7 @@ mod fields;
 pub use fields::*;
 
 mod text;
-pub use text::FieldText;
+pub use text::{FieldText, InvalidText};
 
 #[cfg(feature = "std")]
 mod owned;
@@ -151,7 +151,9 @@ impl fmt::Display for DeserializeError {
 #[cfg(feature = "std")]
 mod error_impls {
     use std::error::Error;
+    use std::fmt;
 
+    use super::text::InvalidText;
     use super::{DeserializeError, InvalidArgument, SerializeError};
 
     impl Error for DeserializeError {}
@@ -159,6 +161,7 @@ mod error_impls {
     impl Error for InvalidArgument {}
     impl Error for super::authentication::BadStart {}
     impl Error for super::authentication::DataTooLong {}
+    impl<T> Error for InvalidText<T> where InvalidText<T>: fmt::Debug + fmt::Display {}
 }
 
 // suggestion from Rust API guidelines: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed

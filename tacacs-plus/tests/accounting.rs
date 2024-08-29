@@ -22,7 +22,7 @@ async fn account_start_update_stop() {
         Some(common::SECRET_KEY),
     );
 
-    let context = ContextBuilder::new("account").build();
+    let context = ContextBuilder::new("account".to_owned()).build();
     let start_arguments = vec![Argument::new(
         FieldText::try_from("custom").unwrap(),
         FieldText::try_from("something").unwrap(),

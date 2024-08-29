@@ -146,14 +146,50 @@ impl AsRef<str> for FieldText<'_> {
     }
 }
 
+/// The error type returned by the [`TryFrom`] implementations for [`FieldText`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub struct InvalidText<T>(T);
+
+impl<T> InvalidText<T> {
+    /// Returns a reference to the contained invalid argument.
+    pub fn inner(&self) -> &T {
+        &self.0
+    }
+
+    /// Consumes this [`InvalidText`] object and takes ownership of the inner value.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
+
+impl fmt::Display for InvalidText<&str> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "string was not printable ASCII: {}", self.0)
+    }
+}
+
+impl fmt::Display for InvalidText<&[u8]> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "bytes were not printable ASCII: {:?}", self.0)
+    }
+}
+
+#[cfg(feature = "std")]
+impl fmt::Display for InvalidText<std::string::String> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "string was not printable ASCII: {}", self.0)
+    }
+}
+
 impl<'string> TryFrom<&'string str> for FieldText<'string> {
-    type Error = &'string str;
+    type Error = InvalidText<&'string str>;
 
     fn try_from(value: &'string str) -> Result<Self, Self::Error> {
         if is_printable_ascii(value) {
             Ok(Self(FieldTextInner::Borrowed(value)))
         } else {
-            Err(value)
+            Err(InvalidText(value))
         }
     }
 }
@@ -161,7 +197,7 @@ impl<'string> TryFrom<&'string str> for FieldText<'string> {
 // std-gated since we can't keep a reference to the &str internally without a lifetime parameter on FromStr
 #[cfg(feature = "std")]
 impl std::str::FromStr for FieldText<'static> {
-    type Err = std::string::String;
+    type Err = InvalidText<std::string::String>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use std::borrow::ToOwned;
@@ -170,27 +206,27 @@ impl std::str::FromStr for FieldText<'static> {
 }
 
 impl<'bytes> TryFrom<&'bytes [u8]> for FieldText<'bytes> {
-    type Error = &'bytes [u8];
+    type Error = InvalidText<&'bytes [u8]>;
 
     fn try_from(value: &'bytes [u8]) -> Result<Self, Self::Error> {
         if let Ok(value_str) = core::str::from_utf8(value) {
             // defer to TryFrom<&str> impl for ASCII check consistency
-            value_str.try_into().map_err(str::as_bytes)
+            value_str.try_into().map_err(|_| InvalidText(value))
         } else {
-            Err(value)
+            Err(InvalidText(value))
         }
     }
 }
 
 #[cfg(feature = "std")]
 impl TryFrom<std::string::String> for FieldText<'_> {
-    type Error = std::string::String;
+    type Error = InvalidText<std::string::String>;
 
     fn try_from(value: std::string::String) -> Result<Self, Self::Error> {
         if is_printable_ascii(&value) {
             Ok(Self(FieldTextInner::Owned(value)))
         } else {
-            Err(value)
+            Err(InvalidText(value))
         }
     }
 }

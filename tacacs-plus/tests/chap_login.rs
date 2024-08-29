@@ -14,7 +14,7 @@ async fn chap_success() {
         Box::new(move || async_std::net::TcpStream::connect(address.clone()).boxed());
     let client = Client::new(factory, Some(common::SECRET_KEY));
 
-    let context = ContextBuilder::new("someuser").build();
+    let context = ContextBuilder::new("someuser".to_owned()).build();
     let response = client
         .authenticate(context, "something different", AuthenticationType::Chap)
         .await
@@ -34,7 +34,7 @@ async fn chap_failure() {
         Box::new(move || async_net::TcpStream::connect(address.clone()).boxed());
     let client = Client::new(factory, Some(common::SECRET_KEY));
 
-    let context = ContextBuilder::new("paponly").build();
+    let context = ContextBuilder::new("paponly".to_owned()).build();
     let response = client
         .authenticate(context, "pass-word", AuthenticationType::Chap)
         .await
@@ -60,7 +60,7 @@ async fn key_unconfigured() {
     // the type has to be annotated somewhere for generic reasons, since a bare None is ambiguous
     let client = Client::new(factory, None::<&[u8]>);
 
-    let context = ContextBuilder::new("someuser").build();
+    let context = ContextBuilder::new("someuser".to_owned()).build();
     let error = client
         .authenticate(context, "something different", AuthenticationType::Chap)
         .await
