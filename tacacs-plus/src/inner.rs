@@ -135,7 +135,6 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
 
         // poll reading from connection; a ready result indicates something is probably wrong
         if let Poll::Ready(result) = poll!(connection.read(&mut buf)) {
-            println!("ready");
             match result {
                 // EOF -> refresh connection (probably closed on other end)
                 Ok(0) => self.post_session_cleanup(true).await,
