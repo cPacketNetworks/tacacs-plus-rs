@@ -4,8 +4,8 @@ Rust implementation of the TACACS+ ([RFC8907](https://www.rfc-editor.org/rfc/rfc
 
 ## Crates
 
-`tacacs-plus-protocol`: Library with only the struct protocol definitions for the wire format of TACACS+ messages 
-`tacacs-plus`: Library for performing actual message exchange with a TACACS+ Server, including message validation
+`tacacs-plus-protocol`: Library with the struct protocol definitions for the wire format of TACACS+ packets, as well as means to (de)serialize them. (optionally no-std & no-alloc)
+`tacacs-plus`: Async and runtime-agnostic library for performing message exchanges with a TACACS+ server.
 
 ## Contributing
 
