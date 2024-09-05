@@ -114,6 +114,7 @@ id = tac_plus-ng {
     device everything {
         key = "very secure key that is super secret"
         address = 0.0.0.0/0
+        single-connection = yes
 
         script { rewrite user = emptyGuest }
     }

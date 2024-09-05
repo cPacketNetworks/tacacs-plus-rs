@@ -4,8 +4,10 @@ use std::fmt;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
+use std::task::Poll;
 
 use byteorder::{ByteOrder, NetworkEndian};
+use futures::poll;
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tacacs_plus_protocol::{Deserialize, PacketBody, Serialize};
 use tacacs_plus_protocol::{HeaderInfo, Packet, PacketFlags};
@@ -119,8 +121,47 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         Ok(conn)
     }
 
-    /// Writes a packet to the underlying connection.
+    /// Writes a packet to the underlying connection, reconnecting if necessary.
     pub(super) async fn send_packet<B: PacketBody + Serialize>(
+        &mut self,
+        packet: Packet<B>,
+        secret_key: Option<&[u8]>,
+    ) -> Result<(), ClientError> {
+        let connection = self.connection().await?;
+
+        // use a nonzero-length buffer to actually catch an EOF (zero-length might lead to 0
+        // being returned from read unconditionally)
+        let mut buf = [0u8; 1];
+
+        // poll reading from connection; a ready result indicates something is probably wrong
+        if let Poll::Ready(result) = poll!(connection.read(&mut buf)) {
+            println!("ready");
+            match result {
+                // EOF -> refresh connection (probably closed on other end)
+                Ok(0) => self.post_session_cleanup(true).await,
+
+                Err(err) => match err.kind() {
+                    // also refresh connection if connection was closed, as indicated by an error
+                    // BrokenPipe seems to be Linux-specific (?), ConnectionReset is more general though
+                    // (checked TCP & read(2) man pages for MacOS/FreeBSD/Linux)
+                    io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe => {
+                        self.post_session_cleanup(true).await
+                    }
+                    _ => Err(err),
+                },
+
+                // this case theoretically shouldn't happen?
+                // we can't read_to_end() in case no EOF happens on a connection, so failure gets punted
+                // down the line to when a packet is received
+                Ok(_) => Ok(()),
+            }?
+        }
+
+        self._send_packet(packet, secret_key).await
+    }
+
+    /// Writes a packet to the underlying connection.
+    async fn _send_packet<B: PacketBody + Serialize>(
         &mut self,
         packet: Packet<B>,
         secret_key: Option<&[u8]>,
@@ -195,7 +236,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
     pub(super) async fn post_session_cleanup(&mut self, status_is_error: bool) -> io::Result<()> {
         // close session if server doesn't agree to SINGLE_CONNECTION negotiation, or if an error occurred (since a mutex guarantees only one session is going at a time)
         if !self.single_connection_established || status_is_error {
-            // SAFETY: ensure_connection should be called before this function, and guarantees inner.connection is non-None
+            // SAFETY: connection() should be called before this function, and guarantees inner.connection is non-None
             let mut connection = self.connection.take().unwrap();
             connection.close().await?;
 

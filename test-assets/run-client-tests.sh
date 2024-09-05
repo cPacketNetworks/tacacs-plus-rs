@@ -32,7 +32,7 @@ test_against_server_image() {
     echo "Running server container in background"
     $docker run --rm --detach --publish 5555:5555 --name tacacs-server "$image" >/dev/null
 
-    # run all integration tests against server
+    # run integration tests against server
     echo "Running tests..."
     cargo test --package tacacs-plus --test '*' --no-fail-fast
 
@@ -45,6 +45,19 @@ test_against_server_image() {
         cat $TMPDIR/accounting.log
         return 1
     fi
+
+    # test reconnection by restarting server mid test-run
+    cargo test --package tacacs-plus --test pap_login connection_reestablishment -- --ignored &
+    RESTART_TEST_PID=$!
+
+    # let first part of test complete
+    sleep 1
+
+    echo "restarting server container for reconnection test"
+    $docker restart tacacs-server >/dev/null
+
+    # wait for reconnection test to finish
+    wait $RESTART_TEST_PID
 }
 
 trap "stop_running_containers" EXIT
