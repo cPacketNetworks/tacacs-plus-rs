@@ -14,6 +14,9 @@ use tacacs_plus_protocol::{HeaderInfo, Packet, PacketFlags};
 
 use super::ClientError;
 
+#[cfg(test)]
+mod tests;
+
 /// A (pinned, boxed) future that returns a client connection or an error, as returned from a [`ConnectionFactory`].
 ///
 /// This is roughly equivalent to the [`BoxFuture`](futures::future::BoxFuture) type in the `futures` crate, but without
@@ -244,6 +247,7 @@ async fn is_connection_open<C>(connection: &mut C) -> io::Result<bool>
 where
     C: AsyncRead + Unpin,
 {
+    // read into a 1-byte buffer, since a 0-byte buffer might return 0 besides just on EOF
     let mut buffer = [0];
 
     // poll the read future exactly once to see if anything is ready immediately
@@ -273,101 +277,5 @@ where
 
         // nothing ready to read -> connection is still open
         Poll::Pending => Ok(true),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use futures::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::{TcpListener, TcpStream};
-    use tokio::sync::Notify;
-    use tokio_util::compat::TokioAsyncReadCompatExt;
-
-    use super::is_connection_open;
-
-    fn get_test_address() -> String {
-        std::env::var("TCP_TEST_ADDR").unwrap_or(String::from("localhost:9999"))
-    }
-
-    async fn bind_to_test_address() -> TcpListener {
-        let address = get_test_address();
-
-        TcpListener::bind(&address)
-            .await
-            .unwrap_or_else(|err| panic!("failed to bind to address {address}: {err:?}"))
-    }
-
-    #[tokio::test]
-    async fn connection_open_check() {
-        let notify = Arc::new(Notify::new());
-        let listener_notify = notify.clone();
-
-        tokio::spawn(async move {
-            let listener = bind_to_test_address().await;
-            listener_notify.notify_one();
-
-            let (stream, _) = listener
-                .accept()
-                .await
-                .expect("failed to accept connection");
-
-            let mut stream = stream.compat();
-            let mut buf = [0];
-            stream.read(&mut buf).await
-        });
-
-        // wait for server to bind to address
-        notify.notified().await;
-
-        let client = TcpStream::connect(get_test_address())
-            .await
-            .expect("couldn't connect to test listener");
-        let mut client = client.compat();
-
-        let is_open = is_connection_open(&mut client)
-            .await
-            .expect("couldn't check if connection was open");
-        assert!(is_open);
-    }
-
-    #[tokio::test]
-    async fn connection_closed_check() {
-        let notify = Arc::new(Notify::new());
-        let listener_notify = notify.clone();
-
-        tokio::spawn(async move {
-            let listener = bind_to_test_address().await;
-            listener_notify.notify_one();
-
-            let (stream, _) = listener
-                .accept()
-                .await
-                .expect("failed to accept connection");
-
-            let mut stream = stream.compat();
-
-            // close connection & notify main test task
-            stream.close().await.unwrap();
-            listener_notify.notify_one();
-        });
-
-        // wait for server to bind to address
-        notify.notified().await;
-
-        let client = TcpStream::connect(get_test_address())
-            .await
-            .expect("couldn't connect to test listener");
-        let mut client = client.compat();
-
-        // let server close connection
-        notify.notified().await;
-
-        // ensure connection is detected as closed
-        let is_open = is_connection_open(&mut client)
-            .await
-            .expect("couldn't check if connection was open");
-        assert!(!is_open);
     }
 }
