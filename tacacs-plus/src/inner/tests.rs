@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::{AsyncReadExt, AsyncWriteExt};
+use futures::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Notify;
 use tokio_util::compat::TokioAsyncReadCompatExt;
@@ -23,19 +23,13 @@ async fn connection_open_check() {
         let listener = bind_to_port(9999).await;
         listener_notify.notify_one();
 
-        let (stream, _) = listener
+        let (_stream, _) = listener
             .accept()
             .await
             .expect("failed to accept connection");
 
-        let mut stream = stream.compat();
-
-        // this read keeps the stream open for the rest of the test, since
-        // the client never writes anything
-        // without some sort of waiting the stream would get dropped and closed,
-        // which would make the test fail
-        let mut buf = [0];
-        stream.read(&mut buf).await
+        // this is done to keep the stream open for the rest of the test
+        listener_notify.notified().await;
     });
 
     // wait for server to bind to address
@@ -50,6 +44,8 @@ async fn connection_open_check() {
         .await
         .expect("couldn't check if connection was open");
     assert!(is_open);
+
+    notify.notify_one();
 }
 
 #[tokio::test]
