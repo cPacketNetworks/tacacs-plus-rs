@@ -49,8 +49,13 @@ async fn connection_reestablishment() {
     let password = "pass-word";
     attempt_pap_login(&client, user.clone(), password).await;
 
-    // sleep for a bit to allow server to restart
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // restart server container
+    if let Ok(container_name) = std::env::var("SERVER_CONTAINER") {
+        restart_server_container(container_name).await;
+    }
+
+    // sleep for a bit to allow server time to start back up
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     // try logging in after server restart to ensure connection is reestablished
     attempt_pap_login(&client, user, password).await;
@@ -68,4 +73,17 @@ async fn attempt_pap_login(client: &Client, user: String, password: &str) {
         ResponseStatus::Success,
         "authentication failed, full response: {response:?}"
     );
+}
+
+async fn restart_server_container(name: String) {
+    let docker_command = std::env::var("docker").unwrap_or_else(|_| "docker".to_owned());
+
+    let status = tokio::process::Command::new(docker_command)
+        .args(["restart", &name])
+        .stdout(std::process::Stdio::null())
+        .status()
+        .await
+        .expect("couldn't get exit status of server container restart command");
+
+    assert!(status.success(), "bad exit status: {status}");
 }
