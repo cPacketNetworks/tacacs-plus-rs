@@ -127,35 +127,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         packet: Packet<B>,
         secret_key: Option<&[u8]>,
     ) -> Result<(), ClientError> {
+        // check if other end closed our connection, and reopen it accordingly
         let connection = self.connection().await?;
-
-        // use a nonzero-length buffer to actually catch an EOF (zero-length might lead to 0
-        // being returned from read unconditionally)
-        let mut buf = [0u8; 1];
-
-        // poll reading from connection; a ready result indicates something is probably wrong
-        if let Poll::Ready(result) = poll!(connection.read(&mut buf)) {
-            match result {
-                // EOF -> refresh connection (probably closed on other end)
-                Ok(0) => self.post_session_cleanup(true).await,
-
-                Err(err) => match err.kind() {
-                    // also refresh connection if connection was closed, as indicated by an error
-                    // BrokenPipe seems to be Linux-specific (?), ConnectionReset is more general though
-                    // (checked TCP & read(2) man pages for MacOS/FreeBSD/Linux)
-                    io::ErrorKind::ConnectionReset | io::ErrorKind::BrokenPipe => {
-                        self.post_session_cleanup(true).await
-                    }
-                    _ => Err(err),
-                },
-
-                // this case theoretically shouldn't happen?
-                // we can't read_to_end() in case no EOF happens on a connection, so failure gets punted
-                // down the line to when a packet is received
-                Ok(_) => Ok(()),
-            }?
+        if !is_connection_open(connection).await? {
+            self.post_session_cleanup(true).await?;
         }
 
+        // send the packet after ensuring the connection is valid (or dropping
+        // it if it's invalid)
         self._send_packet(packet, secret_key).await
     }
 
@@ -250,5 +229,145 @@ impl<S: AsyncRead + AsyncWrite + Unpin> ClientInner<S> {
         }
 
         Ok(())
+    }
+}
+
+/// Checks if the provided connection is still open on both sides.
+///
+/// This is accomplished by attempting to read a single byte from the connection
+/// and checking for an EOF condition or specific errors (broken pipe/connection reset).
+///
+/// This might be overkill, but during testing I encountered a case where a write succeeded
+/// and a subsequent read hung due to the connection being closed on the other side, so
+/// avoiding that is preferable.
+async fn is_connection_open<C>(connection: &mut C) -> io::Result<bool>
+where
+    C: AsyncRead + Unpin,
+{
+    let mut buffer = [0];
+
+    // poll the read future exactly once to see if anything is ready immediately
+    match poll!(connection.read(&mut buffer)) {
+        // something ready on first poll likely indicates something wrong, since we aren't
+        // expecting any data to actually be ready
+        Poll::Ready(ready) => match ready {
+            // read of length 0 indicates an EOF, which happens when the other side closes a TCP connection
+            Ok(0) => Ok(false),
+
+            Err(e) => match e.kind() {
+                // these errors indicate that the connection is closed, which is the exact
+                // situation we're trying to recover from
+                //
+                // BrokenPipe seems to be Linux-specific (?), ConnectionReset is more general though
+                // (checked TCP & read(2) man pages for MacOS/FreeBSD/Linux)
+                io::ErrorKind::BrokenPipe | io::ErrorKind::ConnectionReset => Ok(false),
+
+                // bubble up any other errors to the caller
+                _ => Err(e),
+            },
+
+            // if there's data still available, the connection is still open, although
+            // this shouldn't happen in the context of TACACS+
+            Ok(1..) => Ok(true),
+        },
+
+        // nothing ready to read -> connection is still open
+        Poll::Pending => Ok(true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use futures::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::{TcpListener, TcpStream};
+    use tokio::sync::Notify;
+    use tokio_util::compat::TokioAsyncReadCompatExt;
+
+    use super::is_connection_open;
+
+    fn get_test_address() -> String {
+        std::env::var("TCP_TEST_ADDR").unwrap_or(String::from("localhost:9999"))
+    }
+
+    async fn bind_to_test_address() -> TcpListener {
+        let address = get_test_address();
+
+        TcpListener::bind(&address)
+            .await
+            .unwrap_or_else(|err| panic!("failed to bind to address {address}: {err:?}"))
+    }
+
+    #[tokio::test]
+    async fn connection_open_check() {
+        let notify = Arc::new(Notify::new());
+        let listener_notify = notify.clone();
+
+        tokio::spawn(async move {
+            let listener = bind_to_test_address().await;
+            listener_notify.notify_one();
+
+            let (stream, _) = listener
+                .accept()
+                .await
+                .expect("failed to accept connection");
+
+            let mut stream = stream.compat();
+            let mut buf = [0];
+            stream.read(&mut buf).await
+        });
+
+        // wait for server to bind to address
+        notify.notified().await;
+
+        let client = TcpStream::connect(get_test_address())
+            .await
+            .expect("couldn't connect to test listener");
+        let mut client = client.compat();
+
+        let is_open = is_connection_open(&mut client)
+            .await
+            .expect("couldn't check if connection was open");
+        assert!(is_open);
+    }
+
+    #[tokio::test]
+    async fn connection_closed_check() {
+        let notify = Arc::new(Notify::new());
+        let listener_notify = notify.clone();
+
+        tokio::spawn(async move {
+            let listener = bind_to_test_address().await;
+            listener_notify.notify_one();
+
+            let (stream, _) = listener
+                .accept()
+                .await
+                .expect("failed to accept connection");
+
+            let mut stream = stream.compat();
+
+            // close connection & notify main test task
+            stream.close().await.unwrap();
+            listener_notify.notify_one();
+        });
+
+        // wait for server to bind to address
+        notify.notified().await;
+
+        let client = TcpStream::connect(get_test_address())
+            .await
+            .expect("couldn't connect to test listener");
+        let mut client = client.compat();
+
+        // let server close connection
+        notify.notified().await;
+
+        // ensure connection is detected as closed
+        let is_open = is_connection_open(&mut client)
+            .await
+            .expect("couldn't check if connection was open");
+        assert!(!is_open);
     }
 }
