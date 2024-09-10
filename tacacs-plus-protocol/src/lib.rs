@@ -3,10 +3,12 @@
 //! Serialization & deserialization of (RFC8907) TACACS+ protocol packets.
 
 #![no_std]
-#![cfg_attr(feature = "docsrs", feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 #![warn(clippy::cast_lossless)]
 #![warn(clippy::cast_possible_truncation)]
+
+// show std badge on feature-gated types/etc. on docs.rs (see also Cargo.toml)
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "std")]
 extern crate std;

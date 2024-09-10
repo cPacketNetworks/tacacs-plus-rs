@@ -1,10 +1,14 @@
 [package]
 name = "tacacs-plus"
 version = "0.3.0"
+authors = ["Zane Othman <zothman@cpacketnetworks.com>"]
 edition = "2021"
+description = "An asynchronous, runtime-independent RFC8907 TACACS+ client"
+repository = "https://github.com/cPacketNetworks/tacacs-plus-rs"
+license = "MPL-2.0"
 
-[features]
-docsrs = []
+keywords = ["tacacs", "tacacs+", "rfc8907", "client", "aaa"]
+categories = ["network-programming", "asynchronous", "authentication"]
 
 [dependencies]
 futures = "0.3.30"

@@ -2,7 +2,6 @@
 //!
 //! Rust client implementation for the TACACS+ ([RFC8907](https://www.rfc-editor.org/rfc/rfc8907)) protocol.
 
-#![cfg_attr(feature = "docsrs", feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 
 use std::fmt;

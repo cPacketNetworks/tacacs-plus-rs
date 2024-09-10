@@ -10,9 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### tacacs-plus
 
+#### Removed
+
+- `docsrs` feature, as it was unused
+
 #### Fixed
 
 - `Client` connections are now properly reestablished when closed at the other end ([#39](https://github.com/cPacketNetworks/tacacs-plus-rs/pull/39))
+
+### tacacs-plus-protocol
+
+#### Removed
+
+- `docsrs` feature, in favor of a `--cfg` when building docs on docs.rs
 
 ## [0.3.0] - 2024-08-29
 

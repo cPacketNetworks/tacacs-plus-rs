@@ -1,14 +1,27 @@
 [package]
 name = "tacacs-plus-protocol"
 version = "0.3.0"
+authors = ["Zane Othman <zothman@cpacketnetworks.com>"]
 edition = "2021"
+description = "no-std/no-alloc TACACS+ (RFC8907) protocol packet de/serialization"
+repository = "https://github.com/cPacketNetworks/tacacs-plus-rs"
+license = "MPL-2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+keywords = ["tacacs", "tacacs+", "rfc8907", "aaa"]
+categories = [
+    "network-programming",
+    "no-std::no-alloc",
+    "authentication",
+    "parser-implementations",
+]
+
+# show badges for std-only types/etc.
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["std"]
 std = ["byteorder/std", "num_enum/std", "md-5/std"]
-docsrs = []
 
 [dependencies]
 bitflags = { version = "2.4.2" }
