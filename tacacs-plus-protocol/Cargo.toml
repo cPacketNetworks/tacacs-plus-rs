@@ -6,6 +6,7 @@ edition = "2021"
 description = "no-std/no-alloc TACACS+ (RFC8907) protocol packet de/serialization"
 repository = "https://github.com/cPacketNetworks/tacacs-plus-rs"
 license = "MPL-2.0"
+rust-version = "1.70"
 
 keywords = ["tacacs", "tacacs+", "rfc8907", "aaa"]
 categories = [
