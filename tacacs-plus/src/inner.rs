@@ -272,7 +272,7 @@ where
 
             // if there's data still available, the connection is still open, although
             // this shouldn't happen in the context of TACACS+
-            Ok(1..) => Ok(true),
+            Ok(_) => Ok(true),
         },
 
         // nothing ready to read -> connection is still open
