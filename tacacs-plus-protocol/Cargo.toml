@@ -1,6 +1,6 @@
 [package]
 name = "tacacs-plus-protocol"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Zane Othman <zothman@cpacketnetworks.com>"]
 edition = "2021"
 description = "no-std/no-alloc TACACS+ (RFC8907) protocol packet de/serialization"
