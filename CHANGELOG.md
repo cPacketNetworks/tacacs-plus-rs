@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no changes yet)
+### tacacs-plus
+
+#### Fixed
+
+- Use `_` instead of range pattern to prevent breakage on older Rust versions (<=1.74)
 
 ## [0.3.1] - 2024-09-11
 
