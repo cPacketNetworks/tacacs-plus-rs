@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 (no changes yet)
 
-## [0.3.2] - 2024-09-11
+## [0.3.2] - 2024-09-12
 
 ### tacacs-plus
 
