@@ -48,3 +48,17 @@ struct RequestContext<'request> {}
 [DCO]: https://developercertificate.org/
 [RFC-2119]: https://datatracker.ietf.org/doc/html/rfc2119
 [Rust Style Guide]: https://doc.rust-lang.org/stable/style-guide/index.html
+
+## New Versions
+
+### Versioning
+
+Strict SemVer is followed. The version is defined in the `Cargo.toml` files.
+Both crates are versioned together.
+
+### Publishing
+
+* Submit a PR with updated version numbers (`tacamcs-plus/Cargo.toml` and `tacacs-plus-protocol/Cargo.toml`) and updated `CHANGELOG.md`
+* Once the PR is merged, create a new release on GitHub with the same version number (with the tag prefixed with a `v`).
+* Make sure you've logged in to cargo with `cargo login`.
+* Run `cargo publish` in the root to publish both crates.
